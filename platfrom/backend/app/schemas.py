@@ -13,29 +13,30 @@ class UserLogin(BaseModel):
     email: str
     password: str
 
-# Схема для создания задания
-class TaskCreate(BaseModel):
+# Схема для создания урока
+class LessonCreate(BaseModel):
     name: str
     description: str
     videoLink: Optional[str] = None
     text: str
     date: datetime
+    files: Optional[List[str]] = []  # Если файлы тоже требуются
 
-# Схема для отображения задания (ответ от сервера)
-class TaskResponse(BaseModel):
+# Схема для отображения урока (ответ от сервера)
+class LessonResponse(BaseModel):
     id: int
     name: str
     description: str
-    videoLink: Optional[str]
+    videoLink: Optional[str] = None
     text: str
-    files: List[str]  # Список файлов
     date: datetime
+    files: List[str] = []
 
     class Config:
         orm_mode = True
 
 class HomeworkCreate(BaseModel):
-    task_id: int  # ID задания, к которому привязана домашка
+    lesson_id: int  # ID урока, к которому привязана домашка
     description: str
     text: str
     files: Optional[List[str]] = []  # Пути к файлам
@@ -43,7 +44,7 @@ class HomeworkCreate(BaseModel):
 
 class HomeworkResponse(BaseModel):
     id: int
-    task_id: int
+    lesson_id: int
     description: str
     text: str
     date: datetime
@@ -51,3 +52,4 @@ class HomeworkResponse(BaseModel):
 
     class Config:
         orm_mode = True
+

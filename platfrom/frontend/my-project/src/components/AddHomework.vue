@@ -1,10 +1,10 @@
 <template>
-  <div class="add-task-page">
+  <div class="add-homework-page">
     <div class="container">
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
 
-      <!-- Основной контент для редактирования задания -->
+      <!-- Основной контент для редактирования домашнего задания -->
       <div class="main-content">
         <!-- Заголовок с кнопкой для возврата -->
         <div class="header">
@@ -12,25 +12,25 @@
           <h1 class="edit-title">Редактирование домашнего задания</h1>
         </div>
 
-        <!-- Форма для редактирования задания -->
+        <!-- Форма для редактирования домашнего задания -->
         <form @submit.prevent="handleSubmit">
-          <!-- Номер задания -->
+          <!-- Номер домашнего задания -->
           <div class="form-group">
-            <label for="taskNumber">Выберите номер задания</label>
+            <label for="homeworkNumber">Выберите номер задания</label>
             <div class="select-container">
-              <select v-model="task.number" id="taskNumber" required>
+              <select v-model="homework.number" id="homeworkNumber" required>
                 <option disabled value="">Выберите номер задания</option>
                 <option v-for="n in 27" :key="n" :value="n">{{ n }}</option>
               </select>
             </div>
           </div>
 
-          <!-- Описание задания -->
+          <!-- Описание домашнего задания -->
           <div class="form-group">
-            <label for="taskDescription">Текст задания</label>
+            <label for="homeworkDescription">Текст задания</label>
             <textarea
-              id="taskDescription"
-              v-model="task.text"
+              id="homeworkDescription"
+              v-model="homework.text"
               placeholder="Введите текст задания"
               required
             ></textarea>
@@ -38,18 +38,18 @@
 
           <!-- Картинки -->
           <div class="form-group">
-            <label for="taskImages">Картинки</label>
+            <label for="homeworkImages">Картинки</label>
             <input
               type="file"
-              id="taskImages"
+              id="homeworkImages"
               @change="handleImageUpload"
               multiple
               accept="image/*"
             />
-            <div v-if="task.images.length">
+            <div v-if="homework.images.length">
               <p>Предпросмотр изображений:</p>
               <div class="preview-container">
-                <div v-for="(image, index) in task.images" :key="index" class="image-preview">
+                <div v-for="(image, index) in homework.images" :key="index" class="image-preview">
                   <img :src="image.preview" :alt="'Изображение ' + (index + 1)" />
                 </div>
               </div>
@@ -58,29 +58,29 @@
 
           <!-- Файлы -->
           <div class="form-group">
-            <label for="taskFiles">Файлы</label>
+            <label for="homeworkFiles">Файлы</label>
             <input
               type="file"
-              id="taskFiles"
+              id="homeworkFiles"
               @change="handleFileUpload"
               multiple
               accept="application/pdf"
             />
-            <div v-if="task.files.length">
+            <div v-if="homework.files.length">
               <p>Прикрепленные файлы:</p>
               <ul>
-                <li v-for="(file, index) in task.files" :key="index">{{ file.name }}</li>
+                <li v-for="(file, index) in homework.files" :key="index">{{ file.name }}</li>
               </ul>
             </div>
           </div>
 
           <!-- Дедлайн -->
           <div class="form-group">
-            <label for="taskDate">Дедлайн</label>
+            <label for="homeworkDate">Дедлайн</label>
             <input
               type="datetime-local"
-              id="taskDate"
-              v-model="task.date"
+              id="homeworkDate"
+              v-model="homework.date"
               required
             />
             <button @click="addDeadline" class="add-btn">Добавить</button>
@@ -104,8 +104,10 @@ export default {
   },
   data() {
     return {
-      task: {
-        number: "",
+      homework: {
+        // Значение ID урока должно быть извлечено из URL
+        lessonId: "",  // это будет ID урока
+        number: "",     // номер задания для справки
         text: "",
         images: [],
         files: [],
@@ -113,11 +115,20 @@ export default {
       },
     };
   },
+  created() {
+    // Извлекаем ID урока из параметров маршрута
+    const lessonId = this.$route.params.id; // 'id' из URL
+    if (lessonId) {
+      this.homework.lessonId = lessonId; // Устанавливаем ID урока в поле lessonId
+    } else {
+      console.error("ID урока не найден в маршруте!");
+    }
+  },
   methods: {
     confirmExit() {
       const confirmed = confirm("Вы уверены, что не сохранили изменения?");
       if (confirmed) {
-        this.$router.push("/task-list"); // Перенаправление на список заданий
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`); // Переход на страницу деталей урока
       }
     },
     handleImageUpload(event) {
@@ -126,7 +137,7 @@ export default {
         if (file.type.startsWith("image/")) {
           const reader = new FileReader();
           reader.onload = (e) => {
-            this.task.images.push({
+            this.homework.images.push({
               file,
               preview: e.target.result,
             });
@@ -141,7 +152,7 @@ export default {
       const files = Array.from(event.target.files);
       files.forEach(file => {
         if (file.type === "application/pdf") {
-          this.task.files.push(file);
+          this.homework.files.push(file);
         } else {
           alert("Можно загружать только PDF файлы.");
         }
@@ -149,42 +160,47 @@ export default {
     },
     addDeadline(event) {
       event.preventDefault();
-      alert("Дедлайн выбран: " + this.task.date);
+      alert("Дедлайн выбран: " + this.homework.date);
     },
     handleSubmit() {
-  const formData = new FormData();
-  formData.append("task_id", this.task.number);  // task_id - это number
-  formData.append("description", this.task.text);  // описание
-  formData.append("text", this.task.text);  // текст задания
-  formData.append("date", this.task.date);  // дата
+      const formData = new FormData();
+      // Используем lessonId для правильного поля ID урока
+      formData.append("lesson_id", this.homework.lessonId);  // Устанавливаем правильный ID урока
+      formData.append("description", this.homework.text); // описание
+      formData.append("text", this.homework.text); // текст задания
+      formData.append("date", this.homework.date); // дата
 
-  // Добавляем файлы (изображения и другие файлы)
-  this.task.images.forEach(image => {
-    formData.append("files", image.file);  // Отправляем файлы как "files"
-  });
+      // Добавляем файлы
+      this.homework.images.forEach(image => {
+        formData.append("files", image.file); // Изображения
+      });
 
-  // Отправка запроса
-  axios.post("http://localhost:8000/homeworks/", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    }
-  })
-  .then(response => {
-    console.log("Домашка успешно добавлена", response.data);
-    this.$router.push("/day-plan");
-  })
-  .catch(error => {
-    console.error("Ошибка при добавлении домашнего задания", error);
-  });
-}
+      this.homework.files.forEach(file => {
+        formData.append("files", file); // Другие файлы (если они есть)
+      });
 
-,
+      // Отправка запроса
+      axios.post(`http://localhost:8000/homeworks/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      })
+      .then(response => {
+        console.log("Домашнее задание успешно добавлено", response.data);
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`); // Перенаправление на страницу деталей урока
+      })
+      .catch(error => {
+        console.error("Ошибка при добавлении домашнего задания", error);
+      });
+    },
   },
 };
 </script>
 
+
+
 <style scoped>
-.add-task-page {
+.add-homework-page {
   display: flex;
   max-width: 1200px;
   margin: 0 auto;

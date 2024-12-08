@@ -47,25 +47,25 @@
             <div
               v-for="(day, index) in daysInMonth"
               :key="index"
-              :class="['day', { 'current-day': isCurrentDay(day), 'has-tasks': tasksByDate[day] }]"
-              @mouseover="showTaskMenu(index)"
-              @mouseleave="hideTaskMenu"
+              :class="['day', { 'current-day': isCurrentDay(day), 'has-lessons': lessonsByDate[day] }]"
+              @mouseover="showLessonMenu(index)"
+              @mouseleave="hideLessonMenu"
             >
               <div class="day-number">
                 <span>{{ day }}</span>
               </div>
-              <div v-if="tasksByDate[day]" class="task-indicator"></div>
+              <div v-if="lessonsByDate[day]" class="lesson-indicator"></div>
               <div
-                v-if="isMenuVisible(index) && tasksByDate[day]"
-                class="task-context-menu"
+                v-if="isMenuVisible(index) && lessonsByDate[day]"
+                class="lesson-context-menu"
               >
                 <ul>
                   <li
-                    v-for="(task, idx) in tasksByDate[day]"
+                    v-for="(lesson, idx) in lessonsByDate[day]"
                     :key="idx"
-                    @click="openTask(task.id)"
+                    @click="openLesson(lesson.id)"
                   >
-                    {{ task.name }}
+                    {{ lesson.name }}
                   </li>
                 </ul>
               </div>
@@ -76,12 +76,6 @@
     </div>
   </div>
 </template>
-
-
-
-
-
-
 
 <script>
 import SideBar from "../components/SideBar.vue";
@@ -96,7 +90,7 @@ export default {
       currentYear: new Date().getFullYear(),
       daysInMonth: [],
       isScheduleView: true,
-      tasksByDate: {}, // Содержит задания по текущему месяцу
+      lessonsByDate: {}, // Содержит занятия по текущему месяцу
       activeMenuIndex: null,
     };
   },
@@ -138,10 +132,10 @@ export default {
     this.loadCalendar();
   },
   methods: {
-    async fetchTasks() {
+    async fetchLessons() {
       try {
         const response = await fetch(
-          `http://localhost:8000/tasks?month=${this.currentMonth + 1}&year=${this.currentYear}`,
+          `http://localhost:8000/lessons?month=${this.currentMonth + 1}&year=${this.currentYear}`,
           {
             headers: {
               Authorization: `Bearer ${localStorage.getItem('access_token')}`,
@@ -149,36 +143,36 @@ export default {
           }
         );
         if (response.ok) {
-          const tasks = await response.json();
-          this.tasksByDate = this.groupTasksByDate(tasks);
+          const lessons = await response.json();
+          this.lessonsByDate = this.groupLessonsByDate(lessons);
         } else {
-          console.error('Ошибка загрузки заданий');
+          console.error('Ошибка загрузки занятий');
         }
       } catch (error) {
         console.error('Ошибка сети:', error);
       }
     },
-    groupTasksByDate(tasks) {
+    groupLessonsByDate(lessons) {
       const grouped = {};
-      tasks.forEach((task) => {
-        const taskDate = new Date(task.date);
-        const taskMonth = taskDate.getMonth();
-        const taskYear = taskDate.getFullYear();
-        const taskDay = taskDate.getDate();
+      lessons.forEach((lesson) => {
+        const lessonDate = new Date(lesson.date);
+        const lessonMonth = lessonDate.getMonth();
+        const lessonYear = lessonDate.getFullYear();
+        const lessonDay = lessonDate.getDate();
 
-        // Учитываем только задания для текущего месяца и года
-        if (taskMonth === this.currentMonth && taskYear === this.currentYear) {
-          if (!grouped[taskDay]) {
-            grouped[taskDay] = [];
+        // Учитываем только занятия для текущего месяца и года
+        if (lessonMonth === this.currentMonth && lessonYear === this.currentYear) {
+          if (!grouped[lessonDay]) {
+            grouped[lessonDay] = [];
           }
-          grouped[taskDay].push(task);
+          grouped[lessonDay].push(lesson);
         }
       });
       return grouped;
     },
     loadCalendar() {
       this.daysInMonth = this.daysInCurrentMonth;
-      this.fetchTasks();
+      this.fetchLessons();
     },
     changeMonth(direction) {
       this.currentMonth += direction;
@@ -202,23 +196,21 @@ export default {
         today.getFullYear() === this.currentYear
       );
     },
-    showTaskMenu(index) {
+    showLessonMenu(index) {
       this.activeMenuIndex = index;
     },
-    hideTaskMenu() {
+    hideLessonMenu() {
       this.activeMenuIndex = null;
     },
     isMenuVisible(index) {
       return this.activeMenuIndex === index;
     },
-    openTask(taskId) {
-      this.$router.push({ name: 'task-details', params: { id: taskId } });
+    openLesson(lessonId) {
+      this.$router.push({ name: 'lesson-details', params: { id: lessonId } });
     },
   },
 };
 </script>
-
-
 
 <style scoped>
 /* Основной контейнер */
@@ -338,11 +330,7 @@ export default {
 .day.current-day {
   background-color: #115544; /* Зеленая заливка */
   color: white;
-  
 }
-
-
-
 
 .day-number {
   display: flex;
@@ -356,8 +344,8 @@ export default {
   font-size: 16px;
 }
 
-/* Индикатор задачи */
-.task-indicator {
+/* Индикатор занятия */
+.lesson-indicator {
   width: 12px;
   height: 12px;
   background-color: green;
@@ -368,7 +356,7 @@ export default {
   transform: translateX(-50%);
 }
 
-.task-context-menu {
+.lesson-context-menu {
   position: absolute;
   top: 100%;
   left: 0;
@@ -379,18 +367,18 @@ export default {
   z-index: 10;
 }
 
-.task-context-menu ul {
+.lesson-context-menu ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.task-context-menu li {
+.lesson-context-menu li {
   padding: 5px;
   cursor: pointer;
 }
 
-.task-context-menu li:hover {
+.lesson-context-menu li:hover {
   background-color: #f0f0f0;
 }
 h2{
@@ -398,4 +386,3 @@ h2{
   font-weight: 500;
 }
 </style>
-

@@ -10,22 +10,22 @@
   
         <!-- Контейнер для блоков с заданиями -->
         <div class="task-container">
-          <!-- Блоки с заданиями -->
+          <!-- Блоки с уроками -->
           <div
             class="task-block"
-            v-for="(task, index) in tasks"
+            v-for="(lesson, index) in lessons"
             :key="index"
-            @click="openTask(task.id)"
+            @click="openLesson(lesson.id)"
           >
             <div class="task-left">
-              <div class="task-type">{{ task.type }}</div> <!-- Тип задания (Домашняя работа / Занятие) -->
-              <div class="task-name">{{ task.name }}</div>
+              <div class="task-type">{{ lesson.type }}</div> <!-- Тип урока -->
+              <div class="task-name">{{ lesson.name }}</div>
             </div>
-            <div class="task-time">{{ formatTime(task.date) }}</div> <!-- Время в формате 13:50 -->
+            <div class="task-time">{{ formatTime(lesson.date) }}</div> <!-- Время урока -->
           </div>
         </div>
 
-        <!-- Кнопка Плюс под последним заданием -->
+        <!-- Кнопка Плюс под последним уроком -->
         <div v-if="isTeacher" class="add-task-btn-container">
           <div class="add-task-btn" @click="toggleMenu">
             <span class="plus-icon">+</span>
@@ -33,8 +33,8 @@
 
           <!-- Контекстное меню (показывается при клике на плюсик) -->
           <div v-if="showMenu" class="context-menu-container">
-            <button @click="goToAddTaskPage('homework')">Добавить ДЗ</button>
-            <button @click="goToAddTaskPage('lesson')">Добавить занятие</button>
+            <button @click="goToAddHomeworkPage('homework')">Добавить ДЗ</button>
+            <button @click="goToAddLessonPage">Добавить занятие</button>
           </div>
         </div>
       </main>
@@ -51,51 +51,67 @@ export default {
   },
   data() {
     return {
-      isTeacher: true, // Для теста показываем плюсик у преподавателя
-      tasks: [], // Задания будут загружаться с сервера
-      showMenu: false, // Для показа контекстного меню
+      lessons: [], // Список уроков
+      showMenu: false,
+      isTeacher: true, // Установите в true, если это учитель
     };
   },
   created() {
-    this.fetchTasks();
+    this.fetchLessons();
   },
   methods: {
-    async fetchTasks() {
+    // Метод для получения списка уроков
+    async fetchLessons() {
       try {
-        const response = await fetch('http://localhost:8000/tasks', {
+        const response = await fetch('http://localhost:8000/lessons', {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('access_token')}`,
           },
         });
         if (response.ok) {
-          this.tasks = await response.json();
+          this.lessons = await response.json();
+          console.log("Уроки получены:", this.lessons);  // Проверка структуры данных
         } else {
-          console.error("Ошибка загрузки заданий");
+          console.error("Ошибка загрузки уроков");
         }
       } catch (error) {
         console.error("Ошибка сети:", error);
       }
     },
-    openTask(taskId) {
-      if (!taskId) {
-        console.error("ID задания отсутствует");
+    
+    // Метод для перехода на страницу подробностей урока
+    openLesson(lessonId) {
+      if (!lessonId) {
+        console.error("ID урока отсутствует");
         return;
       }
-      this.$router.push({ name: "task-details", params: { id: taskId } }); // Имя маршрута исправлено
+      this.$router.push({ name: "lesson-details", params: { id: lessonId } });
     },
 
-    toggleMenu() {
-      this.showMenu = !this.showMenu;
-    },
-    goToAddTaskPage(type) {
-      this.$router.push({ name: 'add-task', query: { type: type } });
-    },
+    // Форматируем дату в удобный вид
     formatTime(dateString) {
       const date = new Date(dateString);
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
-    }
+    },
+
+    // Методы для отображения контекстного меню
+    toggleMenu() {
+      this.showMenu = !this.showMenu;
+    },
+
+    // Переход на страницу добавления задания
+    goToAddHomeworkPage(type) {
+      // Логика перехода на страницу добавления ДЗ
+      this.$router.push({ name: "add-homework" }); // Переход на страницу добавления занятия
+      console.log("Перейти на страницу добавления:", type);
+    },
+
+    // Переход на страницу добавления занятия
+    goToAddLessonPage() {
+      this.$router.push({ name: "add-lesson" }); // Переход на страницу добавления занятия
+    },
   }
 };
 </script>
@@ -134,7 +150,7 @@ h2 {
   text-align: center; /* Центрирование заголовка */
 }
 
-/* Контейнер для блоков с заданиями */
+/* Контейнер для блоков с уроками */
 /* Контейнер для блоков с заданиями */
 .task-container {
   margin-bottom: 30px; /* Отступ снизу для кнопки с плюсом */
@@ -272,5 +288,3 @@ h2 {
 }
 
 </style>
-
-

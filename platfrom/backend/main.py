@@ -1,4 +1,5 @@
 # main.py
+
 from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -25,6 +26,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -74,15 +76,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 @app.post("/register")
 async def register(user: UserRegister, db: Session = Depends(get_db)):
-    # Проверка на наличие пользователя с таким email
     db_user = db.query(database.User).filter(database.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
     
-    # Хеширование пароля перед сохранением
     hashed_password = hash_password(user.password)
-
-    # Создание нового пользователя с хешированным паролем
     new_user = database.User(name=user.name, email=user.email, password=hashed_password)
     db.add(new_user)
     db.commit()
@@ -94,7 +92,6 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
         "email": new_user.email
     }
 
-# Эндпоинт для входа
 @app.post("/login")
 async def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = db.query(database.User).filter(database.User.email == user.email).first()
@@ -109,156 +106,138 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "name": db_user.name,
-        "role": db_user.role  # Добавляем роль в ответ
+        "role": db_user.role
     }
-# Папка для хранения файлов
+
 UPLOAD_FOLDER = "./uploads/"
 
-# Проверка и создание папки, если она не существует
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
-# Эндпоинт для создания нового задания
-@app.post("/tasks/", response_model=schemas.TaskResponse)
-async def create_task(
+
+# Эндпоинт для создания урока (lesson)
+@app.post("/lessons/", response_model=schemas.LessonResponse)
+async def create_lesson(
     name: str = Form(...),
     description: str = Form(...),
     videoLink: Optional[str] = Form(None),
     text: str = Form(...),
     date: datetime = Form(...),
-    files: Optional[List[UploadFile]] = File(None),  # Файлы могут быть необязательны
+    files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    # Создаем запись задачи
-    db_task = database.Task(
+    db_lesson = database.Lesson(
         name=name,
         description=description,
         videoLink=videoLink,
         text=text,
         date=date
     )
-    db.add(db_task)
+    db.add(db_lesson)
     db.commit()
-    db.refresh(db_task)
+    db.refresh(db_lesson)
 
-    # Сохраняем файлы, если они есть
     file_paths = []
     if files:
-        task_folder = os.path.join(UPLOAD_FOLDER, str(db_task.id))
-        os.makedirs(task_folder, exist_ok=True)
+        lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
+        os.makedirs(lesson_folder, exist_ok=True)
         for file in files:
-            file_location = os.path.join(task_folder, file.filename)
+            file_location = os.path.join(lesson_folder, file.filename)
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
             file_paths.append(file_location)
 
-        # Обновляем запись с путями к файлам
-        db_task.files = ",".join(file_paths)  # Здесь соединяются пути в строку
+        db_lesson.files = ",".join(file_paths)
         db.commit()
-        db.refresh(db_task)
+        db.refresh(db_lesson)
 
-    # Преобразуем строку с путями файлов обратно в список для ответа
-    db_task.files = db_task.files.split(",") if db_task.files else []
+    db_lesson.files = db_lesson.files.split(",") if db_lesson.files else []
 
-    return db_task
+    return db_lesson
 
+# Эндпоинт для получения всех уроков (lessons)
+@app.get("/lessons", response_model=List[schemas.LessonResponse])
+async def get_lessons(db: Session = Depends(get_db)):
+    lessons = db.query(database.Lesson).all()
+    for lesson in lessons:
+        lesson.files = lesson.files.split(",") if lesson.files else []
+    return lessons
 
+# Эндпоинт для получения конкретного урока (lesson) по ID
+@app.get("/lessons/{lesson_id}", response_model=schemas.LessonResponse)
+async def get_lesson(lesson_id: int, db: Session = Depends(get_db)):
+    lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Урок не найден")
+    lesson.files = lesson.files.split(",") if lesson.files else []
+    return lesson
 
-
-
-# Эндпоинт для получения всех задач
-@app.get("/tasks", response_model=List[schemas.TaskResponse])
-async def get_tasks(db: Session = Depends(get_db)):
-    tasks = db.query(database.Task).all()  # Извлекаем все задачи
-    # Преобразуем список файлов для каждой задачи
-    for task in tasks:
-        task.files = task.files.split(",") if task.files else []
-    return tasks
-
-
-
-
-# Эндпоинт для получения конкретной задачи по ID
-@app.get("/tasks/{task_id}", response_model=schemas.TaskResponse)
-async def get_task(task_id: int, db: Session = Depends(get_db)):
-    # Ищем задачу по ID
-    task = db.query(database.Task).filter(database.Task.id == task_id).first()
-    if not task:
-        raise HTTPException(status_code=404, detail="Задача не найдена")
-    
-    # Преобразуем строку с путями файлов обратно в список для ответа
-    task.files = task.files.split(",") if task.files else []
-    return task
-# Эндпоинт для отдачи файлов
-@app.get("/task/{task_id}/uploads/{filename}")
-async def get_file(task_id: int, filename: str):
-    file_path = os.path.join('uploads', str(task_id), filename)
-    
-    # Проверяем, существует ли файл
+# Эндпоинт для отдачи файлов урока (lesson)
+@app.get("/lesson/{lesson_id}/uploads/{filename}")
+async def get_file(lesson_id: int, filename: str):
+    file_path = os.path.join('uploads', str(lesson_id), filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
-    
-    # Отправляем файл
     return FileResponse(file_path)
 
 @app.post("/homeworks/", response_model=schemas.HomeworkResponse)
 async def create_homework(
-    task_id: int = Form(...),
+    lesson_id: int = Form(...),  # Заменяем на lesson_id
     description: str = Form(...),
     text: str = Form(...),
     date: datetime = Form(...),
-    files: Optional[List[UploadFile]] = File(None),  # Файлы могут быть необязательны
+    files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    # Создаем запись для домашнего задания
+    print(f"Lesson ID: {lesson_id}, Description: {description}, Date: {date}")
+    lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Урок не найден")
+
     db_homework = database.Homework(
-        task_id=task_id,
+        lesson_id=lesson_id,
         description=description,
         text=text,
         date=date,
-        files="[]"  # Инициализируем пустой список файлов в строковом формате
+        files="[]"  # Это временное значение, если файлов нет
     )
     db.add(db_homework)
     db.commit()
     db.refresh(db_homework)
 
-    # Сохраняем файлы, если они есть
+    homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
+    os.makedirs(homework_folder, exist_ok=True)
+    
+
+    file_paths = []
     if files:
-        homework_folder = os.path.join(UPLOAD_FOLDER, str(db_homework.id))
-        os.makedirs(homework_folder, exist_ok=True)
-        file_paths = []
         for file in files:
             file_location = os.path.join(homework_folder, file.filename)
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
             file_paths.append(file_location)
 
-        # Сохраняем список путей к файлам в JSON-формате
-        db_homework.files = json.dumps(file_paths)
+        db_homework.files = json.dumps(file_paths)  # Сохраняем пути в формате JSON
         db.commit()
         db.refresh(db_homework)
-
-    # Преобразуем строку JSON в список для возврата
+    print(f"Lesson ID: {lesson_id}, Description: {description}, Date: {date}")
     db_homework.files = json.loads(db_homework.files) if db_homework.files else []
     return db_homework
 
 
 
-# Получение всех домашних заданий
+# Получение всех домашних заданий (homeworks)
 @app.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
 async def get_homeworks(db: Session = Depends(get_db)):
     homeworks = db.query(database.Homework).all()
     for homework in homeworks:
-        # Преобразуем JSON-строку в список для корректного ответа
         homework.files = json.loads(homework.files) if homework.files else []
     return homeworks
 
-# Получение конкретного домашнего задания
+# Получение конкретного домашнего задания (homework)
 @app.get("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
 async def get_homework(homework_id: int, db: Session = Depends(get_db)):
     homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
     if not homework:
         raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
-    # Преобразуем JSON-строку в список для корректного ответа
     homework.files = json.loads(homework.files) if homework.files else []
     return homework
-
