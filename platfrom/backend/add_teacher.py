@@ -1,4 +1,5 @@
-from database import SessionLocal, User
+# app/add_teacher.py
+from app.database import init_db, SessionLocal, User
 from passlib.context import CryptContext
 
 # Инициализация контекста для хеширования паролей
@@ -10,12 +11,6 @@ def hash_password(password: str):
 def add_teacher(name: str, email: str, password: str):
     db = SessionLocal()
     try:
-        # Проверка, существует ли уже преподаватель
-        existing_teacher = db.query(User).filter(User.role == "teacher").first()
-        if existing_teacher:
-            print("Преподаватель уже существует: ", existing_teacher.email)
-            return
-        
         # Проверка, существует ли пользователь с таким email
         existing_user = db.query(User).filter(User.email == email).first()
         if existing_user:
@@ -33,11 +28,14 @@ def add_teacher(name: str, email: str, password: str):
         db.commit()
         db.refresh(teacher)
         print(f"Преподаватель {teacher.name} добавлен с email {teacher.email}.")
+    except Exception as e:
+        print(f"Ошибка при добавлении преподавателя: {e}")
     finally:
         db.close()
 
 # Вызов функции для добавления преподавателя
 if __name__ == "__main__":
+    init_db()  # Проверяем инициализацию таблиц
     name = input("Введите имя преподавателя: ")
     email = input("Введите email преподавателя: ")
     password = input("Введите пароль преподавателя: ")

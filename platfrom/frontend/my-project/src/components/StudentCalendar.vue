@@ -1,21 +1,36 @@
 <template>
   <div class="main-container">
     <div class="content">
-      
       <!-- Боковое меню -->
       <SideBar />
 
       <!-- Основной контент с календарем -->
       <main class="main-content">
+        <!-- Заголовок с переключением месяцев -->
         <div class="calendar-header">
-          <button @click="changeMonth(-1)">&#8592;</button>
-          <h2>{{ currentMonthName }} {{ currentYear }}</h2>
-          <button @click="changeMonth(1)">&#8594;</button>
+          <div class="month-nav">
+            <button @click="changeMonth(-1)" class="arrow-button">
+              <img src="@/assets/svg/Calendar/arrow_left.svg" alt="Prev Month" />
+            </button>
+            
+            <button @click="changeMonth(1)" class="arrow-button">
+              <img src="@/assets/svg/Calendar/arrow_right.svg" alt="Next Month" />
+            </button>
+            <h2>{{ currentMonthName }} {{ currentYear }}</h2>
+          </div>
           <div class="toggle">
-            <button @click="toggleView">Занятия/ДЗ</button>
+            <div class="toggle-container">
+              <button @click="toggleView" :class="{'active': isScheduleView}" class="toggle-button">
+                Занятия
+              </button>
+              <button @click="toggleView" :class="{'active': !isScheduleView}" class="toggle-button">
+                ДЗ
+              </button>
+            </div>
           </div>
         </div>
 
+        <!-- Дни недели -->
         <div class="calendar-days">
           <div class="weekdays">
             <span>Пн</span>
@@ -27,12 +42,33 @@
             <span>Вс</span>
           </div>
 
+          <!-- Дни месяца -->
           <div class="days">
             <div
               v-for="(day, index) in daysInMonth"
               :key="index"
-              :class="['day', { 'current-day': isCurrentDay(day) }]">
-              <div>{{ day }}</div>
+              :class="['day', { 'current-day': isCurrentDay(day), 'has-tasks': tasksByDate[day] }]"
+              @mouseover="showTaskMenu(index)"
+              @mouseleave="hideTaskMenu"
+            >
+              <div class="day-number">
+                <span>{{ day }}</span>
+              </div>
+              <div v-if="tasksByDate[day]" class="task-indicator"></div>
+              <div
+                v-if="isMenuVisible(index) && tasksByDate[day]"
+                class="task-context-menu"
+              >
+                <ul>
+                  <li
+                    v-for="(task, idx) in tasksByDate[day]"
+                    :key="idx"
+                    @click="openTask(task.id)"
+                  >
+                    {{ task.name }}
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -41,61 +77,110 @@
   </div>
 </template>
 
+
+
+
+
+
+
 <script>
-import SideBar from "../components/SideBar.vue"; // Импорт компонента Sidebar
+import SideBar from "../components/SideBar.vue";
+
 export default {
   components: {
-    SideBar, // Регистрируем Sidebar как локальный компонент
+    SideBar,
   },
   data() {
     return {
-      currentMonth: new Date().getMonth(), // Текущий месяц
-      currentYear: new Date().getFullYear(), // Текущий год
-      currentDate: new Date(),
-      daysInMonth: [], // Массив дней в текущем месяце
-      isScheduleView: true, // Переключатель между "Занятия" и "ДЗ"
+      currentMonth: new Date().getMonth(),
+      currentYear: new Date().getFullYear(),
+      daysInMonth: [],
+      isScheduleView: true,
+      tasksByDate: {}, // Содержит задания по текущему месяцу
+      activeMenuIndex: null,
     };
   },
   computed: {
     currentMonthName() {
       const monthNames = [
-        'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 
-        'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+        'Январь',
+        'Февраль',
+        'Март',
+        'Апрель',
+        'Май',
+        'Июнь',
+        'Июль',
+        'Август',
+        'Сентябрь',
+        'Октябрь',
+        'Ноябрь',
+        'Декабрь',
       ];
       return monthNames[this.currentMonth];
     },
-    // Вычисляем дни текущего месяца
     daysInCurrentMonth() {
       const days = [];
       const firstDayOfMonth = new Date(this.currentYear, this.currentMonth, 1);
       const lastDayOfMonth = new Date(this.currentYear, this.currentMonth + 1, 0);
-      const startDay = firstDayOfMonth.getDay() || 7; // Если воскресенье, то считаем как 7
+      const startDay = firstDayOfMonth.getDay() || 7;
       const endDay = lastDayOfMonth.getDate();
 
-      // Добавляем пустые ячейки перед первым днем месяца
       for (let i = 1; i < startDay; i++) {
         days.push('');
       }
-
-      // Добавляем дни месяца
       for (let i = 1; i <= endDay; i++) {
         days.push(i);
       }
-
       return days;
-    }
+    },
   },
   mounted() {
     this.loadCalendar();
   },
   methods: {
-    loadCalendar() {
-      // Загружаем дни текущего месяца
-      this.daysInMonth = this.daysInCurrentMonth;
+    async fetchTasks() {
+      try {
+        const response = await fetch(
+          `http://localhost:8000/tasks?month=${this.currentMonth + 1}&year=${this.currentYear}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+            },
+          }
+        );
+        if (response.ok) {
+          const tasks = await response.json();
+          this.tasksByDate = this.groupTasksByDate(tasks);
+        } else {
+          console.error('Ошибка загрузки заданий');
+        }
+      } catch (error) {
+        console.error('Ошибка сети:', error);
+      }
     },
+    groupTasksByDate(tasks) {
+      const grouped = {};
+      tasks.forEach((task) => {
+        const taskDate = new Date(task.date);
+        const taskMonth = taskDate.getMonth();
+        const taskYear = taskDate.getFullYear();
+        const taskDay = taskDate.getDate();
 
+        // Учитываем только задания для текущего месяца и года
+        if (taskMonth === this.currentMonth && taskYear === this.currentYear) {
+          if (!grouped[taskDay]) {
+            grouped[taskDay] = [];
+          }
+          grouped[taskDay].push(task);
+        }
+      });
+      return grouped;
+    },
+    loadCalendar() {
+      this.daysInMonth = this.daysInCurrentMonth;
+      this.fetchTasks();
+    },
     changeMonth(direction) {
-      // Меняем месяц
       this.currentMonth += direction;
       if (this.currentMonth < 0) {
         this.currentMonth = 11;
@@ -106,115 +191,112 @@ export default {
       }
       this.loadCalendar();
     },
-
     toggleView() {
-      // Переключаем между "Занятия" и "ДЗ"
       this.isScheduleView = !this.isScheduleView;
     },
-
     isCurrentDay(day) {
-      // Проверяем, является ли день текущим днем
       const today = new Date();
       return (
         today.getDate() === day &&
         today.getMonth() === this.currentMonth &&
         today.getFullYear() === this.currentYear
       );
-    }
-  }
+    },
+    showTaskMenu(index) {
+      this.activeMenuIndex = index;
+    },
+    hideTaskMenu() {
+      this.activeMenuIndex = null;
+    },
+    isMenuVisible(index) {
+      return this.activeMenuIndex === index;
+    },
+    openTask(taskId) {
+      this.$router.push({ name: 'task-details', params: { id: taskId } });
+    },
+  },
 };
 </script>
 
-<style scoped>
-/* Сбрасываем отступы и поля для body и html */
-html, body {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-}
 
+
+<style scoped>
 /* Основной контейнер */
 .main-container {
   display: flex;
-  height: 100vh;
-  margin: 0 360px; /* Отступы по бокам минимум 360px */
-  padding-top: 0; /* Убираем отступ сверху */
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  justify-content: center;
 }
 
 /* Контент */
 .content {
   display: flex;
-  flex: 1;
+  width: 100%;
+  max-width: 1200px;
   padding: 20px;
-  min-height: 80px;
-  gap: 20px; /* Отступы между боковым меню и основным контентом */
+  gap: 20px;
 }
 
-/* Боковое меню */
-.sidebar {
-  width: 240px;
-  background-color: #ffffff;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.sidebar ul {
-  list-style: none;
-  padding: 0;
-}
-
-.sidebar li {
-  margin-bottom: 16px;
-}
-
-.sidebar a {
-  text-decoration: none;
-  color: #333;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.sidebar a:hover {
-  color: #4CAF50;
-}
-
-/* Основной контент с календарем */
+/* Основной контент */
 .main-content {
   flex: 1;
   background-color: #ffffff;
-  border-radius: 8px;
   padding: 20px;
-  min-height: 80px;
+  border-radius: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+/* Календарь */
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
-.toggle {
+.month-nav {
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding-left: 10px;
 }
 
-.toggle button {
-  padding: 8px 16px;
-  background-color: #4CAF50;
-  color: white;
+.arrow-button {
+  background-color: transparent;
   border: none;
   cursor: pointer;
-  margin-left: 20px;
+  width: 30px;
+  height: 30px;
 }
 
-/* Календарь */
-.calendar-days {
+.arrow-button img {
+  width: 100%;
+  height: 100%;
+}
+
+.toggle-container {
   display: flex;
-  flex-direction: column;
-  margin-top: 25px;
+  justify-content: space-between;
+  gap: 10px;
 }
 
+.toggle-button {
+  padding: 10px 20px;
+  background-color: transparent;
+  border: 2px solid #115544;
+  color: #115544;
+  border-radius: 20px;
+  cursor: pointer;
+  width: 90px;
+}
+
+.toggle-button.active {
+  background-color: #115544;
+  color: white;
+}
+
+/* Дни недели */
 .weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -224,28 +306,96 @@ html, body {
 
 .weekdays span {
   font-weight: bold;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 10px;
+  justify-items: center;
 }
 
+/* Календарь */
 .day {
-  padding: 10px;
+  position: relative;
+  width: 81px;
+  height: 84px;
   text-align: center;
-  border-radius: 5px;
-  background-color: #e0e0e0;
+  border-radius: 10px;
+  border: 2px solid #115544;
+  background-color: transparent;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column; /* Обеспечивает вертикальное расположение */
+}
+
+/* Для текущего дня */
+.day.current-day {
+  background-color: #115544; /* Зеленая заливка */
+  color: white;
+  
+}
+
+
+
+
+.day-number {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Размещает цифру в верхней части */
+  margin-bottom: auto; /* Отодвигает цифру вверх */
+  padding-top: 10px; /* Дополнительное пространство сверху */
+}
+
+.day-number span {
+  font-size: 16px;
+}
+
+/* Индикатор задачи */
+.task-indicator {
+  width: 12px;
+  height: 12px;
+  background-color: green;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 8px; /* Центрируем внизу */
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.task-context-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background-color: white;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  z-index: 10;
+}
+
+.task-context-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.task-context-menu li {
+  padding: 5px;
   cursor: pointer;
 }
 
-.day.current-day {
-  background-color: #4CAF50;
-  color: white;
+.task-context-menu li:hover {
+  background-color: #f0f0f0;
 }
-
-.day:hover {
-  background-color: #d0d0d0;
+h2{
+  color: #115544;
+  font-weight: 500;
 }
 </style>
+

@@ -11,9 +11,17 @@
         <!-- Контейнер для блоков с заданиями -->
         <div class="task-container">
           <!-- Блоки с заданиями -->
-          <div class="task-block" v-for="(task, index) in tasks" :key="index">
-            <div class="task-name">{{ task.name }}</div>
-            <div class="task-time">{{ task.time }}</div>
+          <div
+            class="task-block"
+            v-for="(task, index) in tasks"
+            :key="index"
+            @click="openTask(task.id)"
+          >
+            <div class="task-left">
+              <div class="task-type">{{ task.type }}</div> <!-- Тип задания (Домашняя работа / Занятие) -->
+              <div class="task-name">{{ task.name }}</div>
+            </div>
+            <div class="task-time">{{ formatTime(task.date) }}</div> <!-- Время в формате 13:50 -->
           </div>
         </div>
 
@@ -44,23 +52,49 @@ export default {
   data() {
     return {
       isTeacher: true, // Для теста показываем плюсик у преподавателя
-      tasks: [
-        { name: "Занятие по математике", time: "10:00" },
-        { name: "6 задание ЕГЭ", time: "13:00" },
-        { name: "Занятие по физике", time: "15:00" },
-        { name: "Решение задач по химии", time: "17:00" },
-      ],
+      tasks: [], // Задания будут загружаться с сервера
       showMenu: false, // Для показа контекстного меню
     };
   },
+  created() {
+    this.fetchTasks();
+  },
   methods: {
+    async fetchTasks() {
+      try {
+        const response = await fetch('http://localhost:8000/tasks', {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+          },
+        });
+        if (response.ok) {
+          this.tasks = await response.json();
+        } else {
+          console.error("Ошибка загрузки заданий");
+        }
+      } catch (error) {
+        console.error("Ошибка сети:", error);
+      }
+    },
+    openTask(taskId) {
+      if (!taskId) {
+        console.error("ID задания отсутствует");
+        return;
+      }
+      this.$router.push({ name: "task-details", params: { id: taskId } }); // Имя маршрута исправлено
+    },
+
     toggleMenu() {
-      // Показать или скрыть контекстное меню
       this.showMenu = !this.showMenu;
     },
     goToAddTaskPage(type) {
-      // Переход на страницу добавления задания или занятия
       this.$router.push({ name: 'add-task', query: { type: type } });
+    },
+    formatTime(dateString) {
+      const date = new Date(dateString);
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
     }
   }
 };
@@ -88,38 +122,91 @@ export default {
   flex: 1;
   background-color: #fff;
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 20px;
+  margin-left: 20px; /* Отступ от бокового меню */
 }
 
+/* Заголовок */
 h2 {
   font-size: 24px;
   margin-bottom: 20px;
   color: #333;
+  text-align: center; /* Центрирование заголовка */
 }
 
+/* Контейнер для блоков с заданиями */
 /* Контейнер для блоков с заданиями */
 .task-container {
   margin-bottom: 30px; /* Отступ снизу для кнопки с плюсом */
 }
 
-/* Стили для блоков с заданиями */
 .task-block {
   display: flex;
-  justify-content: space-between;
-  background-color: #f0f0f0;
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 8px;
+  flex-direction: row; /* Горизонтальное расположение */
+  padding: 20px;
+  margin-bottom: 15px;
+  justify-content: space-between; /* Равномерное распределение пространства */
+  height: 100px; /* Увеличена высота блоков */
+  cursor: pointer; /* Добавляем курсор "pointer", чтобы было видно, что на блок можно кликнуть */
 }
 
-.task-name {
-  font-size: 18px;
-  color: #333;
+/* Блок с текстом задания */
+.task-left {
+  flex: 0 1 60%; /* Занимает 60% ширины блока */
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #115544; /* Обводка зеленая */
+  padding: 20px; /* Увеличены внутренние отступы */
+  border-radius: 20px;
+  transition: border 0.3s ease; /* Плавный переход для изменения обводки */
 }
 
-.task-time {
+/* Изменение обводки при наведении */
+.task-left:hover {
+  border: 2px solid #1e9275; /* Изменение обводки на более светлый зеленый */
+}
+
+/* Тип задания */
+.task-type {
+  background-color: transparent;
+  color: #115544;
+  padding: 10px;
+  text-align: center;
   font-size: 16px;
-  color: #888;
+  font-weight: bold;
+  border-radius: 20px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #115544;
+}
+
+/* Название задания */
+.task-name {
+  font-size: 20px; /* Размер шрифта для названия задания */
+  color: #333;
+  font-weight: light;
+}
+
+/* Время задания */
+.task-time {
+  flex: 0 1 15%; /* Занимает 25% ширины блока */
+  background-color: transparent;
+  color: #000000;
+  padding: 20px; /* Увеличены внутренние отступы */
+  font-size: 20px; /* Размер шрифта для времени */
+  font-weight: light;
+  border-radius: 20px;
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: 20px; /* Отступ между блоками */
+  border: 2px solid #115544; /* Обводка зеленая */
+  transition: border 0.3s ease; /* Плавный переход для изменения обводки */
+}
+
+/* Изменение обводки у времени при наведении */
+.task-time:hover {
+  border: 2px solid #1e9275; /* Изменение обводки на более светлый зеленый */
 }
 
 /* Контейнер для кнопки Плюс и контекстного меню */
@@ -133,8 +220,7 @@ h2 {
 .add-task-btn {
   width: 50px;
   height: 50px;
-  background-color: #4CAF50;
-  color: white;
+  background-color: #115544; /* Зеленый фон, соответствующий обводке */
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -144,9 +230,19 @@ h2 {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
+.add-task-btn:hover {
+  background-color: #1e9275; /* Легкая подсветка при наведении */
+}
+
+/* Белый символ плюса и выравнивание по центру */
 .plus-icon {
   font-size: 28px;
   font-weight: bold;
+  color: white; /* Белый цвет для плюса */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 5px; /* Небольшой сдвиг вниз для плюса */
 }
 
 /* Контекстное меню */
@@ -174,4 +270,7 @@ h2 {
 .context-menu-container button:hover {
   background-color: #f0f0f0;
 }
+
 </style>
+
+
