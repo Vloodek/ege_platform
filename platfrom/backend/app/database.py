@@ -32,10 +32,12 @@ class Lesson(Base):
     videoLink = Column(String, nullable=True)
     text = Column(Text)
     files = Column(Text, nullable=True)
+    image_links = Column(Text, nullable=True)  # Новая колонка для хранения ссылок на изображения
     date = Column(DateTime, default=datetime.utcnow)
 
     # Связь с домашними заданиями
-    homeworks = relationship("Homework", back_populates="lesson")  # Связь с домашним заданием
+    homeworks = relationship("Homework", back_populates="lesson")
+
 
 # Модель домашнего задания
 class Homework(Base):

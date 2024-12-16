@@ -115,6 +115,7 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Эндпоинт для создания урока (lesson)
+# Внесите эти изменения в метод создания урока
 @app.post("/lessons/", response_model=schemas.LessonResponse)
 async def create_lesson(
     name: str = Form(...),
@@ -122,7 +123,8 @@ async def create_lesson(
     videoLink: Optional[str] = Form(None),
     text: str = Form(...),
     date: datetime = Form(...),
-    files: Optional[List[UploadFile]] = File(None),
+    images: Optional[List[UploadFile]] = File(None),  # Принимаем изображения
+    files: Optional[List[UploadFile]] = File(None),  # Принимаем файлы
     db: Session = Depends(get_db)
 ):
     db_lesson = database.Lesson(
@@ -130,29 +132,54 @@ async def create_lesson(
         description=description,
         videoLink=videoLink,
         text=text,
-        date=date
+        date=date,
     )
     db.add(db_lesson)
     db.commit()
     db.refresh(db_lesson)
 
+    # Создаем папку для урока, если ее нет
+    lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
+    os.makedirs(lesson_folder, exist_ok=True)
+
+    # Папка для изображений
+    images_folder = os.path.join(lesson_folder, "images")
+    os.makedirs(images_folder, exist_ok=True)
+
+    image_paths = []
+    if images:
+        for image in images:
+            image_location = os.path.join(images_folder, image.filename)
+            with open(image_location, "wb") as f:
+                f.write(image.file.read())
+            # Нормализуем путь для сохранения
+            normalized_image_path = os.path.normpath(image_location).replace("\\", "/")
+            image_paths.append(normalized_image_path)
+
     file_paths = []
     if files:
-        lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
-        os.makedirs(lesson_folder, exist_ok=True)
         for file in files:
             file_location = os.path.join(lesson_folder, file.filename)
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
-            file_paths.append(file_location)
+            # Нормализуем путь для сохранения
+            normalized_file_path = os.path.normpath(file_location).replace("\\", "/")
+            file_paths.append(normalized_file_path)
 
-        db_lesson.files = ",".join(file_paths)
-        db.commit()
-        db.refresh(db_lesson)
+    # Обновляем запись о уроке с путями к файлам
+    db_lesson.files = ",".join(file_paths)
+    db_lesson.image_links = ",".join(image_paths)  # Сохраняем пути к изображениям
+    db.commit()
+    db.refresh(db_lesson)
 
+    # Преобразуем строки в списки для вывода
     db_lesson.files = db_lesson.files.split(",") if db_lesson.files else []
-
+    db_lesson.image_links = db_lesson.image_links.split(",") if db_lesson.image_links else []
+    
     return db_lesson
+
+
+
 
 # Эндпоинт для получения всех уроков (lessons)
 @app.get("/lessons", response_model=List[schemas.LessonResponse])
@@ -160,16 +187,27 @@ async def get_lessons(db: Session = Depends(get_db)):
     lessons = db.query(database.Lesson).all()
     for lesson in lessons:
         lesson.files = lesson.files.split(",") if lesson.files else []
+        lesson.image_links = lesson.image_links.split(",") if lesson.image_links else []
     return lessons
 
+
 # Эндпоинт для получения конкретного урока (lesson) по ID
+# Возвращаем нормализованные данные в формате JSON
 @app.get("/lessons/{lesson_id}", response_model=schemas.LessonResponse)
 async def get_lesson(lesson_id: int, db: Session = Depends(get_db)):
     lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
     if not lesson:
         raise HTTPException(status_code=404, detail="Урок не найден")
-    lesson.files = lesson.files.split(",") if lesson.files else []
+    
+    # Нормализация путей с проверкой на None
+    lesson.files = [os.path.normpath(f).replace("\\", "/") for f in (lesson.files or "").split(",") if f]
+    lesson.image_links = [os.path.normpath(img).replace("\\", "/") for img in (lesson.image_links or "").split(",") if img]
+    
     return lesson
+
+
+
+
 
 # Эндпоинт для отдачи файлов урока (lesson)
 @app.get("/lesson/{lesson_id}/uploads/{filename}")
@@ -178,6 +216,14 @@ async def get_file(lesson_id: int, filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
     return FileResponse(file_path)
+
+@app.get("/lessons/{lesson_id}/images/{image_name}")
+async def get_lesson_image(lesson_id: int, image_name: str):
+    image_path = os.path.join("uploads", str(lesson_id), "images", image_name)
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(image_path)
+
 
 @app.post("/homeworks/", response_model=schemas.HomeworkResponse)
 async def create_homework(
@@ -190,6 +236,7 @@ async def create_homework(
 ):
     print(f"Lesson ID: {lesson_id}, Description: {description}, Date: {date}")
     lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
+    
     if not lesson:
         raise HTTPException(status_code=404, detail="Урок не найден")
 
@@ -234,10 +281,20 @@ async def get_homeworks(db: Session = Depends(get_db)):
     return homeworks
 
 # Получение конкретного домашнего задания (homework)
-@app.get("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
-async def get_homework(homework_id: int, db: Session = Depends(get_db)):
-    homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
-    if not homework:
-        raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
-    homework.files = json.loads(homework.files) if homework.files else []
-    return homework
+@app.get("/homeworks/{lesson_id}", response_model=List[schemas.HomeworkResponse])
+async def get_homeworks_by_lesson(lesson_id: int, db: Session = Depends(get_db)):
+    print(f"Получен запрос на домашки для урока с ID: {lesson_id}")
+    homeworks = db.query(database.Homework).filter(database.Homework.lesson_id == lesson_id).all()
+    
+    if not homeworks:
+        print(f"Нет домашних заданий для урока с ID {lesson_id}")
+        raise HTTPException(status_code=404, detail="Домашние задания не найдены для данного урока")
+    
+    print(f"Найдены домашки для урока с ID {lesson_id}: {homeworks}")
+    # Преобразуем файлы в список
+    for homework in homeworks:
+        homework.files = json.loads(homework.files) if homework.files else []
+    return homeworks
+
+
+

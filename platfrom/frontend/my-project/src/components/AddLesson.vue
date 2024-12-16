@@ -68,6 +68,17 @@
                 accept="image/*"
               />
             </div>
+            <!-- Список превью загруженных изображений -->
+<div class="uploaded-images">
+  <h4>Загруженные изображения</h4>
+  <div v-if="lesson.images.length > 0" class="images-preview">
+    <div v-for="(image, index) in lesson.images" :key="index" class="image-preview">
+      <img :src="image.preview" alt="Загруженное изображение" />
+      <button type="button" @click="removeImage(index)">Удалить</button>
+    </div>
+  </div>
+  <p v-else>Нет загруженных изображений.</p>
+</div>
 
             <div class="form-group">
               <label for="lessonFiles">Загрузить прикрепленные файлы</label>
@@ -79,6 +90,16 @@
               />
             </div>
           </div>
+          <div class="uploaded-files">
+  <h4>Загруженные файлы</h4>
+  <ul>
+    <li v-for="(file, index) in lesson.files" :key="index">
+      {{ file.name }}
+      <button type="button" @click="removeFile(index)">Удалить</button>
+    </li>
+  </ul>
+  <p v-if="lesson.files.length === 0">Нет загруженных файлов.</p>
+</div>
 
           <!-- Раздел "Дата занятия" -->
           <div class="form-group">
@@ -125,58 +146,68 @@ export default {
     };
   },
   methods: {
-    handleFileUpload(event) {
-      const files = Array.from(event.target.files);
-      files.forEach(file => {
-        if (file.type.startsWith("image/")) {
-          this.lesson.images.push(file);
-        } else if (file.type === "application/pdf" || file.type.startsWith("application/")) {
-          this.lesson.files.push(file);
-        } else {
-          alert("Только изображения и PDF файлы могут быть загружены.");
-        }
-      });
-    },
-    validateVideoLink() {
-      const regex = /https?:\/\/.*/;
-      this.videoLinkError = !regex.test(this.lesson.videoLink);
-    },
-    handleSubmit() {
-      this.validateVideoLink();
-      if (this.videoLinkError) {
-        alert("Пожалуйста, введите корректную ссылку на видео.");
-        return;
+  handleFileUpload(event) {
+    const files = Array.from(event.target.files);
+    files.forEach(file => {
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = e => {
+          this.lesson.images.push({
+            file,
+            preview: e.target.result,
+          });
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type === "application/pdf" || file.type.startsWith("application/")) {
+        this.lesson.files.push(file);
+      } else {
+        alert("Только изображения и PDF файлы могут быть загружены.");
       }
+    });
+  },
+  removeImage(index) {
+    this.lesson.images.splice(index, 1);
+  },
+  removeFile(index) {
+    this.lesson.files.splice(index, 1);
+  },
+  validateVideoLink() {
+    const regex = /https?:\/\/.*/;
+    this.videoLinkError = !regex.test(this.lesson.videoLink);
+  },
+  handleSubmit() {
+    const formData = new FormData();
+    formData.append("name", this.lesson.name);
+    formData.append("description", this.lesson.description);
+    formData.append("videoLink", this.lesson.videoLink);
+    formData.append("text", this.lesson.text);
+    formData.append("date", this.lesson.date);
 
-      const formData = new FormData();
-      formData.append("name", this.lesson.name);
-      formData.append("description", this.lesson.description);
-      formData.append("videoLink", this.lesson.videoLink);
-      formData.append("text", this.lesson.text);
-      formData.append("date", this.lesson.date);
+    // Добавляем изображения
+this.lesson.images.forEach(imageObj => {
+    formData.append("images", imageObj.file);
+});
 
-      this.lesson.files.forEach(file => {
-        formData.append("files", file);
-      });
+// Добавляем файлы
+this.lesson.files.forEach(file => {
+    formData.append("files", file);
+});
 
-      this.lesson.images.forEach(file => {
-        formData.append("images", file);
-      });
-
-      axios.post("http://localhost:8000/lessons/", formData, {
+    axios.post("http://localhost:8000/lessons/", formData, {
         headers: {
-          "Content-Type": "multipart/form-data"
-        }
-      })
-      .then(response => {
+            "Content-Type": "multipart/form-data",
+        },
+    })
+    .then(response => {
         console.log("Урок успешно добавлен", response.data);
         this.$router.push("/day-plan");
-      })
-      .catch(error => {
+    })
+    .catch(error => {
         console.error("Ошибка при добавлении урока", error);
-      });
-    }
-  },
+    });
+},
+},
+
 };
 </script>
 
@@ -287,6 +318,34 @@ export default {
     width: 100%;
   }
 }
+.images-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.image-preview {
+  position: relative;
+}
+
+.image-preview img {
+  max-width: 100px;
+  max-height: 100px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.image-preview button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: red;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
 </style>
 
   

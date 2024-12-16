@@ -4,27 +4,35 @@
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
 
-      <!-- Основной контент с деталями занятия -->
+      <!-- Основной контент -->
       <main class="main-content">
         <div v-if="lesson">
-          <h1>{{ lesson.name }}</h1>
-          <p><strong>Текст занятия:</strong></p>
-          <p>{{ lesson.text }}</p> <!-- Здесь отображается текст занятия -->
+          <!-- Стрелка назад и центрированный заголовок -->
+          <div class="header-section">
+            <div class="back-arrow" @click="goBack"></div>
+            <h1 class="lesson-title centered">{{ lesson.name }}</h1>
+          </div>
+
+          <!-- Описание занятия -->
+          <div v-if="lesson.text" class="lesson-description">
+            <p>{{ lesson.text }}</p>
+          </div>
 
           <!-- Отображение изображений -->
           <div v-if="images.length" class="images-container">
-            <h3>Изображения:</h3>
             <div class="images">
-              <img v-for="image in images" :src="image" :alt="lesson.name" :key="image" />
+              <img v-for="image in images" :src="image" :alt="lesson.name" :key="image" @click="openImage(image)" />
             </div>
           </div>
 
           <!-- Список файлов -->
-          <div v-if="files.length">
-            <h3>Файлы:</h3>
+          <div v-if="files.length" class="files-section">
             <ul>
               <li v-for="file in files" :key="file">
-                <a :href="file" target="_blank">{{ file }}</a>
+                <a :href="file" download @click.prevent="downloadFile(file)">
+                  <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
+                  {{ getFileName(file) }}
+                </a>
               </li>
             </ul>
           </div>
@@ -37,6 +45,9 @@
   </div>
 </template>
 
+
+
+
 <script>
 import SideBar from "./SideBar.vue";
 
@@ -46,54 +57,97 @@ export default {
   },
   data() {
     return {
-      lesson: null, // Данные занятия
-      images: [], // Для хранения ссылок на изображения
-      files: [], // Для хранения файлов
+      lesson: null,
+      images: [],
+      files: [],
     };
   },
   created() {
     this.fetchLesson();
   },
   methods: {
+    goBack() {
+      this.$router.go(-1);
+    },
     async fetchLesson() {
-      const lessonId = this.$route.params.id;
-      try {
+    const lessonId = this.$route.params.id;
+    try {
         const response = await fetch(`http://localhost:8000/lessons/${lessonId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+            },
         });
         if (response.ok) {
-          this.lesson = await response.json();
-          this.processMaterials();
+            this.lesson = await response.json();
+            console.log("Ответ от сервера:", this.lesson); // Печатаем весь ответ
+            console.log("Изображения из ответа:", this.lesson.images); // Печатаем изображения
+            console.log("Файлы из ответа:", this.lesson.files); // Печатаем файлы
+
+            this.processMaterials();
         } else {
-          console.error("Ошибка загрузки материалов");
+            console.error("Ошибка загрузки материалов");
         }
-      } catch (error) {
+    } catch (error) {
         console.error("Ошибка сети:", error);
-      }
+    }
+},
+
+processMaterials() {
+    const baseUrl = "http://localhost:8000"; // Базовый URL сервера
+
+    console.log("Обработка изображений и файлов:", this.lesson);
+
+    // Обработка изображений
+    if (this.lesson.image_links && this.lesson.image_links.length > 0) {
+        const allImages = Array.isArray(this.lesson.image_links)
+            ? this.lesson.image_links
+            : this.lesson.image_links.split(",");
+        console.log("Обработанные пути изображений:", allImages);
+        this.images = allImages.map(image => {
+            image = image.replace(/\\/g, "/");  // Заменяем обратные слэши на прямые
+            return `${baseUrl}/${image}`;       // Формируем полный URL
+        });
+    } else {
+        console.log("Изображения отсутствуют.");
+    }
+
+    // Обработка файлов
+    if (this.lesson.files && this.lesson.files.length > 0) {
+        const allFiles = Array.isArray(this.lesson.files)
+            ? this.lesson.files
+            : this.lesson.files.split(",");
+        console.log("Обработанные пути файлов:", allFiles);
+        this.files = allFiles.map(file => {
+            file = file.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
+            return `${baseUrl}/${file}`;     // Формируем полный URL
+        });
+    } else {
+        console.log("Файлы отсутствуют.");
+    }
+}
+
+,
+
+
+    getFileName(file) {
+      const lastIndex = file.lastIndexOf('/');
+      return file.slice(lastIndex + 1);
     },
 
-    // Обработка материалов
-    processMaterials() {
-      if (this.lesson.files) {
-        const baseUrl = "http://localhost:8000";
-        const allFiles = Array.isArray(this.lesson.files)
-          ? this.lesson.files
-          : this.lesson.files.split(",");
+    openImage(imageUrl) {
+      window.open(imageUrl, '_blank');
+    },
 
-        this.images = allFiles
-          .filter((file) => /\.(jpg|jpeg|png|gif)$/i.test(file))
-          .map(file => file.startsWith(baseUrl) 
-            ? file 
-            : `${baseUrl}/${file.replace(/\\/g, "/")}`); // Убираем дублирование и заменяем \ на /
+    downloadFile(fileUrl) {
+      // Имитация скачивания файла
+      const link = document.createElement('a');
+      link.href = fileUrl;
+      link.download = this.getFileName(fileUrl);
+      link.click();
+    },
 
-        this.files = allFiles
-          .filter((file) => !/\.(jpg|jpeg|png|gif)$/i.test(file))
-          .map(file => file.startsWith(baseUrl) 
-            ? file 
-            : `${baseUrl}/${file.replace(/\\/g, "/")}`);
-      }
+    completeHomework() {
+      this.$router.push(`/homework/${this.lesson.id}`);
     },
   },
 };
@@ -111,54 +165,82 @@ export default {
   margin: 0 auto;
   padding: 20px;
 }
-
+.lesson-description {
+  margin: 20px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+}
 .main-content {
   flex: 1;
   background-color: #fff;
   padding: 20px;
   border-radius: 8px;
   margin-left: 20px;
-  overflow: hidden; /* Ограничивает переполнение контента */
 }
 
-.main-content p {
-  word-wrap: break-word; /* Перенос длинных слов */
-  overflow-wrap: break-word; /* Перенос текста */
-  white-space: normal; /* Разрешает перенос строк */
-  word-break: break-all; /* Принудительный перенос длинных слов на новую строку */
-  max-width: 100%; /* Убедитесь, что блок не превышает ширину родителя */
+.header-section {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
 }
 
+.back-arrow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  background-color: #115544;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  cursor: pointer;
+}
+
+.lesson-title {
+  flex: 1;
+  font-size: 24px;
+  color: #115544;
+  font-weight: 500;
+  text-align: center; /* Центрируем заголовок */
+  margin: 0;
+}
 
 .images-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center; /* Центрирование по горизонтали */
-  justify-content: center; /* Центрирование по вертикали, если нужно */
-  margin-top: 20px; /* Отступ сверху */
-}
-
-.images {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px; /* Расстояние между изображениями */
-  justify-content: center; /* Центрирует изображения в строке */
+  margin-top: 20px;
+  text-align: center;
 }
 
 .images img {
-  max-width: 90%; /* Изображение занимает до 90% ширины контейнера */
-  max-height: 500px; /* Ограничение по высоте */
-  border-radius: 8px; /* Скругление углов */
-  object-fit: cover; /* Сохраняет пропорции изображения */
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2); /* Добавляет тень для красоты */
-  transition: transform 0.3s ease; /* Анимация при наведении */
+  max-width: 150px;
+  margin: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
 }
 
 .images img:hover {
-  transform: scale(1.05); /* Увеличение изображения при наведении */
+  transform: scale(1.5);
+}
+.files-section ul {
+  list-style: none; /* Убираем маркеры списка */
+  padding: 0;
+  margin: 20px 0 0;
+}
+.files-section ul li {
+  display: flex; /* Включаем Flexbox */
+  align-items: center; /* Центрируем содержимое по вертикали */
+  margin-bottom: 10px;
 }
 
-
+.files-section ul li a {
+  display: flex; /* Включаем Flexbox для ссылки */
+  align-items: center; /* Центрируем содержимое по вертикали */
+  text-decoration: none; /* Убираем подчеркивание ссылки */
+  color: inherit; /* Используем цвет по умолчанию */
+  font-size: 16px; /* Настраиваем размер текста */
+}
 ul {
   list-style-type: none;
   padding: 0;
@@ -168,12 +250,34 @@ ul li {
   margin-bottom: 10px;
 }
 
-ul li a {
-  text-decoration: none;
-  color: #007bff;
+.file-icon {
+  width: 42px;
+  height: 42px;
+  margin-right: 10px; /* Расстояние между иконкой и текстом */
+  flex-shrink: 0; /* Иконка не сжимается */
+}
+.right-column {
+  margin-top: 20px;
+  text-align: right;
 }
 
-ul li a:hover {
-  text-decoration: underline;
+.lesson-button {
+  padding: 10px;
+  font-size: 16px;
+  border: 2px solid #115544;
+  border-radius: 20px;
+  cursor: pointer;
+  text-align: center;
+  height: 54px;
+  font-weight: 300;
+}
+
+.lesson-button.green {
+  background-color: #115544;
+  color: #fff;
+}
+
+.lesson-button:hover {
+  opacity: 0.8;
 }
 </style>

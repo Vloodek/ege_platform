@@ -20,7 +20,8 @@ class LessonCreate(BaseModel):
     videoLink: Optional[str] = None
     text: str
     date: datetime
-    files: Optional[List[str]] = []  # Если файлы тоже требуются
+    files: Optional[List[str]] = []  # Пути к прикрепленным файлам
+    images: Optional[List[str]] = []  # Пути к загруженным изображениям
 
 # Схема для отображения урока (ответ от сервера)
 class LessonResponse(BaseModel):
@@ -30,7 +31,8 @@ class LessonResponse(BaseModel):
     videoLink: Optional[str] = None
     text: str
     date: datetime
-    files: List[str] = []
+    files: List[str] = []  # Пути к файлам
+    image_links: List[str] = []  # Пути к изображениям
 
     class Config:
         orm_mode = True
@@ -52,4 +54,3 @@ class HomeworkResponse(BaseModel):
 
     class Config:
         orm_mode = True
-
