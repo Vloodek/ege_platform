@@ -18,15 +18,20 @@ import json
 
 app = FastAPI()
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-# Разрешаем CORS для всех доменов
+# Настройка CORS
+origins = [
+    "http://localhost:8080",  # добавьте URL вашего фронтенда
+    "http://192.168.1.73:8080",
+    # Можно добавить другие источники, если необходимо
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # можно указать методы, если нужно
+    allow_headers=["*"],  # можно указать заголовки
 )
-
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -61,7 +66,7 @@ def verify_password(plain_password, hashed_password):
 # Секретный ключ для подписи JWT
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Время жизни токена
+ACCESS_TOKEN_EXPIRE_MINUTES = 200 # Время жизни токена
 
 # Функция для создания JWT токена
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -295,6 +300,45 @@ async def get_homeworks_by_lesson(lesson_id: int, db: Session = Depends(get_db))
     for homework in homeworks:
         homework.files = json.loads(homework.files) if homework.files else []
     return homeworks
+
+
+from fastapi import status
+@app.middleware("http")
+async def check_authorization(request: Request, call_next):
+    if request.method == "OPTIONS":
+        return await call_next(request)  # Пропускаем OPTIONS-запросы
+    if request.url.path.startswith("/uploads/"):  # Исключение для маршрутов /uploads/
+        return await call_next(request)
+
+    excluded_routes = ["/register", "/login"]  # Маршруты, где не требуется токен
+    if any(request.url.path.startswith(route) for route in excluded_routes):
+        return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
+
+    # Логируем заголовки запроса
+    print(f"Запрос пришел с заголовками: {request.headers}")
+
+    token = request.headers.get("Authorization")
+    if not token:
+        print("Токен не найден в заголовках")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if not token.startswith("Bearer "):
+        print(f"Некорректный токен: {token}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format")
+
+    try:
+        payload = jwt.decode(token[7:], SECRET_KEY, algorithms=[ALGORITHM])
+        user = payload.get("sub")
+        if not user:
+            print(f"Не найден пользователь в токене: {payload}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        request.state.user = user
+        print(f"Авторизация успешна для пользователя: {user}")
+    except jwt.PyJWTError as e:
+        print(f"Ошибка декодирования JWT: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    
+    response = await call_next(request)
+    return response
 
 
 

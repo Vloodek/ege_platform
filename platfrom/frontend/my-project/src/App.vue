@@ -27,8 +27,9 @@
   </div>
 </template>
 
-
 <script>
+import axios from 'axios';
+
 export default {
   data() {
     return {
@@ -37,15 +38,22 @@ export default {
     };
   },
   mounted() {
+    console.log('Компонент App загружен');
+    
+    // Логирование данных пользователя из localStorage
     const user = localStorage.getItem('user');
+    console.log('Данные пользователя из localStorage:', user);
+
     if (user) {
       try {
         const parsedUser = JSON.parse(user);
+        console.log('Парсинг данных пользователя:', parsedUser);
 
         // Проверяем, что у объекта есть поле `name`
         if (parsedUser && parsedUser.name) {
           this.userName = parsedUser.name; // Устанавливаем имя пользователя
           this.isAuthenticated = true;
+          console.log('Пользователь авторизован:', this.userName);
         } else {
           console.warn("Имя пользователя не найдено в данных.");
           this.$router.push('/register'); // Перенаправляем, если данные некорректны
@@ -58,15 +66,24 @@ export default {
       console.warn("Пользователь не найден в localStorage.");
       this.$router.push('/register');
     }
+
+    // Устанавливаем токен в заголовки всех запросов через axios
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      axios.defaults.headers['Authorization'] = `Bearer ${token}`;
+      console.log('Токен авторизации установлен:', token);
+    } else {
+      console.warn('Токен не найден в localStorage');
+    }
   },
   methods: {
     goToDayPlan() {
+      console.log('Переход на план дня');
       this.$router.push('/day-plan'); // Переход на страницу с планом на день
     },
   },
 };
 </script>
-
 
 <style scoped>
 /* Общие стили для сброса */

@@ -53,6 +53,21 @@ class Homework(Base):
     # Связь с уроком
     lesson = relationship("Lesson", back_populates="homeworks")  # Связь с уроком
 
+class SessionToken(Base):
+    __tablename__ = "session_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    token = Column(String, unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)  # Время истечения токена
+
+    # Связь с пользователем
+    user = relationship("User", back_populates="tokens")
+
+
+# Связь с пользователем
+User.tokens = relationship("SessionToken", back_populates="user", cascade="all, delete-orphan")
+
 def init_db():
     """Создание таблиц в базе данных"""
     inspector = inspect(engine)

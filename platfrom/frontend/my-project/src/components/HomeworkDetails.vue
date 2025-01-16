@@ -3,51 +3,60 @@
     <div class="container">
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
-  
-      <!-- Основной контент с деталями домашнего задания -->
+
+      <!-- Основной контент -->
       <main class="main-content">
-        <h2>Детали домашнего задания</h2>
-  
         <div v-if="homework">
+          <!-- Стрелка назад и центрированный заголовок -->
+          <div class="header-section">
+            <div class="back-arrow" @click="$router.go(-1)"></div>
+            <h1 class="homework-title centered">Детали домашнего задания</h1>
+          </div>
+
           <!-- Дедлайн -->
           <div class="homework-deadline">
-            <strong>Дедлайн: </strong>{{ homework.deadline }}
+            <strong>Дедлайн: </strong>{{ formatDate(homework.date) }}
           </div>
-  
+
           <!-- Описание задания -->
           <div v-if="homework.description" class="homework-description">
-            <strong>Описание:</strong>
             <p>{{ homework.description }}</p>
           </div>
-  
+
           <!-- Отображение изображений -->
-          <div v-if="homeworkImages.length > 0" class="homework-photos">
-            <strong>Фотографии:</strong>
-            <div class="photo-slider">
-              <button @click="prevImage" :disabled="currentIndex === 0">←</button>
-              <img :src="getFileUrl(homeworkImages[currentIndex])" alt="Homework Photo" class="homework-photo" />
-              <button @click="nextImage" :disabled="currentIndex === homeworkImages.length - 1">→</button>
+          <div v-if="homeworkImages.length" class="images-container">
+            <div class="images">
+              <img 
+                v-for="(image, index) in homeworkImages" 
+                :key="index" 
+                :src="getFileUrl(image)" 
+                alt="Homework Image" 
+                @click="window.open(getFileUrl(image), '_blank')"
+              />
             </div>
           </div>
-  
+
           <!-- Прикрепленные файлы -->
-          <div v-if="otherFiles.length > 0" class="homework-files">
-            <strong>Прикрепленные файлы:</strong>
+          <div v-if="otherFiles.length" class="files-section">
             <ul>
               <li v-for="(file, index) in otherFiles" :key="index">
-                <a :href="getFileUrl(file)" target="_blank">{{ file.split('/').pop() }}</a>
+                <a :href="getFileUrl(file)" target="_blank">
+                  <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
+                  {{ file.split('/').pop() }}
+                </a>
               </li>
             </ul>
           </div>
         </div>
-  
+
         <div v-else>
-          <p>Задание не найдено.</p>
+          <p>Загрузка задания...</p>
         </div>
       </main>
     </div>
   </div>
 </template>
+
 
   
 <script>
@@ -108,6 +117,7 @@ export default {
       return `http://localhost:8000/${file.replace(/\\/g, '/')}`;
     },
 
+
     // Переключение на следующее изображение
     nextImage() {
       if (this.currentIndex < this.homeworkImages.length - 1) {
@@ -121,20 +131,45 @@ export default {
         this.currentIndex--;
       }
     },
+    formatDate(dateString) {
+  try {
+    // Заменяем избыточные точки после секунд
+    const cleanedDateString = dateString.split('.')[0]; 
+    const date = new Date(cleanedDateString);
+
+    // Проверяем, что дата корректная
+    if (isNaN(date.getTime())) {
+      console.error("Некорректная дата:", dateString);
+      return "Неверный формат даты";
+    }
+
+    // Форматируем дату и время
+    const options = {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    };
+
+    return date.toLocaleDateString("ru-RU", options);
+  } catch (error) {
+    console.error("Ошибка форматирования даты:", error);
+    return "Ошибка даты";
+  }
+}
+
+
   },
 };
 </script>
 
   
 <style scoped>
-/* Стили для контейнера деталей домашки */
 #homework-details {
-  display: flex;
-  min-height: 100vh;
-  background-color: #f5f5f5;
+  padding: 20px;
 }
 
-/* Основной контейнер для контента */
 .container {
   display: flex;
   width: 100%;
@@ -143,79 +178,98 @@ export default {
   padding: 20px;
 }
 
-/* Стили для основного контента */
 .main-content {
   flex: 1;
   background-color: #fff;
   padding: 20px;
-  border-radius: 20px;
+  border-radius: 8px;
   margin-left: 20px;
 }
 
-/* Заголовок */
-h2 {
-  font-size: 24px;
-  margin-bottom: 20px;
-  color: #333;
-  text-align: center;
-}
-
-/* Контейнер для данных домашки */
-.homework-details-container {
-  margin-bottom: 30px;
-}
-
-/* Описание задания */
-.homework-description {
-  margin-bottom: 20px;
-  font-size: 16px;
-  color: #333;
-}
-
-/* Стили для слайдера */
-.photo-slider {
+.header-section {
   display: flex;
-  justify-content: center;
   align-items: center;
+  margin-bottom: 20px;
+  position: relative;
 }
 
-.homework-photo {
-  max-width: 700px; /* Ограничиваем размер изображения */
-  max-height: 600px;
-  object-fit: cover;
-  margin: 0 10px;
-}
-
-button {
+.back-arrow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
   background-color: #115544;
-  color: white;
-  border: none;
-  padding: 10px;
-  font-size: 16px;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
 
-button:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+.homework-title {
+  flex: 1;
+  font-size: 24px;
+  color: #115544;
+  font-weight: 500;
+  text-align: center;
+  margin: 0;
 }
 
-.homework-files a {
-  color: #115544;
+.homework-deadline,
+.homework-description {
+  margin: 20px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.images-container {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.images img {
+  max-width: 150px;
+  margin: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.images img:hover {
+  transform: scale(1.5);
+}
+
+.files-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0 0;
+}
+
+.files-section ul li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.files-section ul li a {
+  display: flex;
+  align-items: center;
   text-decoration: none;
+  color: inherit;
+  font-size: 16px;
+}
+
+.file-icon {
+  width: 42px;
+  height: 42px;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
 .homework-files a:hover {
   text-decoration: underline;
 }
-
-/* Дедлайн */
-.homework-deadline {
-  margin-bottom: 20px;
-  font-size: 16px;
-  font-weight: bold;
-  color: #333;
-}
 </style>
+
 
   

@@ -157,15 +157,16 @@ h2 {
 }
 
 .task-block {
-  display: flex;
-  flex-direction: row; /* Горизонтальное расположение */
-  padding: 20px;
-  margin-bottom: 15px;
-  justify-content: space-between; /* Равномерное распределение пространства */
-  height: 100px; /* Увеличена высота блоков */
-  cursor: pointer; /* Добавляем курсор "pointer", чтобы было видно, что на блок можно кликнуть */
-}
+    display: flex;
+    flex-direction: row; /* Горизонтальное расположение */
+    padding: 20px;
+    margin-bottom: 15px;
+    justify-content: space-between; /* Равномерное распределение пространства */
+    height: 105px; /* Увеличена высота блоков */
+    cursor: pointer; /* Добавляем курсор "pointer", чтобы было видно, что на блок можно кликнуть */
+  }
 
+/* Блок с текстом задания */
 /* Блок с текстом задания */
 .task-left {
   flex: 0 1 60%; /* Занимает 60% ширины блока */
@@ -175,6 +176,7 @@ h2 {
   padding: 20px; /* Увеличены внутренние отступы */
   border-radius: 20px;
   transition: border 0.3s ease; /* Плавный переход для изменения обводки */
+  max-width: 450px; /* Ограничиваем ширину */
 }
 
 /* Изменение обводки при наведении */
@@ -183,23 +185,25 @@ h2 {
 }
 
 /* Тип задания */
+/* Тип задания (Занятие) */
 .task-type {
   background-color: transparent;
   color: #115544;
-  padding: 10px;
-  text-align: center;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 20px;
-  margin-bottom: 10px;
-  border-bottom: 2px solid #115544;
+  padding: 5px 0; /* Уменьшаем отступы */
+  text-align: left; /* Прижимаем текст к левому краю */
+  font-size: 14px; /* Меньший шрифт */
+  font-weight: normal; /* Убираем жирный шрифт */
+  
 }
-
 /* Название задания */
 .task-name {
   font-size: 20px; /* Размер шрифта для названия задания */
   color: #333;
   font-weight: light;
+  margin-bottom: 12px; /* Отступ снизу от названия занятия */
+  text-overflow: ellipsis; /* Добавляем многоточие в конце */
+  overflow: hidden; /* Скрываем переполненный текст */
+  white-space: nowrap; /* Не разрешаем переносить текст на несколько строк */
 }
 
 /* Время задания */
