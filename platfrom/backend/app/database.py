@@ -1,10 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey
+# database.py
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from sqlalchemy.inspection import inspect
 from datetime import datetime
 
-# Убедитесь, что путь к базе данных указан правильно
 DATABASE_URL = "sqlite:///E:/ege_platform/platfrom/backend/test.db"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -12,7 +11,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# Модель пользователя
 class User(Base):
     __tablename__ = "users"
     
@@ -20,11 +18,10 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     password = Column(String)
-    role = Column(String, default="student")  # Поле для роли пользователя (student/teacher)
+    role = Column(String, default="student")  # student/teacher
 
-# Модель урока
 class Lesson(Base):
-    __tablename__ = 'lessons'
+    __tablename__ = "lessons"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
@@ -32,53 +29,61 @@ class Lesson(Base):
     videoLink = Column(String, nullable=True)
     text = Column(Text)
     files = Column(Text, nullable=True)
-    image_links = Column(Text, nullable=True)  # Новая колонка для хранения ссылок на изображения
+    image_links = Column(Text, nullable=True)
     date = Column(DateTime, default=datetime.utcnow)
 
-    # Связь с домашними заданиями
     homeworks = relationship("Homework", back_populates="lesson")
 
-
-# Модель домашнего задания
 class Homework(Base):
-    __tablename__ = 'homeworks'
+    __tablename__ = "homeworks"
 
     id = Column(Integer, primary_key=True, index=True)
-    lesson_id = Column(Integer, ForeignKey("lessons.id"), index=True)  # Внешний ключ на таблицу Lesson
+    lesson_id = Column(Integer, ForeignKey("lessons.id"), index=True)
     description = Column(Text)
-    files = Column(Text, nullable=True)  # Места для хранения файлов
+    files = Column(Text, nullable=True)
     date = Column(DateTime, default=datetime.utcnow)
     text = Column(Text)
 
-    # Связь с уроком
-    lesson = relationship("Lesson", back_populates="homeworks")  # Связь с уроком
+    lesson = relationship("Lesson", back_populates="homeworks")
 
-class SessionToken(Base):
-    __tablename__ = "session_tokens"
-    
+# Новая таблица для отправленных домашних заданий
+class HomeworkSubmission(Base):
+    __tablename__ = "homework_submissions"
+
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    token = Column(String, unique=True, nullable=False)
-    expires_at = Column(DateTime, nullable=False)  # Время истечения токена
+    homework_id = Column(Integer, ForeignKey("homeworks.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    submission_date = Column(DateTime, default=datetime.utcnow)
+    grade = Column(Integer, nullable=True)
+    status = Column(String, default="submitted")  # submitted, graded, pending
+    comment = Column(Text, nullable=True)  # Добавляем поле comment
 
-    # Связь с пользователем
-    user = relationship("User", back_populates="tokens")
+    user = relationship("User")
+    homework = relationship("Homework")
 
 
-# Связь с пользователем
-User.tokens = relationship("SessionToken", back_populates="user", cascade="all, delete-orphan")
+# Новая таблица для файлов, прикрепленных к отправленным домашкам
+class HomeworkFile(Base):
+    __tablename__ = "homework_files"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("homework_submissions.id"))
+    file_path = Column(String)
+    file_type = Column(String)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    submission = relationship("HomeworkSubmission")
+
+# Новая таблица для истории оценок
+class Grade(Base):
+    __tablename__ = "grades"
+
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("homework_submissions.id"))
+    grade = Column(Integer)
+    graded_at = Column(DateTime, default=datetime.utcnow)
+
+    submission = relationship("HomeworkSubmission")
 
 def init_db():
-    """Создание таблиц в базе данных"""
-    inspector = inspect(engine)
-    if not inspector.has_table("users"):
-        Base.metadata.create_all(bind=engine)
-    if not inspector.has_table("lessons"):  # Проверяем существование таблицы lessons
-        Base.metadata.create_all(bind=engine)
-    if not inspector.has_table("homeworks"):  # Проверяем существование таблицы homeworks
-        Base.metadata.create_all(bind=engine)
-    existing_tables = inspector.get_table_names()
-
-    for table_name in Base.metadata.tables.keys():
-        if table_name not in existing_tables:
-            Base.metadata.tables[table_name].create(bind=engine)
+    Base.metadata.create_all(bind=engine)

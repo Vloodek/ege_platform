@@ -1,4 +1,5 @@
 <template>
+  
   <div id="day-plan">
     <div class="container">
       <!-- Боковое меню -->
@@ -60,24 +61,38 @@ export default {
     this.fetchLessons();
   },
   methods: {
-    // Метод для получения списка уроков
-    async fetchLessons() {
-      try {
-        const response = await fetch('http://localhost:8000/lessons', {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        });
-        if (response.ok) {
-          this.lessons = await response.json();
-          console.log("Уроки получены:", this.lessons);  // Проверка структуры данных
-        } else {
-          console.error("Ошибка загрузки уроков");
-        }
-      } catch (error) {
-        console.error("Ошибка сети:", error);
-      }
-    },
+  // Метод для получения списка уроков
+  async fetchLessons() {
+   try {
+     const response = await this.$axios.get('/lessons', {
+       headers: {
+         Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+       },
+     });
+
+     this.lessons = response.data;
+     console.log("Уроки получены:", this.lessons);
+   } catch (error) {
+     console.error("Ошибка Axios:", error);
+
+     // Проверяем, есть ли ответ от сервера (если нет, это проблема сети)
+     if (error.response) {
+       if (error.response.status === 401) {
+         console.error("Ошибка 401: Токен истёк или неверный");
+         alert("Сессия истекла. Авторизуйтесь снова.");
+         localStorage.removeItem('access_token');
+         location.reload(); // Обновляем страницу
+       }
+     } else if (error.request) {
+       console.error("Ошибка сети:", error.message);
+     } else {
+       console.error("Ошибка:", error.message);
+     }
+   }
+ }
+
+
+,
     
     // Метод для перехода на страницу подробностей урока
     openLesson(lessonId) {
@@ -117,6 +132,7 @@ export default {
 </script>
 
 <style scoped>
+
 /* Основной контейнер */
 #day-plan {
   display: flex;
@@ -290,5 +306,10 @@ h2 {
 .context-menu-container button:hover {
   background-color: #f0f0f0;
 }
+body {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 
 </style>

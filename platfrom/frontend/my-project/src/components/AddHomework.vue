@@ -14,15 +14,16 @@
 
         <!-- Форма для редактирования домашнего задания -->
         <form @submit.prevent="handleSubmit">
-          <!-- Номер домашнего задания -->
+          <!-- Название домашнего задания -->
           <div class="form-group">
-            <label for="homeworkNumber">Выберите номер задания</label>
-            <div class="select-container">
-              <select v-model="homework.number" id="homeworkNumber" required>
-                <option disabled value="">Выберите номер задания</option>
-                <option v-for="n in 27" :key="n" :value="n">{{ n }}</option>
-              </select>
-            </div>
+            <label for="homeworkTitle">Название задания</label>
+            <input
+              type="text"
+              id="homeworkTitle"
+              v-model="homework.title"
+              placeholder="Введите название задания"
+              required
+            />
           </div>
 
           <!-- Описание домашнего задания -->
@@ -32,7 +33,6 @@
               id="homeworkDescription"
               v-model="homework.text"
               placeholder="Введите текст задания"
-              required
             ></textarea>
           </div>
 
@@ -105,10 +105,9 @@ export default {
   data() {
     return {
       homework: {
-        // Значение ID урока должно быть извлечено из URL
-        lessonId: "",  // это будет ID урока
-        number: "",     // номер задания для справки
-        text: "",
+        lessonId: "", // ID урока
+        title: "",     // Название задания
+        text: "",      // Текст задания
         images: [],
         files: [],
         date: "",
@@ -116,7 +115,6 @@ export default {
     };
   },
   created() {
-    // Извлекаем ID урока из параметров маршрута
     const lessonId = this.$route.params.id; // 'id' из URL
     if (lessonId) {
       this.homework.lessonId = lessonId; // Устанавливаем ID урока в поле lessonId
@@ -128,7 +126,7 @@ export default {
     confirmExit() {
       const confirmed = confirm("Вы уверены, что не сохранили изменения?");
       if (confirmed) {
-        this.$router.push(`/lesson/${this.homework.lessonId}/details`); // Переход на страницу деталей урока
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
       }
     },
     handleImageUpload(event) {
@@ -164,22 +162,19 @@ export default {
     },
     handleSubmit() {
       const formData = new FormData();
-      // Используем lessonId для правильного поля ID урока
-      formData.append("lesson_id", this.homework.lessonId);  // Устанавливаем правильный ID урока
-      formData.append("description", this.homework.text); // описание
-      formData.append("text", this.homework.text); // текст задания
-      formData.append("date", this.homework.date); // дата
+      formData.append("lesson_id", this.homework.lessonId); 
+      formData.append("description", this.homework.title); // Отправляем название задания в поле description
+      formData.append("text", this.homework.text); // Если нужно, можно оставить для текстового контента
+      formData.append("date", this.homework.date);
 
-      // Добавляем файлы
       this.homework.images.forEach(image => {
-        formData.append("files", image.file); // Изображения
+        formData.append("files", image.file);
       });
 
       this.homework.files.forEach(file => {
-        formData.append("files", file); // Другие файлы (если они есть)
+        formData.append("files", file);
       });
 
-      // Отправка запроса
       axios.post(`http://localhost:8000/homeworks/`, formData, {
         headers: {
           "Content-Type": "multipart/form-data",
@@ -187,7 +182,7 @@ export default {
       })
       .then(response => {
         console.log("Домашнее задание успешно добавлено", response.data);
-        this.$router.push(`/lesson/${this.homework.lessonId}/details`); // Перенаправление на страницу деталей урока
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
       })
       .catch(error => {
         console.error("Ошибка при добавлении домашнего задания", error);

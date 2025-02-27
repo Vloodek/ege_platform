@@ -1,41 +1,62 @@
-import { createApp, nextTick } from 'vue';
+import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import axios from 'axios';
 
-const app = createApp(App);
+// Настройка базового URL
+axios.defaults.baseURL = 'http://localhost:8000';
 
-// Настраиваем базовый URL для Axios
-axios.defaults.baseURL = 'http://localhost:8000'; // Замените на ваш адрес API
+// Флаг для предотвращения повторной обработки ошибки 401
+let isUnauthorizedHandled = false;
 
 axios.interceptors.response.use(
-    (response) => {
-      return response;
-    },
-    (error) => {
-      // Выводим ошибку в консоль для отладки
-      console.log('Ошибка в перехватчике Axios', error.response);
-  
-      if (error.response && error.response.status === 401) {
-        console.warn('Ошибка 401. Перенаправляем на /register');
-  
-        // Удаляем токен и пользователя из localStorage
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('user');
-  
-        // Используем nextTick для корректного выполнения редиректа
-        nextTick(() => {
-          router.push('/register').catch((err) => {
-            console.error('Ошибка при редиректе на /register:', err);
-          });
-        });
+  response => response,
+  error => {
+    console.error('❌ Ошибка Axios:', error);
+
+    // Если сервер вернул ответ, проверяем код
+    if (error.response) {
+      const status = error.response.status;
+      if (status === 401) {
+        handleUnauthorized();
+      } else {
+        console.error('Ошибка с сервером:', status);
       }
-  
-      return Promise.reject(error);
+    } else if (error.message === 'Network Error') {
+      // Если нет ответа от сервера (например, из-за CORS или недоступности)
+      console.error('Ошибка сети. Очистка токена и переход на страницу логина');
+      handleUnauthorized();
+    } else {
+      console.error('Неизвестная ошибка:', error);
     }
-  );
-  
-  
+
+    return Promise.reject(error);
+  }
+);
+
+function handleUnauthorized() {
+  if (!isUnauthorizedHandled) {
+    isUnauthorizedHandled = true;
+    // Удаляем только те данные, которые отвечают за авторизацию
+    // localStorage.removeItem('access_token');
+    // localStorage.removeItem('user');
+    localStorage.clear()
+
+    // Если мы не на странице логина, перенаправляем пользователя туда
+    if (router.currentRoute.value.name !== 'login') {
+      router.push({ name: 'login' }).then(() => {
+        window.location.reload(); // Принудительно обновляем страницу
+      });
+    }
+  }
+}
+
+
+
+
+
+
+const app = createApp(App);
 
 // Добавляем Axios в глобальный объект Vue
 app.config.globalProperties.$axios = axios;

@@ -8,12 +8,18 @@ import Materials from './components/LessonMaterials.vue';
 import AddLesson from './components/AddLesson.vue';
 import HomeworkDetails from './components/HomeworkDetails.vue';
 import LessonsList from './components/LessonsList.vue';
+import HomeworksList from './components/HomeworksList.vue'; // Путь к компоненту HomeworksList
 
 const routes = [
   {
     path: '/',
     name: 'home',
     component: DayPlan,
+  },
+  {
+    path: '/homeworks',  // Путь к компоненту с домашними заданиями
+    name: 'homeworks',    
+    component: HomeworksList, 
   },
   {
     path: '/register',
@@ -55,10 +61,16 @@ const routes = [
     name: 'homework-details',
     component: HomeworkDetails,
   },
+
   {
     path: '/lesson/:id/edit',
     name: 'add-homework',
     component: AddHomework,
+  },
+  {
+    path: '/profile',
+    name: 'user-profile',
+    component: UserProfile,
   }
 ];
 
@@ -88,5 +100,28 @@ router.beforeEach((to, from, next) => {
   next();
 });
 
+
+// Обработка ошибки 401 в axios
+import axios from 'axios';
+import UserProfile from './components/UserProfile.vue';
+axios.interceptors.response.use(
+  (response) => {
+    // Если запрос успешный, просто возвращаем ответ
+    return response;
+  },
+  (error) => {
+    // Если ошибка 401 (Unauthorized)
+    if (error.response && error.response.status === 401) {
+      // Очищаем localStorage
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      
+      // Перенаправляем на страницу регистрации
+      console.log('Ошибка авторизации, очищаем localStorage и редиректим на /register');
+      router.push('/register');
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default router;

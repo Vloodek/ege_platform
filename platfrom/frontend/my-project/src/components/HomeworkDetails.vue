@@ -10,7 +10,7 @@
           <!-- Стрелка назад и центрированный заголовок -->
           <div class="header-section">
             <div class="back-arrow" @click="$router.go(-1)"></div>
-            <h1 class="homework-title centered">Детали домашнего задания</h1>
+            <h1 class="homework-title centered">{{ homework.description || "Детали домашнего задания" }}</h1>
           </div>
 
           <!-- Дедлайн -->
@@ -18,9 +18,9 @@
             <strong>Дедлайн: </strong>{{ formatDate(homework.date) }}
           </div>
 
-          <!-- Описание задания -->
-          <div v-if="homework.description" class="homework-description">
-            <p>{{ homework.description }}</p>
+          <!-- Текст задания (description) -->
+          <div v-if="homework.text" class="homework-description">
+            <p>{{ homework.text }}</p>
           </div>
 
           <!-- Отображение изображений -->
@@ -31,7 +31,7 @@
                 :key="index" 
                 :src="getFileUrl(image)" 
                 alt="Homework Image" 
-                @click="window.open(getFileUrl(image), '_blank')"
+                @click="openImage(getFileUrl(image))"
               />
             </div>
           </div>
@@ -47,6 +47,33 @@
               </li>
             </ul>
           </div>
+
+          <!-- Кнопка "Добавить ответ" -->
+          <BaseButton color="green" @click="showResponseForm = true" v-if="!showResponseForm">
+            Добавить ответ
+          </BaseButton>
+
+          <!-- Форма ответа -->
+          <div v-if="showResponseForm" class="response-form">
+            <h2>Ваш ответ:</h2>
+            <div class="uploaded-files">
+              <div v-for="(file, index) in uploadedFiles" :key="index" class="uploaded-file">
+                📄 {{ file.name }}
+              </div>
+            </div>
+
+            <h3>Комментарий или ответ к домашней работе:</h3>
+            <textarea v-model="responseText" placeholder="Введите ваш ответ..."></textarea>
+
+            <h3>Прикрепление файлов к домашней работе:</h3>
+            <div class="file-drop-zone" @dragover.prevent @drop="handleDrop">
+              <p>Перетащите файлы сюда или <span @click="selectFile">выберите файл</span></p>
+              <input type="file" multiple ref="fileInput" @change="handleFileUpload" hidden />
+            </div>
+
+            <!-- Кнопка "Отправить" -->
+            <BaseButton color="green" @click="submitResponse">Отправить</BaseButton>
+          </div>
         </div>
 
         <div v-else>
@@ -58,28 +85,29 @@
 </template>
 
 
-  
 <script>
-import SideBar from "../components/SideBar.vue"; // Импортируем Sidebar
+import SideBar from "../components/SideBar.vue";
+import BaseButton from "@/components/UI/BaseButton.vue";
 
 export default {
   components: {
-    SideBar, // Регистрируем Sidebar как компонент
+    SideBar,
+    BaseButton
   },
   data() {
     return {
-      homework: null, // Данные домашнего задания
-      currentIndex: 0, // Текущий индекс изображения в слайдере
+      homework: null,
+      showResponseForm: false,
+      responseText: "",
+      uploadedFiles: []
     };
   },
   computed: {
-    // Получаем только изображения для слайдера
     homeworkImages() {
       return this.homework?.files.filter(file =>
         /\.(jpg|jpeg|png|gif)$/i.test(file)
       ) || [];
     },
-    // Получаем все другие файлы (не изображения)
     otherFiles() {
       return this.homework?.files.filter(file =>
         !/\.(jpg|jpeg|png|gif)$/i.test(file)
@@ -90,10 +118,8 @@ export default {
     this.fetchHomeworkDetails();
   },
   methods: {
-    // Метод для получения деталей домашнего задания
     async fetchHomeworkDetails() {
-      const homeworkId = this.$route.params.id; // Получаем id задания из параметров маршрута
-      console.log(homeworkId);
+      const homeworkId = this.$route.params.id;
       try {
         const response = await fetch(`http://localhost:8000/homeworks/${homeworkId}`, {
           headers: {
@@ -102,8 +128,7 @@ export default {
         });
         if (response.ok) {
           const data = await response.json();
-          this.homework = data[0]; // Полагаем, что возвращается массив, и берем первый элемент
-          console.log("Детали домашнего задания:", this.homework);
+          this.homework = data[0];
         } else {
           console.error("Ошибка загрузки домашнего задания");
         }
@@ -111,65 +136,115 @@ export default {
         console.error("Ошибка сети:", error);
       }
     },
-
-    // Метод для получения правильного URL файла
     getFileUrl(file) {
       return `http://localhost:8000/${file.replace(/\\/g, '/')}`;
     },
-
-
-    // Переключение на следующее изображение
-    nextImage() {
-      if (this.currentIndex < this.homeworkImages.length - 1) {
-        this.currentIndex++;
-      }
-    },
-
-    // Переключение на предыдущее изображение
-    prevImage() {
-      if (this.currentIndex > 0) {
-        this.currentIndex--;
-      }
+    openImage(imageUrl) {
+      window.open(imageUrl, '_blank');
     },
     formatDate(dateString) {
+      try {
+        const cleanedDateString = dateString.split('.')[0]; 
+        const date = new Date(cleanedDateString);
+        if (isNaN(date.getTime())) {
+          return "Неверный формат даты";
+        }
+        return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      } catch (error) {
+        return "Ошибка даты";
+      }
+    },
+    selectFile() {
+      this.$refs.fileInput.click();
+    },
+    handleFileUpload(event) {
+      this.uploadedFiles.push(...event.target.files);
+    },
+    handleDrop(event) {
+      event.preventDefault();
+      if (event.dataTransfer.files.length) {
+        this.uploadedFiles.push(...event.dataTransfer.files);
+      }
+    },
+    async submitResponse() {
+  if (!this.responseText && !this.uploadedFiles.length) {
+    alert("Добавьте ответ или прикрепите файлы!");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("homework_id", this.$route.params.id); // Убедитесь, что название параметра совпадает с тем, что на сервере
+  
+  // Извлекаем объект user из localStorage
+  const userData = JSON.parse(localStorage.getItem('user')); // Преобразуем строку в объект
+  
+  if (userData && userData.userId) {
+    formData.append("user_id", userData.userId); // Добавляем user_id из объекта
+  } else {
+    console.error("Не найден userId в localStorage");
+    alert("Ошибка: Не найден userId в localStorage");
+    return;
+  }
+
+  formData.append("comment", this.responseText);
+
+  this.uploadedFiles.forEach((file, index) => {
+    formData.append(`file_${index}`, file);
+  });
+
   try {
-    // Заменяем избыточные точки после секунд
-    const cleanedDateString = dateString.split('.')[0]; 
-    const date = new Date(cleanedDateString);
+    const response = await fetch("http://localhost:8000/submit_homework", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+      },
+      body: formData,
+    });
 
-    // Проверяем, что дата корректная
-    if (isNaN(date.getTime())) {
-      console.error("Некорректная дата:", dateString);
-      return "Неверный формат даты";
+    if (response.ok) {
+      console.log("Ответ успешно отправлен!");
+      alert("Ответ отправлен!");
+      this.showResponseForm = false;
+      this.responseText = "";
+      this.uploadedFiles = [];
+    } else {
+      const errorData = await response.json();
+      console.error("Ошибка при отправке ответа:", errorData);
+      alert("Ошибка при отправке ответа");
     }
-
-    // Форматируем дату и время
-    const options = {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    };
-
-    return date.toLocaleDateString("ru-RU", options);
   } catch (error) {
-    console.error("Ошибка форматирования даты:", error);
-    return "Ошибка даты";
+    console.error("Ошибка сети при отправке ответа:", error);
+    alert("Ошибка сети при отправке ответа");
   }
 }
+
+
 
 
   },
 };
 </script>
 
-  
 <style scoped>
 #homework-details {
   padding: 20px;
 }
+.images-container {
+  margin-top: 20px;
+  text-align: center;
+}
 
+.images img {
+  max-width: 150px;
+  margin: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.images img:hover {
+  transform: scale(1.5);
+}
 .container {
   display: flex;
   width: 100%;
@@ -186,6 +261,47 @@ export default {
   margin-left: 20px;
 }
 
+.response-form {
+  margin-top: 30px;
+}
+
+textarea {
+  width: 100%;
+  height: 100px;
+  border: 1px solid #ddd;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.file-drop-zone {
+  border: 2px dashed #115544;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  margin: 10px 0;
+  border-radius: 10px;
+}
+
+.file-drop-zone p {
+  margin: 0;
+}
+
+.file-drop-zone span {
+  color: #115544;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.uploaded-files {
+  margin: 10px 0;
+}
+
+.uploaded-file {
+  background: #eee;
+  padding: 5px;
+  border-radius: 5px;
+  margin: 5px 0;
+}
 .header-section {
   display: flex;
   align-items: center;
@@ -213,32 +329,6 @@ export default {
   text-align: center;
   margin: 0;
 }
-
-.homework-deadline,
-.homework-description {
-  margin: 20px 0;
-  font-size: 16px;
-  line-height: 1.6;
-  color: #333;
-}
-
-.images-container {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.images img {
-  max-width: 150px;
-  margin: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-}
-
-.images img:hover {
-  transform: scale(1.5);
-}
-
 .files-section ul {
   list-style: none;
   padding: 0;
@@ -270,6 +360,3 @@ export default {
   text-decoration: underline;
 }
 </style>
-
-
-  

@@ -8,7 +8,13 @@
         </div>
         <div class="user-info">
           <span class="user-name">{{ isAuthenticated ? userName : 'Гость' }}</span>
-          <span class="icon-dropdown">&#x25BC;</span>
+          <span class="icon-dropdown" @click="toggleDropdown">&#x25BC;</span>
+          <div v-if="dropdownOpen" class="dropdown-menu">
+            <ul>
+              <li @click="goToProfile">Профиль</li>
+              <li @click="logout">Выйти</li>
+            </ul>
+          </div>
           <img 
             src="@/assets/svg/home-icon.svg" 
             alt="Домик" 
@@ -27,6 +33,7 @@
   </div>
 </template>
 
+
 <script>
 import axios from 'axios';
 
@@ -34,59 +41,80 @@ export default {
   data() {
     return {
       isAuthenticated: false,
-      userName: 'Гость', // Значение по умолчанию, если пользователь не найден
+      userName: 'Гость',
+      dropdownOpen: false, // Состояние выпадающего меню
     };
   },
   mounted() {
     console.log('Компонент App загружен');
     
-    // Логирование данных пользователя из localStorage
     const user = localStorage.getItem('user');
     console.log('Данные пользователя из localStorage:', user);
 
     if (user) {
       try {
         const parsedUser = JSON.parse(user);
-        console.log('Парсинг данных пользователя:', parsedUser);
-
-        // Проверяем, что у объекта есть поле `name`
         if (parsedUser && parsedUser.name) {
-          this.userName = parsedUser.name; // Устанавливаем имя пользователя
+          this.userName = parsedUser.name;
           this.isAuthenticated = true;
-          console.log('Пользователь авторизован:', this.userName);
         } else {
-          console.warn("Имя пользователя не найдено в данных.");
-          this.$router.push('/register'); // Перенаправляем, если данные некорректны
+          this.clearLocalStorage();
         }
       } catch (error) {
-        console.error("Ошибка при парсинге данных из localStorage:", error);
-        this.$router.push('/register');
+        this.clearLocalStorage();
       }
     } else {
-      console.warn("Пользователь не найден в localStorage.");
-      this.$router.push('/register');
+      this.clearLocalStorage();
     }
 
-    // Устанавливаем токен в заголовки всех запросов через axios
     const token = localStorage.getItem('access_token');
     if (token) {
       axios.defaults.headers['Authorization'] = `Bearer ${token}`;
-      console.log('Токен авторизации установлен:', token);
-    } else {
-      console.warn('Токен не найден в localStorage');
     }
+
+    // Закрытие dropdown при клике вне
+    document.addEventListener('click', this.closeDropdownOutside);
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.closeDropdownOutside);
   },
   methods: {
     goToDayPlan() {
-      console.log('Переход на план дня');
-      this.$router.push('/day-plan'); // Переход на страницу с планом на день
+      this.$router.push('/day-plan');
+    },
+    goToProfile() {
+      this.$router.push('/profile');
+      this.dropdownOpen = false;
+    },
+    logout() {
+      console.log('Выход из системы');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      this.$router.push('/register');
+      location.reload(); // Обновляем страницу
+    },
+    toggleDropdown(event) {
+      event.stopPropagation(); // Чтобы не срабатывало на document
+      this.dropdownOpen = !this.dropdownOpen;
+    },
+    closeDropdownOutside(event) {
+      if (!this.$el.contains(event.target)) {
+        this.dropdownOpen = false;
+      }
+    },
+    clearLocalStorage() {
+      console.log('Очищаем localStorage');
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
+      this.$router.push('/register');
     },
   },
 };
 </script>
 
+
 <style scoped>
-/* Общие стили для сброса */
+/* Общие стили */
 * {
   margin: 0;
   padding: 0;
@@ -94,15 +122,9 @@ export default {
   font-family: 'Navigo', sans-serif;
 }
 
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: #f3f3f3;
-}
-
 #app {
   height: 100%;
+  width: 100%;
   background-color: #F3F3F3;
 }
 
@@ -110,7 +132,6 @@ html, body {
 .header {
   background-color: #ffffff;
   height: 80px;
-  width: 100%;
   display: flex;
   justify-content: center;
   padding: 0 20px;
@@ -131,7 +152,6 @@ html, body {
 
 .logo {
   width: 40px;
-  height: auto;
   margin-right: 10px;
 }
 
@@ -160,22 +180,69 @@ html, body {
 
 .home-icon {
   width: 24px;
-  height: auto;
   cursor: pointer;
 }
 
 /* Основной контент */
 .content {
   display: flex;
-  min-height: calc(100vh - 80px); /* Подгоняем высоту контента с учетом высоты шапки */
+  min-height: calc(100vh - 80px); /* Учитываем высоту шапки */
 }
 
-/* Основной контент */
 .main-content {
   flex: 1;
   padding: 20px;
   background-color: #F3F3F3;
   border-radius: 8px;
   min-height: 100%;
+}
+/* Стили для dropdown */
+.dropdown-menu {
+  position: absolute;
+  top: 50px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 10px 0;
+  width: 150px;
+}
+
+.dropdown-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dropdown-menu li {
+  padding: 10px 15px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.dropdown-menu li:hover {
+  background-color: #f0f0f0;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.icon-dropdown {
+  margin-right: 20px;
+  cursor: pointer;
+  font-size: 18px;
+}
+</style>
+
+<style>
+/* Глобальные стили */
+body {
+  margin: 0;
+  padding: 0;
+  
 }
 </style>

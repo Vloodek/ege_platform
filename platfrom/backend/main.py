@@ -15,23 +15,29 @@ import os
 from typing import List
 from fastapi.responses import FileResponse
 import json
-
+from app.database import init_db  # Импортируем функцию инициализации БД
 app = FastAPI()
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # Настройка CORS
 origins = [
     "http://localhost:8080",  # добавьте URL вашего фронтенда
+    "http://localhost:8000",
     "http://192.168.1.73:8080",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:9000"
+
     # Можно добавить другие источники, если необходимо
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # можно указать методы, если нужно
-    allow_headers=["*"],  # можно указать заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -111,7 +117,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         "access_token": access_token,
         "token_type": "bearer",
         "name": db_user.name,
-        "role": db_user.role
+        "role": db_user.role,
+        "id": db_user.id  # Возвращаем id пользователя
     }
 
 UPLOAD_FOLDER = "./uploads/"
@@ -303,11 +310,14 @@ async def get_homeworks_by_lesson(lesson_id: int, db: Session = Depends(get_db))
 
 
 from fastapi import status
+from fastapi.responses import JSONResponse
 @app.middleware("http")
 async def check_authorization(request: Request, call_next):
     if request.method == "OPTIONS":
         return await call_next(request)  # Пропускаем OPTIONS-запросы
-    if request.url.path.startswith("/uploads/"):  # Исключение для маршрутов /uploads/
+    print(f"Обрабатываемый путь запроса: {request.url.path}")
+
+    if request.url.path.startswith("/uploads/") or request.url.path == "/favicon.ico":  # Исключение для маршрутов /uploads/
         return await call_next(request)
 
     excluded_routes = ["/register", "/login"]  # Маршруты, где не требуется токен
@@ -335,10 +345,70 @@ async def check_authorization(request: Request, call_next):
         print(f"Авторизация успешна для пользователя: {user}")
     except jwt.PyJWTError as e:
         print(f"Ошибка декодирования JWT: {str(e)}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Invalid token"})
+        
+        
     
     response = await call_next(request)
     return response
 
 
+@app.post("/submit_homework", response_model=schemas.HomeworkSubmissionResponse)
+async def submit_homework(
+    homework_id: int = Form(...),
+    user_id: int = Form(...),
+    comment: Optional[str] = Form(None),  # Добавим поле для комментария
+    files: Optional[List[UploadFile]] = File(None),  # Принимаем файлы через File
+    db: Session = Depends(get_db)
+):
+    submission = database.HomeworkSubmission(homework_id=homework_id, user_id=user_id, comment=comment)
+    db.add(submission)
+    db.commit()
+    db.refresh(submission)
+
+    submission_folder = os.path.join(UPLOAD_FOLDER, "homeworks", str(submission.id))
+    os.makedirs(submission_folder, exist_ok=True)
+
+    if files:
+        for file in files:
+            file_path = os.path.join(submission_folder, file.filename)
+            with open(file_path, "wb") as f:
+                f.write(file.file.read())
+
+            db_file = database.HomeworkFile(
+                submission_id=submission.id, 
+                file_path=file_path,
+                file_type=file.content_type
+            )
+            db.add(db_file)
+    
+    db.commit()
+    return submission
+
+
+@app.post("/grade_homework")
+async def grade_homework(
+    submission_id: int = Form(...),
+    grade: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
+
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    submission.grade = grade
+    submission.status = "graded"
+
+    db_grade = database.Grade(submission_id=submission.id, grade=grade)
+    db.add(db_grade)
+    db.commit()
+    
+    return {"message": "Grade assigned successfully"}
+
+
+@app.get("/homework_submissions", response_model=List[schemas.HomeworkSubmissionResponse])
+async def get_homework_submissions(db: Session = Depends(get_db)):
+    submissions = db.query(database.HomeworkSubmission).all()
+    return submissions
 

@@ -46,7 +46,7 @@ export default {
       const commonItems = [
         { label: "Занятия", icon: lessonsIcon, link: "/lessons" },
         { label: "Расписание", icon: scheduleIcon, link: "/calendar" }, // Ссылка на календарь
-        { label: "Домашние задания", icon: homeworkIcon, link: "/homework" },
+        { label: "Домашние задания", icon: homeworkIcon, link: "/homeworks" },
         { label: "Тренажёр", icon: trainerIcon, link: "/trainer" },
       ];
       if (this.userType === "teacher") {

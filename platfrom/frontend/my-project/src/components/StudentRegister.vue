@@ -67,7 +67,7 @@ export default {
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem(
           'user',
-          JSON.stringify({ name: response.data.name, role: response.data.role })
+          JSON.stringify({ name: response.data.name, role: response.data.role, userId: response.data.id })
         );
 
         this.$router.push('/');  // Перенаправление на главную страницу

@@ -4,14 +4,10 @@
       <SideBar :isTestActive="false" />
 
       <div class="main-content">
-        <!-- Заголовок страницы -->
         <h2 class="page-title">Добавление урока</h2>
 
-        <!-- Основная форма для урока -->
         <form @submit.prevent="handleSubmit" class="lesson-form">
-          <!-- Раздел "Информация о занятии" -->
           <div class="lesson-info">
-            <h3>Информация о занятии</h3>
             <div class="form-group">
               <label for="lessonTitle">Название урока</label>
               <input
@@ -46,7 +42,6 @@
             </div>
           </div>
 
-          <!-- Раздел "Материалы к занятию" -->
           <div class="lesson-materials">
             <h3>Материалы к занятию</h3>
             <div class="form-group">
@@ -59,49 +54,48 @@
             </div>
 
             <div class="form-group">
-              <label for="lessonImages">Загрузить изображения</label>
-              <input
-                type="file"
-                id="lessonImages"
-                @change="handleFileUpload"
-                multiple
-                accept="image/*"
-              />
+              <label for="lessonFiles">Загрузить файлы</label>
+              <div
+                class="drag-drop-area"
+                @drop.prevent="handleDrop"
+                @dragover.prevent
+                @dragenter.prevent
+              >
+                <input
+                  type="file"
+                  id="lessonFiles"
+                  @change="handleFileUpload"
+                  multiple
+                   style="display: none;"
+                />
+                <p>Перетащите файлы сюда или выберите</p>
+              </div>
             </div>
-            <!-- Список превью загруженных изображений -->
-<div class="uploaded-images">
-  <h4>Загруженные изображения</h4>
-  <div v-if="lesson.images.length > 0" class="images-preview">
-    <div v-for="(image, index) in lesson.images" :key="index" class="image-preview">
-      <img :src="image.preview" alt="Загруженное изображение" />
-      <button type="button" @click="removeImage(index)">Удалить</button>
-    </div>
-  </div>
-  <p v-else>Нет загруженных изображений.</p>
-</div>
+            <small class="helper-text">Поддерживаемые форматы: любые файлы</small>
 
-            <div class="form-group">
-              <label for="lessonFiles">Загрузить прикрепленные файлы</label>
-              <input
-                type="file"
-                id="lessonFiles"
-                @change="handleFileUpload"
-                multiple
-              />
+            <div class="uploaded-images">
+              <h4>Загруженные изображения</h4>
+              <div v-if="lesson.images.length > 0" class="images-preview">
+                <div v-for="(image, index) in lesson.images" :key="index" class="image-preview">
+                  <img :src="image.preview" alt="Загруженное изображение" @click="openImage(image.preview)" />
+                  <button type="button" class="delete-btn" @click="removeImage(index)">&times;</button>
+                </div>
+              </div>
+              <p v-else>Нет загруженных изображений.</p>
+            </div>
+
+            <div class="uploaded-files">
+              <h4>Загруженные файлы</h4>
+              <ul>
+                <li v-for="(file, index) in lesson.files" :key="index">
+                  {{ file.name }}
+                  <button type="button" @click="removeFile(index)">Удалить</button>
+                </li>
+              </ul>
+              <p v-if="lesson.files.length === 0">Нет загруженных файлов.</p>
             </div>
           </div>
-          <div class="uploaded-files">
-  <h4>Загруженные файлы</h4>
-  <ul>
-    <li v-for="(file, index) in lesson.files" :key="index">
-      {{ file.name }}
-      <button type="button" @click="removeFile(index)">Удалить</button>
-    </li>
-  </ul>
-  <p v-if="lesson.files.length === 0">Нет загруженных файлов.</p>
-</div>
 
-          <!-- Раздел "Дата занятия" -->
           <div class="form-group">
             <label for="lessonDate">Дата занятия</label>
             <input
@@ -112,20 +106,20 @@
             />
           </div>
 
-          <!-- Кнопка добавления -->
           <button type="submit" class="submit-btn">Добавить урок</button>
         </form>
+
+        <div v-if="fullImage" class="full-image-modal" @click="closeImage">
+          <img :src="fullImage" alt="Полноразмерное изображение" />
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-
-
-
 <script>
 import SideBar from "../components/SideBar.vue";
-import axios from 'axios';
+import axios from "axios";
 
 export default {
   components: {
@@ -142,76 +136,95 @@ export default {
         images: [],
         date: "",
       },
-      videoLinkError: false,  
+      videoLinkError: false,
+      fullImage: null,
     };
   },
   methods: {
-  handleFileUpload(event) {
-    const files = Array.from(event.target.files);
-    files.forEach(file => {
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          this.lesson.images.push({
-            file,
-            preview: e.target.result,
-          });
-        };
-        reader.readAsDataURL(file);
-      } else if (file.type === "application/pdf" || file.type.startsWith("application/")) {
-        this.lesson.files.push(file);
-      } else {
-        alert("Только изображения и PDF файлы могут быть загружены.");
-      }
-    });
-  },
-  removeImage(index) {
-    this.lesson.images.splice(index, 1);
-  },
-  removeFile(index) {
-    this.lesson.files.splice(index, 1);
-  },
-  validateVideoLink() {
-    const regex = /https?:\/\/.*/;
-    this.videoLinkError = !regex.test(this.lesson.videoLink);
-  },
-  handleSubmit() {
-    const formData = new FormData();
-    formData.append("name", this.lesson.name);
-    formData.append("description", this.lesson.description);
-    formData.append("videoLink", this.lesson.videoLink);
-    formData.append("text", this.lesson.text);
-    formData.append("date", this.lesson.date);
+    handleFileUpload(event) {
+      const files = Array.from(event.target.files);
+      files.forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.lesson.images.push({
+              file,
+              preview: e.target.result,
+            });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          this.lesson.files.push(file);
+        }
+      });
+    },
+    handleDrop(event) {
+      const files = Array.from(event.dataTransfer.files);
+      files.forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.lesson.images.push({
+              file,
+              preview: e.target.result,
+            });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          this.lesson.files.push(file);
+        }
+      });
+    },
+    removeImage(index) {
+      this.lesson.images.splice(index, 1);
+    },
+    removeFile(index) {
+      this.lesson.files.splice(index, 1);
+    },
+    validateVideoLink() {
+      const regex = /https?:\/\/.*/;
+      this.videoLinkError = !regex.test(this.lesson.videoLink);
+    },
+    handleSubmit() {
+      const formData = new FormData();
+      formData.append("name", this.lesson.name);
+      formData.append("description", this.lesson.description);
+      formData.append("videoLink", this.lesson.videoLink);
+      formData.append("text", this.lesson.text);
+      formData.append("date", this.lesson.date);
 
-    // Добавляем изображения
-this.lesson.images.forEach(imageObj => {
-    formData.append("images", imageObj.file);
-});
+      this.lesson.images.forEach((imageObj) => {
+        formData.append("images", imageObj.file);
+      });
 
-// Добавляем файлы
-this.lesson.files.forEach(file => {
-    formData.append("files", file);
-});
+      this.lesson.files.forEach((file) => {
+        formData.append("files", file);
+      });
 
-    axios.post("http://localhost:8000/lessons/", formData, {
-        headers: {
+      axios
+        .post("http://localhost:8000/lessons/", formData, {
+          headers: {
             "Content-Type": "multipart/form-data",
-        },
-    })
-    .then(response => {
-        console.log("Урок успешно добавлен", response.data);
-        this.$router.push("/day-plan");
-    })
-    .catch(error => {
-        console.error("Ошибка при добавлении урока", error);
-    });
-},
-},
-
+          },
+        })
+        .then((response) => {
+          console.log("Урок успешно добавлен", response.data);
+          this.$router.push("/day-plan");
+        })
+        .catch((error) => {
+          console.error("Ошибка при добавлении урока", error);
+        });
+    },
+    openImage(preview) {
+      this.fullImage = preview;
+    },
+    closeImage() {
+      this.fullImage = null;
+    },
+  },
 };
 </script>
 
-  
 <style scoped>
 .add-lesson-page {
   display: flex;
@@ -256,12 +269,6 @@ this.lesson.files.forEach(file => {
   margin-bottom: 30px;
 }
 
-.lesson-info h3,
-.lesson-materials h3 {
-  font-size: 22px;
-  margin-bottom: 10px;
-}
-
 .form-group {
   margin-bottom: 15px;
 }
@@ -296,7 +303,7 @@ this.lesson.files.forEach(file => {
 
 .submit-btn {
   padding: 10px 20px;
-  background-color: #4CAF50;
+  background-color: #4caf50;
   color: white;
   border: none;
   border-radius: 5px;
@@ -308,16 +315,6 @@ this.lesson.files.forEach(file => {
   background-color: #45a049;
 }
 
-@media (max-width: 768px) {
-  .container {
-    flex-direction: column;
-  }
-
-  .main-content {
-    margin-left: 0;
-    width: 100%;
-  }
-}
 .images-preview {
   display: flex;
   flex-wrap: wrap;
@@ -326,6 +323,7 @@ this.lesson.files.forEach(file => {
 
 .image-preview {
   position: relative;
+  cursor: pointer;
 }
 
 .image-preview img {
@@ -333,19 +331,68 @@ this.lesson.files.forEach(file => {
   max-height: 100px;
   border: 1px solid #ddd;
   border-radius: 5px;
+  object-fit: cover;
 }
 
-.image-preview button {
+.image-preview .delete-btn {
   position: absolute;
   top: 5px;
   right: 5px;
-  background: red;
-  color: white;
+  background: rgba(255, 255, 255, 0.8);
+  color: #ff0000;
   border: none;
   border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.image-preview .delete-btn:hover {
+  background: rgba(255, 0, 0, 0.8);
+  color: #fff;
+}
+
+.full-image-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.full-image-modal img {
+  max-width: 90%;
+  max-height: 90%;
+  border-radius: 10px;
+}
+
+/* Drag and Drop area */
+.drag-drop-area {
+  border: 2px dashed #4caf50;
+  padding: 20px;
+  background-color: #e8f5e9;
+  text-align: center;
+  border-radius: 5px;
   cursor: pointer;
 }
 
-</style>
+.drag-drop-area p {
+  font-size: 16px;
+  color: #4caf50;
+}
 
-  
+.hidden-input {
+  display: none;
+}
+</style>

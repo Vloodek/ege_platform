@@ -54,3 +54,44 @@ class HomeworkResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+# Отправка домашнего задания
+class HomeworkSubmissionCreate(BaseModel):
+    homework_id: int
+    user_id: int
+    comment: Optional[str] = None  # Комментарий или текст ответа
+    files: Optional[List[str]] = []  # Пути к прикрепленным файлам
+
+
+# Ответ с данными о домашке
+class HomeworkSubmissionResponse(BaseModel):
+    id: int
+    homework_id: int
+    user_id: int
+    submission_date: datetime
+    grade: Optional[int]
+    status: str
+
+    class Config:
+        orm_mode = True
+
+# Файлы, прикрепленные к отправке
+class HomeworkFileCreate(BaseModel):
+    submission_id: int
+    file_path: str
+    file_type: str
+
+class HomeworkFileResponse(BaseModel):
+    id: int
+    submission_id: int
+    file_path: str
+    file_type: str
+    uploaded_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# Оценки
+class GradeCreate(BaseModel):
+    submission_id: int
+    grade: int
