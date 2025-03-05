@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, Upload
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import app.database as database  # Импортируем базу данных
-from app.schemas import UserRegister, UserLogin  # Импортируем модели Pydantic
+from app.schemas import UserRegister, UserLogin,JoinGroupRequest  # Импортируем модели Pydantic
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 import jwt
@@ -17,34 +17,20 @@ from fastapi.responses import FileResponse
 import json
 from app.database import init_db  # Импортируем функцию инициализации БД
 app = FastAPI()
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-# Настройка CORS
-origins = [
-    "http://localhost:8080",  # добавьте URL вашего фронтенда
-    "http://localhost:8000",
-    "http://192.168.1.73:8080",
-    "http://127.0.0.1:8080",
-    "http://127.0.0.1:9000"
-
-    # Можно добавить другие источники, если необходимо
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Adjust this in production
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["Content-Security-Policy"] = (
-        "script-src 'self' 'unsafe-inline';"
-    )
-    return response
+
+
+
+
 
 
 # Инициализация базы данных
@@ -118,7 +104,8 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
         "token_type": "bearer",
         "name": db_user.name,
         "role": db_user.role,
-        "id": db_user.id  # Возвращаем id пользователя
+        "id": db_user.id,  # Возвращаем id пользователя
+        "group_id": db_user.group_id  # Добавляем номер группы
     }
 
 UPLOAD_FOLDER = "./uploads/"
@@ -135,8 +122,9 @@ async def create_lesson(
     videoLink: Optional[str] = Form(None),
     text: str = Form(...),
     date: datetime = Form(...),
-    images: Optional[List[UploadFile]] = File(None),  # Принимаем изображения
-    files: Optional[List[UploadFile]] = File(None),  # Принимаем файлы
+    group_id: int = Form(...),  # Добавляем выбор группы
+    images: Optional[List[UploadFile]] = File(None),
+    files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
     db_lesson = database.Lesson(
@@ -145,16 +133,15 @@ async def create_lesson(
         videoLink=videoLink,
         text=text,
         date=date,
+        group_id=group_id,  # Сохраняем ID группы
     )
     db.add(db_lesson)
     db.commit()
     db.refresh(db_lesson)
 
-    # Создаем папку для урока, если ее нет
     lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
     os.makedirs(lesson_folder, exist_ok=True)
 
-    # Папка для изображений
     images_folder = os.path.join(lesson_folder, "images")
     os.makedirs(images_folder, exist_ok=True)
 
@@ -164,7 +151,6 @@ async def create_lesson(
             image_location = os.path.join(images_folder, image.filename)
             with open(image_location, "wb") as f:
                 f.write(image.file.read())
-            # Нормализуем путь для сохранения
             normalized_image_path = os.path.normpath(image_location).replace("\\", "/")
             image_paths.append(normalized_image_path)
 
@@ -174,17 +160,14 @@ async def create_lesson(
             file_location = os.path.join(lesson_folder, file.filename)
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
-            # Нормализуем путь для сохранения
             normalized_file_path = os.path.normpath(file_location).replace("\\", "/")
             file_paths.append(normalized_file_path)
 
-    # Обновляем запись о уроке с путями к файлам
     db_lesson.files = ",".join(file_paths)
-    db_lesson.image_links = ",".join(image_paths)  # Сохраняем пути к изображениям
+    db_lesson.image_links = ",".join(image_paths)
     db.commit()
     db.refresh(db_lesson)
 
-    # Преобразуем строки в списки для вывода
     db_lesson.files = db_lesson.files.split(",") if db_lesson.files else []
     db_lesson.image_links = db_lesson.image_links.split(",") if db_lesson.image_links else []
     
@@ -239,14 +222,14 @@ async def get_lesson_image(lesson_id: int, image_name: str):
 
 @app.post("/homeworks/", response_model=schemas.HomeworkResponse)
 async def create_homework(
-    lesson_id: int = Form(...),  # Заменяем на lesson_id
+    lesson_id: int = Form(...),
     description: str = Form(...),
     text: str = Form(...),
     date: datetime = Form(...),
     files: Optional[List[UploadFile]] = File(None),
+    images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    print(f"Lesson ID: {lesson_id}, Description: {description}, Date: {date}")
     lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
     
     if not lesson:
@@ -257,7 +240,9 @@ async def create_homework(
         description=description,
         text=text,
         date=date,
-        files="[]"  # Это временное значение, если файлов нет
+        files="[]",
+        images="[]",
+        group_id=lesson.group_id  
     )
     db.add(db_homework)
     db.commit()
@@ -265,9 +250,10 @@ async def create_homework(
 
     homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
     os.makedirs(homework_folder, exist_ok=True)
-    
 
     file_paths = []
+    image_paths = []
+
     if files:
         for file in files:
             file_location = os.path.join(homework_folder, file.filename)
@@ -275,22 +261,36 @@ async def create_homework(
                 f.write(file.file.read())
             file_paths.append(file_location)
 
-        db_homework.files = json.dumps(file_paths)  # Сохраняем пути в формате JSON
-        db.commit()
-        db.refresh(db_homework)
-    print(f"Lesson ID: {lesson_id}, Description: {description}, Date: {date}")
+    if images:
+        for image in images:
+            image_location = os.path.join(homework_folder, image.filename)
+            with open(image_location, "wb") as f:
+                f.write(image.file.read())
+            image_paths.append(image_location)
+
+    db_homework.files = json.dumps(file_paths)
+    db_homework.images = json.dumps(image_paths)  # Сохраняем пути в формате JSON
+
+    db.commit()
+    db.refresh(db_homework)
+
     db_homework.files = json.loads(db_homework.files) if db_homework.files else []
+    db_homework.images = json.loads(db_homework.images) if db_homework.images else []
+
     return db_homework
 
 
 
-# Получение всех домашних заданий (homeworks)
+
 @app.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
 async def get_homeworks(db: Session = Depends(get_db)):
     homeworks = db.query(database.Homework).all()
     for homework in homeworks:
         homework.files = json.loads(homework.files) if homework.files else []
+        # Убираем обработку images, если она не нужна
+        homework.images = []  # Можно просто очистить список или убрать строку
     return homeworks
+
 
 # Получение конкретного домашнего задания (homework)
 @app.get("/homeworks/{lesson_id}", response_model=List[schemas.HomeworkResponse])
@@ -303,10 +303,14 @@ async def get_homeworks_by_lesson(lesson_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Домашние задания не найдены для данного урока")
     
     print(f"Найдены домашки для урока с ID {lesson_id}: {homeworks}")
-    # Преобразуем файлы в список
+
+    # Преобразуем файлы и изображения в списки
     for homework in homeworks:
         homework.files = json.loads(homework.files) if homework.files else []
+        homework.images = json.loads(homework.images) if homework.images else []  # Добавляем обработку images
+    
     return homeworks
+
 
 
 from fastapi import status
@@ -345,7 +349,14 @@ async def check_authorization(request: Request, call_next):
         print(f"Авторизация успешна для пользователя: {user}")
     except jwt.PyJWTError as e:
         print(f"Ошибка декодирования JWT: {str(e)}")
-        return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Invalid token"})
+        return JSONResponse(
+    status_code=401,
+    content={"detail": "Invalid token"},
+    headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": "true"
+    }
+)
         
         
     
@@ -357,33 +368,63 @@ async def check_authorization(request: Request, call_next):
 async def submit_homework(
     homework_id: int = Form(...),
     user_id: int = Form(...),
-    comment: Optional[str] = Form(None),  # Добавим поле для комментария
-    files: Optional[List[UploadFile]] = File(None),  # Принимаем файлы через File
+    comment: Optional[str] = Form(None),
+    client_submission_time: Optional[str] = Form(None),
+    files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    submission = database.HomeworkSubmission(homework_id=homework_id, user_id=user_id, comment=comment)
+    # Определяем клиентское время: если пришло, пытаемся распарсить, иначе берем текущее время
+    if client_submission_time:
+        try:
+            client_time = datetime.fromisoformat(client_submission_time)
+        except Exception as e:
+            client_time = datetime.utcnow()
+    else:
+        client_time = datetime.utcnow()
+
+    # Создаем запись отклика с клиентским временем
+    submission = database.HomeworkSubmission(
+        homework_id=homework_id,
+        user_id=user_id,
+        comment=comment,
+        submission_date=datetime.utcnow(),  # серверное время
+        client_submission_time=client_time
+    )
     db.add(submission)
     db.commit()
     db.refresh(submission)
 
-    submission_folder = os.path.join(UPLOAD_FOLDER, "homeworks", str(submission.id))
+    # Получаем домашнее задание, чтобы определить lesson_id
+    homework_obj = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
+    if not homework_obj:
+        raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
+    lesson_id = homework_obj.lesson_id
+
+    # Формируем базовый путь для откликов: uploads/<lesson_id>/homework/
+    base_homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
+    os.makedirs(base_homework_folder, exist_ok=True)
+
+    # Создаем папку для отклика по user_id (без даты)
+    submission_folder = os.path.join(base_homework_folder, str(user_id))
     os.makedirs(submission_folder, exist_ok=True)
 
+    # Сохраняем файлы отклика в созданную папку
     if files:
         for file in files:
-            file_path = os.path.join(submission_folder, file.filename)
-            with open(file_path, "wb") as f:
+            file_location = os.path.join(submission_folder, file.filename)
+            with open(file_location, "wb") as f:
                 f.write(file.file.read())
-
             db_file = database.HomeworkFile(
-                submission_id=submission.id, 
-                file_path=file_path,
+                submission_id=submission.id,
+                file_path=file_location,
                 file_type=file.content_type
             )
             db.add(db_file)
-    
-    db.commit()
+        db.commit()
+
     return submission
+
+
 
 
 @app.post("/grade_homework")
@@ -406,9 +447,86 @@ async def grade_homework(
     
     return {"message": "Grade assigned successfully"}
 
+import random
+import string
 
-@app.get("/homework_submissions", response_model=List[schemas.HomeworkSubmissionResponse])
-async def get_homework_submissions(db: Session = Depends(get_db)):
-    submissions = db.query(database.HomeworkSubmission).all()
-    return submissions
+def generate_group_code(length=6):
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+@app.post("/groups/", response_model=schemas.GroupResponse)
+async def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
+    group_code = generate_group_code()
+    db_group = database.Group(name=group.name, code=group_code)
+    db.add(db_group)
+    db.commit()
+    db.refresh(db_group)
+    return db_group
+
+from fastapi import Body
+
+@app.post("/groups/join/{group_code}")
+async def join_group(
+    request: Request, 
+    group_code: str, 
+    body: JoinGroupRequest = Body(...), 
+    db: Session = Depends(get_db)
+):
+    print(f"📥 Получен запрос с кодом группы: {group_code}")
+    print(f"🔹 Заголовки запроса: {request.headers}")
+    print(f"🔹 Данные из тела запроса: {body}")
+
+    # Ищем группу по коду
+    group = db.query(database.Group).filter(database.Group.code == group_code).first()
+    if not group:
+        return JSONResponse(status_code=404, content={"message": "Группа не найдена"})
+
+    # Ищем пользователя
+    user = db.query(database.User).filter(database.User.id == body.user_id).first()
+    if not user:
+        return JSONResponse(status_code=404, content={"message": "Пользователь не найден"})
+
+    # Обновляем group_id у пользователя
+    user.group_id = group.id
+    db.commit()
+
+    return {"message": f"Пользователь {user.name} успешно добавлен в группу {group.name}"}
+
+#список всех групп
+@app.get("/groups/", response_model=List[schemas.GroupResponse])
+async def get_groups(db: Session = Depends(get_db)):
+    groups = db.query(database.Group).all()
+    return groups
+
+
+
+@app.get("/homework/{homework_id}", response_model=schemas.HomeworkResponse)
+async def get_homework(homework_id: int, db: Session = Depends(get_db)):
+    homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
+    if not homework:
+        raise HTTPException(status_code=404, detail="Homework not found")
+    # Если файлы сохранены как JSON, преобразуем их обратно в список
+    if homework.files:
+        homework.files = json.loads(homework.files)
+    # Если ссылки на изображения сохранены как строка, можно их преобразовать (если нужно)
+    if homework.images:
+        homework.images = json.loads(homework.images)
+    return homework
+
+
+@app.put("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
+async def update_homework(
+    homework_id: int,
+    updated_homework: schemas.HomeworkUpdate,  # <== ВАЖНО: правильная схема
+    db: Session = Depends(get_db),
+):
+    homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
+    if not homework:
+        raise HTTPException(status_code=404, detail="Домашка не найдена")
+
+    # Обновляем данные
+    for key, value in updated_homework.model_dump(exclude_unset=True).items():
+        setattr(homework, key, value)
+
+    db.commit()
+    db.refresh(homework)
+    return homework

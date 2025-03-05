@@ -51,6 +51,7 @@ class HomeworkResponse(BaseModel):
     text: str
     date: datetime
     files: List[str]
+    images: List[str] = []  # Добавляем поле images!
 
     class Config:
         orm_mode = True
@@ -95,3 +96,37 @@ class HomeworkFileResponse(BaseModel):
 class GradeCreate(BaseModel):
     submission_id: int
     grade: int
+
+class GroupCreate(BaseModel):
+    name: str
+
+class GroupResponse(BaseModel):
+    id: int
+    name: str
+    code: str
+
+    class Config:
+        orm_mode = True
+
+class JoinGroup(BaseModel):
+    code: str
+
+class JoinGroupRequest(BaseModel):
+    user_id: int
+
+class HomeworkUpdate(BaseModel):
+    lesson_id: Optional[int]
+    description: Optional[str]
+    text: Optional[str]
+    date: Optional[str]
+    images: Optional[List[str]]
+    files: Optional[List[str]]
+
+    class Config:
+        from_attributes = True  # Убедись, что включен режим атрибутов для ORM
+
+class HomeworkListItem(BaseModel):
+    id: int
+    lesson_id: int
+    description: str
+    date: datetime

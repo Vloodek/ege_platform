@@ -45,38 +45,42 @@ export default {
   },
   methods: {
     async handleSubmit() {
-      this.error = null;
-      this.success = false;
-      this.isSubmitting = true;
+  this.error = null;
+  this.success = false;
+  this.isSubmitting = true;
 
-      const url = this.isLogin ? 'http://localhost:8000/login' : 'http://localhost:8000/register';
-      const data = this.isLogin
-        ? { email: this.email, password: this.password }
-        : {
-            name: this.name,
-            email: this.email,
-            password: this.password,
-          };
+  const url = this.isLogin ? 'http://localhost:8000/login' : 'http://localhost:8000/register';
+  const data = this.isLogin
+    ? { email: this.email, password: this.password }
+    : {
+        name: this.name,
+        email: this.email,
+        password: this.password,
+      };
 
-      try {
-        const response = await axios.post(url, data);
-        console.log(response.data); // Вывод данных из ответа сервера
+  try {
+    const response = await axios.post(url, data);
+    console.log(response.data); // Вывод данных из ответа сервера
 
-        this.success = true;
+    this.success = true;
 
-        localStorage.setItem('access_token', response.data.access_token);
-        localStorage.setItem(
-          'user',
-          JSON.stringify({ name: response.data.name, role: response.data.role, userId: response.data.id })
-        );
+    const { access_token, name, role, id, group_id } = response.data;
 
-        this.$router.push('/');  // Перенаправление на главную страницу
-      } catch (err) {
-        this.error = 'Ошибка: ' + (err.response ? err.response.data.detail : 'Неизвестная ошибка');
-      } finally {
-        this.isSubmitting = false;
-      }
-    },
+    localStorage.setItem('access_token', access_token);
+    localStorage.setItem(
+      'user',
+      JSON.stringify({ name, role, userId: id, ...(group_id ? { group_id } : {}) })
+    );
+
+    this.$router.push('/');  // Перенаправление на главную страницу
+  } catch (err) {
+    this.error = 'Ошибка: ' + (err.response ? err.response.data.detail : 'Неизвестная ошибка');
+  } finally {
+    this.isSubmitting = false;
+  }
+}
+
+,
     toggleForm() {
       this.isLogin = !this.isLogin;
     },

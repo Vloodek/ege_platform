@@ -49,7 +49,11 @@
             <div v-if="homework.images.length">
               <p>Предпросмотр изображений:</p>
               <div class="preview-container">
-                <div v-for="(image, index) in homework.images" :key="index" class="image-preview">
+                <div
+                  v-for="(image, index) in homework.images"
+                  :key="index"
+                  class="image-preview"
+                >
                   <img :src="image.preview" :alt="'Изображение ' + (index + 1)" />
                 </div>
               </div>
@@ -83,7 +87,6 @@
               v-model="homework.date"
               required
             />
-            <button @click="addDeadline" class="add-btn">Добавить</button>
           </div>
 
           <!-- Кнопка отправки -->
@@ -94,9 +97,10 @@
   </div>
 </template>
 
+
 <script>
 import SideBar from "./SideBar.vue";
-import axios from 'axios';
+import axios from "axios";
 
 export default {
   components: {
@@ -105,30 +109,26 @@ export default {
   data() {
     return {
       homework: {
-        lessonId: "", // ID урока
-        title: "",     // Название задания
-        text: "",      // Текст задания
+        lessonId: "", // ID урока, например, полученный из URL
+        title: "",    // Название задания
+        text: "",     // Текст задания
         images: [],
         files: [],
         date: "",
+        // group_id не требуется, так как определяется по уроку
       },
     };
   },
   created() {
-    const lessonId = this.$route.params.id; // 'id' из URL
+    // Получаем ID урока из параметров маршрута
+    const lessonId = this.$route.params.id;
     if (lessonId) {
-      this.homework.lessonId = lessonId; // Устанавливаем ID урока в поле lessonId
+      this.homework.lessonId = lessonId;
     } else {
       console.error("ID урока не найден в маршруте!");
     }
   },
   methods: {
-    confirmExit() {
-      const confirmed = confirm("Вы уверены, что не сохранили изменения?");
-      if (confirmed) {
-        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
-      }
-    },
     handleImageUpload(event) {
       const files = Array.from(event.target.files);
       files.forEach(file => {
@@ -156,43 +156,45 @@ export default {
         }
       });
     },
-    addDeadline(event) {
-      event.preventDefault();
-      alert("Дедлайн выбран: " + this.homework.date);
+    confirmExit() {
+      const confirmed = confirm("Вы уверены, что не сохранили изменения?");
+      if (confirmed) {
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+      }
     },
     handleSubmit() {
-      const formData = new FormData();
-      formData.append("lesson_id", this.homework.lessonId); 
-      formData.append("description", this.homework.title); // Отправляем название задания в поле description
-      formData.append("text", this.homework.text); // Если нужно, можно оставить для текстового контента
-      formData.append("date", this.homework.date);
+  console.log("🟡 Отправка формы домашнего задания...");
+  const formData = new FormData();
+  formData.append("lesson_id", this.homework.lessonId);
+  formData.append("description", this.homework.title);
+  formData.append("text", this.homework.text);
+  formData.append("date", this.homework.date);
 
-      this.homework.images.forEach(image => {
-        formData.append("files", image.file);
-      });
+  this.homework.images.forEach(image => {
+    formData.append("images", image.file); // Отправляем картинки
+  });
 
-      this.homework.files.forEach(file => {
-        formData.append("files", file);
-      });
+  this.homework.files.forEach(file => {
+    formData.append("files", file);
+  });
 
-      axios.post(`http://localhost:8000/homeworks/`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      })
-      .then(response => {
-        console.log("Домашнее задание успешно добавлено", response.data);
-        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
-      })
-      .catch(error => {
-        console.error("Ошибка при добавлении домашнего задания", error);
-      });
+  axios.post("http://localhost:8000/homeworks/", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
     },
+  })
+  .then(response => {
+    console.log("✅ Домашнее задание успешно добавлено", response.data);
+    this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+  })
+  .catch(error => {
+    console.error("❌ Ошибка при добавлении домашнего задания", error);
+  });
+}
+,
   },
 };
 </script>
-
-
 
 <style scoped>
 .add-homework-page {
@@ -201,6 +203,7 @@ export default {
   margin: 0 auto;
   padding: 20px;
   background-color: #f3f3f3;
+  width: 100%;
 }
 
 .container {
@@ -217,12 +220,16 @@ export default {
   background-color: #ffffff;
   border-radius: 8px;
   padding: 20px;
+  max-width: 100%;
+  box-sizing: border-box;
+  position: relative;
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 20px;
 }
 
 .back-button {
@@ -235,6 +242,8 @@ export default {
 
 .edit-title {
   color: #4CAF50;
+  font-size: 24px;
+  margin: 0;
 }
 
 .form-group {
@@ -242,26 +251,21 @@ export default {
 }
 
 .form-group label {
+  display: block;
   font-size: 16px;
   margin-bottom: 5px;
   color: #333;
 }
 
+.form-group input,
+.form-group textarea,
 .select-container select {
   width: 100%;
   padding: 10px;
   font-size: 14px;
   border: 1px solid #ddd;
   border-radius: 5px;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 10px;
-  font-size: 14px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
+  box-sizing: border-box;
 }
 
 .form-group textarea {
@@ -292,31 +296,42 @@ export default {
 .submit-btn,
 .add-btn {
   padding: 10px 20px;
-  background-color: #4CAF50;
+  background-color: #115544;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  /* Выравнивание кнопки справа */
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
 }
 
 .submit-btn:hover,
 .add-btn:hover {
-  background-color: #45a049;
+  background-color: #1e9275;
 }
 
 .error-text {
   color: red;
   font-size: 12px;
+  margin-top: 5px;
 }
 
 @media (max-width: 768px) {
   .container {
     flex-direction: column;
   }
-
+  
   .main-content {
     margin-left: 0;
     width: 100%;
   }
+}
+
+.page-title,
+h3,
+h4 {
+  font-weight: 500;
 }
 </style>

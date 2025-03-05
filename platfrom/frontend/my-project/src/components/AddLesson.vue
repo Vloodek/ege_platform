@@ -105,6 +105,16 @@
               required
             />
           </div>
+          <div class="form-group">
+  <label for="groupSelect">Выберите группу</label>
+  <select id="groupSelect" v-model="lesson.group_id" required @focus="fetchGroups">
+    <option v-if="!groupsLoaded" disabled>Загрузка...</option>
+    <option v-for="group in groups" :key="group.id" :value="group.id">
+      {{ group.name }}
+    </option>
+  </select>
+</div>
+
 
           <button type="submit" class="submit-btn">Добавить урок</button>
         </form>
@@ -135,7 +145,10 @@ export default {
         files: [],
         images: [],
         date: "",
+        group_id: "",  // Добавляем выбор группы
       },
+      groups: [], // Список групп
+      groupsLoaded: false, // Флаг, загружены ли группы
       videoLinkError: false,
       fullImage: null,
     };
@@ -175,6 +188,20 @@ export default {
         }
       });
     },
+    async fetchGroups() {
+  if (this.groupsLoaded) return; // Чтобы не загружать снова, если уже загружено
+
+  console.log("🔵 Загрузка списка групп...");
+  try {
+    const response = await axios.get("http://localhost:8000/groups/");
+    console.log("✅ Группы загружены:", response.data);
+    this.groups = response.data;
+    this.groupsLoaded = true; // Отмечаем, что загрузили
+  } catch (error) {
+    console.error("❌ Ошибка при загрузке групп", error);
+  }
+}
+,
     removeImage(index) {
       this.lesson.images.splice(index, 1);
     },
@@ -186,35 +213,43 @@ export default {
       this.videoLinkError = !regex.test(this.lesson.videoLink);
     },
     handleSubmit() {
-      const formData = new FormData();
-      formData.append("name", this.lesson.name);
-      formData.append("description", this.lesson.description);
-      formData.append("videoLink", this.lesson.videoLink);
-      formData.append("text", this.lesson.text);
-      formData.append("date", this.lesson.date);
+      console.log("🟡 Отправка формы урока...");
+  const formData = new FormData();
+  formData.append("name", this.lesson.name);
+  formData.append("description", this.lesson.description);
+  formData.append("videoLink", this.lesson.videoLink);
+  formData.append("text", this.lesson.text);
+  formData.append("date", this.lesson.date);
+  formData.append("group_id", this.lesson.group_id); // Добавляем ID группы
 
-      this.lesson.images.forEach((imageObj) => {
-        formData.append("images", imageObj.file);
-      });
+  this.lesson.images.forEach((imageObj) => {
+    formData.append("images", imageObj.file);
+  });
 
-      this.lesson.files.forEach((file) => {
-        formData.append("files", file);
-      });
+  this.lesson.files.forEach((file) => {
+    formData.append("files", file);
+  });
 
-      axios
-        .post("http://localhost:8000/lessons/", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        })
-        .then((response) => {
-          console.log("Урок успешно добавлен", response.data);
-          this.$router.push("/day-plan");
-        })
-        .catch((error) => {
-          console.error("Ошибка при добавлении урока", error);
-        });
-    },
+  axios
+    .post("http://localhost:8000/lessons/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    })
+    .then((response) => {
+      console.log("Урок успешно добавлен", response.data);
+      this.$router.push("/day-plan");
+    })
+    .catch((error) => {
+      console.error("Ошибка при добавлении урока", error);
+    });
+},
+mounted() {
+  console.log("🔵 AddLessonPage.vue загружен!");
+  console.log("🔵 mounted() вызван");
+    this.fetchGroups(); // Вызываем метод при загрузке страницы
+  },
+
     openImage(preview) {
       this.fullImage = preview;
     },
@@ -223,6 +258,7 @@ export default {
     },
   },
 };
+
 </script>
 
 <style scoped>
@@ -395,4 +431,8 @@ export default {
 .hidden-input {
   display: none;
 }
+.page-title, h3, h4 {
+  font-weight: 500; /* Было 700 */
+}
+
 </style>

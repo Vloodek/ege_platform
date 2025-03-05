@@ -1,17 +1,15 @@
 <template>
-  
   <div id="day-plan">
     <div class="container">
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
-  
+
       <!-- Основной контент с планом на день -->
       <main class="main-content">
         <h2>План на день</h2>
-  
+
         <!-- Контейнер для блоков с заданиями -->
         <div class="task-container">
-          <!-- Блоки с уроками -->
           <div
             class="task-block"
             v-for="(lesson, index) in lessons"
@@ -19,23 +17,17 @@
             @click="openLesson(lesson.id)"
           >
             <div class="task-left">
-              <div class="task-type">{{ lesson.type }}</div> <!-- Тип урока -->
+              <div class="task-type">{{ lesson.type }}</div>
               <div class="task-name">{{ lesson.name }}</div>
             </div>
-            <div class="task-time">{{ formatTime(lesson.date) }}</div> <!-- Время урока -->
+            <div class="task-time">{{ formatTime(lesson.date) }}</div>
           </div>
         </div>
 
-        <!-- Кнопка Плюс под последним уроком -->
+        <!-- Кнопка Плюс (видна только для учителя) -->
         <div v-if="isTeacher" class="add-task-btn-container">
-          <div class="add-task-btn" @click="toggleMenu">
+          <div class="add-task-btn" @click="goToAddLessonPage">
             <span class="plus-icon">+</span>
-          </div>
-
-          <!-- Контекстное меню (показывается при клике на плюсик) -->
-          <div v-if="showMenu" class="context-menu-container">
-            <button @click="goToAddHomeworkPage('homework')">Добавить ДЗ</button>
-            <button @click="goToAddLessonPage">Добавить занятие</button>
           </div>
         </div>
       </main>
@@ -44,57 +36,41 @@
 </template>
 
 <script>
-import SideBar from "../components/SideBar.vue"; // Импортируем Sidebar
+import SideBar from "../components/SideBar.vue";
 
 export default {
   components: {
-    SideBar, // Регистрируем Sidebar как компонент
+    SideBar,
   },
   data() {
     return {
-      lessons: [], // Список уроков
-      showMenu: false,
-      isTeacher: true, // Установите в true, если это учитель
+      lessons: [],
+      isTeacher: false, // По умолчанию считаем, что это не учитель
     };
   },
   created() {
     this.fetchLessons();
+    this.checkUserRole(); // Проверяем роль пользователя
   },
   methods: {
-  // Метод для получения списка уроков
-  async fetchLessons() {
-   try {
-     const response = await this.$axios.get('/lessons', {
-       headers: {
-         Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-       },
-     });
+    async fetchLessons() {
+    try {
+        const response = await this.$axios.get("/lessons");
+        this.lessons = response.data;
+        console.log("Уроки получены:", this.lessons);
+    } catch (error) {
+        console.error("Ошибка Axios:", error);
+    }
+},
 
-     this.lessons = response.data;
-     console.log("Уроки получены:", this.lessons);
-   } catch (error) {
-     console.error("Ошибка Axios:", error);
+    // Проверка роли пользователя
+    checkUserRole() {
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (user && user.role === "teacher") {
+        this.isTeacher = true;
+      }
+    },
 
-     // Проверяем, есть ли ответ от сервера (если нет, это проблема сети)
-     if (error.response) {
-       if (error.response.status === 401) {
-         console.error("Ошибка 401: Токен истёк или неверный");
-         alert("Сессия истекла. Авторизуйтесь снова.");
-         localStorage.removeItem('access_token');
-         location.reload(); // Обновляем страницу
-       }
-     } else if (error.request) {
-       console.error("Ошибка сети:", error.message);
-     } else {
-       console.error("Ошибка:", error.message);
-     }
-   }
- }
-
-
-,
-    
-    // Метод для перехода на страницу подробностей урока
     openLesson(lessonId) {
       if (!lessonId) {
         console.error("ID урока отсутствует");
@@ -103,36 +79,22 @@ export default {
       this.$router.push({ name: "lesson-details", params: { id: lessonId } });
     },
 
-    // Форматируем дату в удобный вид
     formatTime(dateString) {
       const date = new Date(dateString);
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
       return `${hours}:${minutes}`;
-    },
-
-    // Методы для отображения контекстного меню
-    toggleMenu() {
-      this.showMenu = !this.showMenu;
-    },
-
-    // Переход на страницу добавления задания
-    goToAddHomeworkPage(type) {
-      // Логика перехода на страницу добавления ДЗ
-      this.$router.push({ name: "add-homework" }); // Переход на страницу добавления занятия
-      console.log("Перейти на страницу добавления:", type);
     },
 
     // Переход на страницу добавления занятия
     goToAddLessonPage() {
-      this.$router.push({ name: "add-lesson" }); // Переход на страницу добавления занятия
+      this.$router.push({ name: "add-lesson" });
     },
-  }
+  },
 };
 </script>
 
 <style scoped>
-
 /* Основной контейнер */
 #day-plan {
   display: flex;
@@ -140,7 +102,6 @@ export default {
   background-color: #f5f5f5;
 }
 
-/* Контейнер для основного контента и бокового меню */
 .container {
   display: flex;
   width: 100%;
@@ -149,114 +110,101 @@ export default {
   padding: 20px;
 }
 
-/* Стили для основного контента */
 .main-content {
   flex: 1;
   background-color: #fff;
   padding: 20px;
   border-radius: 20px;
-  margin-left: 20px; /* Отступ от бокового меню */
+  margin-left: 20px;
 }
 
-/* Заголовок */
 h2 {
   font-size: 24px;
   margin-bottom: 20px;
   color: #333;
-  text-align: center; /* Центрирование заголовка */
+  text-align: center;
 }
 
-/* Контейнер для блоков с уроками */
-/* Контейнер для блоков с заданиями */
 .task-container {
-  margin-bottom: 30px; /* Отступ снизу для кнопки с плюсом */
+  margin-bottom: 30px;
 }
 
 .task-block {
-    display: flex;
-    flex-direction: row; /* Горизонтальное расположение */
-    padding: 20px;
-    margin-bottom: 15px;
-    justify-content: space-between; /* Равномерное распределение пространства */
-    height: 105px; /* Увеличена высота блоков */
-    cursor: pointer; /* Добавляем курсор "pointer", чтобы было видно, что на блок можно кликнуть */
-  }
+  display: flex;
+  flex-direction: row;
+  padding: 20px;
+  margin-bottom: 15px;
+  justify-content: space-between;
+  height: 105px;
+  cursor: pointer;
+}
 
-/* Блок с текстом задания */
-/* Блок с текстом задания */
 .task-left {
-  flex: 0 1 60%; /* Занимает 60% ширины блока */
+  flex: 0 1 60%;
   display: flex;
   flex-direction: column;
-  border: 2px solid #115544; /* Обводка зеленая */
-  padding: 20px; /* Увеличены внутренние отступы */
+  border: 2px solid #115544;
+  padding: 20px;
   border-radius: 20px;
-  transition: border 0.3s ease; /* Плавный переход для изменения обводки */
-  max-width: 450px; /* Ограничиваем ширину */
+  transition: border 0.3s ease;
+  max-width: 450px;
 }
 
-/* Изменение обводки при наведении */
 .task-left:hover {
-  border: 2px solid #1e9275; /* Изменение обводки на более светлый зеленый */
+  border: 2px solid #1e9275;
 }
 
-/* Тип задания */
-/* Тип задания (Занятие) */
 .task-type {
   background-color: transparent;
   color: #115544;
-  padding: 5px 0; /* Уменьшаем отступы */
-  text-align: left; /* Прижимаем текст к левому краю */
-  font-size: 14px; /* Меньший шрифт */
-  font-weight: normal; /* Убираем жирный шрифт */
-  
-}
-/* Название задания */
-.task-name {
-  font-size: 20px; /* Размер шрифта для названия задания */
-  color: #333;
-  font-weight: light;
-  margin-bottom: 12px; /* Отступ снизу от названия занятия */
-  text-overflow: ellipsis; /* Добавляем многоточие в конце */
-  overflow: hidden; /* Скрываем переполненный текст */
-  white-space: nowrap; /* Не разрешаем переносить текст на несколько строк */
+  padding: 5px 0;
+  text-align: left;
+  font-size: 14px;
 }
 
-/* Время задания */
+.task-name {
+  font-size: 20px;
+  color: #333;
+  font-weight: light;
+  margin-bottom: 12px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .task-time {
-  flex: 0 1 15%; /* Занимает 25% ширины блока */
+  flex: 0 1 15%;
   background-color: transparent;
   color: #000000;
-  padding: 20px; /* Увеличены внутренние отступы */
-  font-size: 20px; /* Размер шрифта для времени */
+  padding: 20px;
+  font-size: 20px;
   font-weight: light;
   border-radius: 20px;
   text-align: center;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-left: 20px; /* Отступ между блоками */
-  border: 2px solid #115544; /* Обводка зеленая */
-  transition: border 0.3s ease; /* Плавный переход для изменения обводки */
+  margin-left: 20px;
+  border: 2px solid #115544;
+  transition: border 0.3s ease;
 }
 
-/* Изменение обводки у времени при наведении */
 .task-time:hover {
-  border: 2px solid #1e9275; /* Изменение обводки на более светлый зеленый */
+  border: 2px solid #1e9275;
 }
 
-/* Контейнер для кнопки Плюс и контекстного меню */
+/* Контейнер для кнопки Плюс */
 .add-task-btn-container {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;  /* Выравниваем кнопку справа */
+  align-items: flex-end;
 }
 
 /* Кнопка Плюс */
 .add-task-btn {
   width: 50px;
   height: 50px;
-  background-color: #115544; /* Зеленый фон, соответствующий обводке */
+  background-color: #115544;
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -267,49 +215,16 @@ h2 {
 }
 
 .add-task-btn:hover {
-  background-color: #1e9275; /* Легкая подсветка при наведении */
+  background-color: #1e9275;
 }
 
-/* Белый символ плюса и выравнивание по центру */
 .plus-icon {
   font-size: 28px;
   font-weight: bold;
-  color: white; /* Белый цвет для плюса */
+  color: white;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 5px; /* Небольшой сдвиг вниз для плюса */
+  margin-top: 5px;
 }
-
-/* Контекстное меню */
-.context-menu-container {
-  margin-top: 10px;
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  width: 150px;
-  padding: 10px;
-  text-align: left;
-  z-index: 10; /* Чтобы меню было на переднем плане */
-}
-
-.context-menu-container button {
-  background: none;
-  border: none;
-  padding: 5px 10px;
-  font-size: 14px;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-}
-
-.context-menu-container button:hover {
-  background-color: #f0f0f0;
-}
-body {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-
 </style>

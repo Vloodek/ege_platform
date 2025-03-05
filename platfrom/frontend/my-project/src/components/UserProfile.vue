@@ -1,41 +1,45 @@
 <template>
     <div id="user-profile">
       <div class="container">
-        <!-- Боковое меню -->
         <SideBar :isTestActive="false" />
         
-        <!-- Основной контент с профилем пользователя -->
         <main class="main-content">
           <h2>Профиль</h2>
-          
+  
           <div class="profile-form">
             <div class="form-group">
               <label for="name">Имя:</label>
-              <input type="text" id="name" v-model="user.name" :disabled="!isEditing" />
+              <input type="text" id="name" v-model="user.name" disabled />
             </div>
-            
+  
             <div class="form-group">
               <label for="email">Почта:</label>
               <input type="email" id="email" v-model="user.email" disabled />
             </div>
-            
+  
             <div class="form-group">
               <label for="group">Группа:</label>
-              <input type="text" id="group" v-model="user.group" :disabled="!isEditing" />
+              <input type="text" id="group" v-model="user.groupName" disabled />
             </div>
           </div>
-          
-          <div class="button-container">
-            <button :class="{ 'active': isEditing }" @click="saveProfile" :disabled="!isEditing">Сохранить</button>
-            <button @click="toggleEdit">{{ isEditing ? 'Отменить' : 'Изменить' }}</button>
-            <button @click="changePassword">Изменить пароль</button>
+  
+          <div v-if="user.role === 'teacher'" class="group-actions">
+            <input type="text" v-model="newGroupName" placeholder="Название группы" />
+            <button @click="createGroup">Создать группу</button>
           </div>
+  
+          <div v-if="user.role === 'student'" class="group-actions">
+            <input type="text" v-model="joinCode" placeholder="Код группы" />
+            <button @click="joinGroup">Присоединиться</button>
+          </div>
+  
         </main>
       </div>
     </div>
   </template>
   
   <script>
+  import axios from "axios";
   import SideBar from "@/components/SideBar.vue";
   
   export default {
@@ -44,12 +48,14 @@
     },
     data() {
       return {
-        isEditing: false,
         user: {
-          name: '',
-          email: '',
-          group: ''
-        }
+          name: "",
+          email: "",
+          role: "",
+          groupName: "",
+        },
+        newGroupName: "",
+        joinCode: "",
       };
     },
     mounted() {
@@ -57,26 +63,66 @@
     },
     methods: {
       loadUserData() {
-        const userData = JSON.parse(localStorage.getItem('user')) || {};
-        this.user.name = userData.name || '';
-        this.user.email = userData.email || '';
-        this.user.group = userData.group || '';
+        const userData = JSON.parse(localStorage.getItem("user")) || {};
+        this.user = {
+          name: userData.name || "",
+          email: userData.email || "",
+          role: userData.role || "student",
+          groupName: userData.groupName || "Нет группы",
+        };
       },
-      toggleEdit() {
-        this.isEditing = !this.isEditing;
-        if (!this.isEditing) {
+      async createGroup() {
+        try {
+          const response = await axios.post("/groups", {
+            name: this.newGroupName,
+          }, { params: { user_id: localStorage.getItem("user_id") } });
+  
+          alert(`Группа создана! Код: ${response.data.code}`);
           this.loadUserData();
+        } catch (error) {
+          alert("Ошибка при создании группы");
         }
       },
-      saveProfile() {
-        localStorage.setItem('user', JSON.stringify(this.user));
-        this.isEditing = false;
-        alert('Профиль сохранен!');
-      },
-      changePassword() {
-        this.$router.push('/change-password');
-      }
+      async joinGroup() {
+  try {
+    const userData = JSON.parse(localStorage.getItem("user"));
+    const userId = userData?.userId;
+
+    if (!userId) {
+      alert("Ошибка: не удалось получить userId");
+      return;
     }
+
+    if (!this.joinCode) {
+      alert("Ошибка: введите код группы");
+      return;
+    }
+
+    const requestData = { user_id: userId };
+
+    console.log("📤 Отправляем запрос:", JSON.stringify(requestData));
+
+    await axios.post(`/groups/join/${this.joinCode}`, requestData, {
+      headers: { 
+        "Content-Type": "application/json" 
+      }
+    });
+
+    alert("Вы успешно присоединились к группе!");
+    this.loadUserData();
+  } catch (error) {
+    console.error("❌ Ошибка с сервером:", error.response?.data || error);
+    alert("Ошибка при присоединении к группе");
+  }
+}
+
+
+
+
+
+
+,
+    },
   };
   </script>
   

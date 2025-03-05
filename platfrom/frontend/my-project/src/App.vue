@@ -35,21 +35,22 @@
 
 
 <script>
-import axios from 'axios';
+import axios from "axios";
 
 export default {
   data() {
     return {
       isAuthenticated: false,
-      userName: 'Гость',
-      dropdownOpen: false, // Состояние выпадающего меню
+      userName: "Гость",
+      isTeacher: false, // Добавляем проверку на преподавателя
+      dropdownOpen: false,
     };
   },
   mounted() {
-    console.log('Компонент App загружен');
-    
-    const user = localStorage.getItem('user');
-    console.log('Данные пользователя из localStorage:', user);
+    console.log("Компонент App.vue загружен");
+
+    const user = localStorage.getItem("user");
+    console.log("Данные пользователя из localStorage:", user);
 
     if (user) {
       try {
@@ -57,6 +58,7 @@ export default {
         if (parsedUser && parsedUser.name) {
           this.userName = parsedUser.name;
           this.isAuthenticated = true;
+
         } else {
           this.clearLocalStorage();
         }
@@ -67,34 +69,34 @@ export default {
       this.clearLocalStorage();
     }
 
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem("access_token");
     if (token) {
-      axios.defaults.headers['Authorization'] = `Bearer ${token}`;
+      axios.defaults.headers["Authorization"] = `Bearer ${token}`;
     }
 
-    // Закрытие dropdown при клике вне
-    document.addEventListener('click', this.closeDropdownOutside);
+    document.addEventListener("click", this.closeDropdownOutside);
   },
   beforeUnmount() {
-    document.removeEventListener('click', this.closeDropdownOutside);
+    document.removeEventListener("click", this.closeDropdownOutside);
   },
+  
   methods: {
     goToDayPlan() {
-      this.$router.push('/day-plan');
+      this.$router.push("/day-plan");
     },
     goToProfile() {
-      this.$router.push('/profile');
+      this.$router.push("/profile");
       this.dropdownOpen = false;
     },
     logout() {
-      console.log('Выход из системы');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
-      this.$router.push('/register');
-      location.reload(); // Обновляем страницу
+      console.log("Выход из системы");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user");
+      this.$router.push("/register");
+      location.reload();
     },
     toggleDropdown(event) {
-      event.stopPropagation(); // Чтобы не срабатывало на document
+      event.stopPropagation();
       this.dropdownOpen = !this.dropdownOpen;
     },
     closeDropdownOutside(event) {
@@ -103,15 +105,14 @@ export default {
       }
     },
     clearLocalStorage() {
-      console.log('Очищаем localStorage');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('user');
-      this.$router.push('/register');
+      console.log("Очищаем localStorage");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user");
+      this.$router.push("/register");
     },
   },
 };
 </script>
-
 
 <style scoped>
 /* Общие стили */
