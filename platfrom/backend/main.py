@@ -328,8 +328,7 @@ async def check_authorization(request: Request, call_next):
     if any(request.url.path.startswith(route) for route in excluded_routes):
         return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
 
-    # Логируем заголовки запроса
-    print(f"Запрос пришел с заголовками: {request.headers}")
+    
 
     token = request.headers.get("Authorization")
     if not token:
@@ -424,6 +423,112 @@ async def submit_homework(
 
     return submission
 
+@app.get("/homeworks/{homework_id}/submission")
+async def get_submission(homework_id: int, user_id: int, db: Session = Depends(get_db)):
+    """
+    Возвращает отправленный ответ на домашнее задание для конкретного пользователя.
+    """
+    submission = (
+        db.query(database.HomeworkSubmission)
+        .filter(
+            database.HomeworkSubmission.homework_id == homework_id,
+            database.HomeworkSubmission.user_id == user_id
+        )
+        .first()
+    )
+    if not submission:
+        raise HTTPException(status_code=404, detail="Ответ не найден")
+    # Получаем список файлов, прикрепленных к ответу
+    submission_files = db.query(database.HomeworkFile)\
+                         .filter(database.HomeworkFile.submission_id == submission.id)\
+                         .all()
+    file_paths = [file.file_path for file in submission_files]
+    return {
+        "id": submission.id,
+        "homework_id": submission.homework_id,
+        "user_id": submission.user_id,
+        "submission_date": submission.submission_date.isoformat(),
+        "grade": submission.grade,
+        "status": submission.status,
+        "comment": submission.comment,
+        "client_submission_time": submission.client_submission_time.isoformat() if submission.client_submission_time else None,
+        "files": file_paths
+    }
+
+
+@app.put("/update_submission/{submission_id}")
+async def update_submission(
+    submission_id: int,
+    comment: str = Form(...),
+    client_submission_time: Optional[str] = Form(None),
+    files: Optional[List[UploadFile]] = File(None),
+    files_to_delete: str = Form("[]"),  # JSON-список файлов для удаления
+    db: Session = Depends(get_db)
+):
+    submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Ответ не найден")
+
+    # Обновляем комментарий и время отправки
+    submission.comment = comment
+    submission.submission_date = datetime.utcnow()
+    try:
+        submission.client_submission_time = datetime.fromisoformat(client_submission_time) if client_submission_time else datetime.utcnow()
+    except Exception:
+        submission.client_submission_time = datetime.utcnow()
+
+    # Удаление файлов
+    files_to_delete = json.loads(files_to_delete)  # Преобразуем JSON-строку в список
+
+    if files_to_delete:
+        for file_path in files_to_delete:
+            # Преобразуем путь в формат с обратными слэшами, как в базе данных
+            full_path = file_path.replace("/", "\\")  # Заменяем прямые слэши на обратные
+
+            # Выводим путь для отладки
+            print(f"Пытаемся удалить файл: {full_path}")
+
+            # Удаляем физический файл
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                print(f"Файл удалён: {full_path}")
+            else:
+                print(f"Файл не найден на диске: {full_path}")
+
+            # Логирование, если запись о файле есть в БД
+            file_record = db.query(database.HomeworkFile).filter(database.HomeworkFile.file_path == full_path).first()
+            if file_record:
+                db.query(database.HomeworkFile).filter(database.HomeworkFile.file_path == full_path).delete()
+                print(f"Запись о файле с путём {full_path} удалена из БД")
+            else:
+                print(f"Запись о файле с путём {full_path} не найдена в БД")
+
+    # Если передаются новые файлы, сохраняем их
+    if files:
+        homework_obj = db.query(database.Homework).filter(database.Homework.id == submission.homework_id).first()
+        lesson_id = homework_obj.lesson_id if homework_obj else "default"
+        submission_folder = os.path.join("uploads", str(lesson_id), "homework", str(submission.user_id))
+        os.makedirs(submission_folder, exist_ok=True)
+
+        for file in files:
+            file_location = os.path.join(submission_folder, file.filename)
+            with open(file_location, "wb") as f:
+                f.write(file.file.read())
+
+            new_file = database.HomeworkFile(
+                submission_id=submission.id,
+                file_path=file_location,
+                file_type=file.content_type
+            )
+            db.add(new_file)
+
+    db.commit()
+    db.refresh(submission)
+
+    return {"message": "Ответ обновлен", "deleted_files": files_to_delete, "submission": submission}
+
+
+
 
 
 
@@ -512,21 +617,74 @@ async def get_homework(homework_id: int, db: Session = Depends(get_db)):
         homework.images = json.loads(homework.images)
     return homework
 
-
+import shutil
 @app.put("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
 async def update_homework(
     homework_id: int,
-    updated_homework: schemas.HomeworkUpdate,  # <== ВАЖНО: правильная схема
-    db: Session = Depends(get_db),
+    lesson_id: int = Form(...),
+    description: str = Form(...),
+    text: str = Form(...),
+    date: datetime = Form(...),
+    files: Optional[List[UploadFile]] = File(None),
+    images: Optional[List[UploadFile]] = File(None),
+    existing_files: Optional[str] = Form("[]"),
+    existing_images: Optional[str] = Form("[]"),
+    db: Session = Depends(get_db)
 ):
-    homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
-    if not homework:
-        raise HTTPException(status_code=404, detail="Домашка не найдена")
+    # Проверяем, существует ли домашка
+    db_homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
+    if not db_homework:
+        raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
+    
+    homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
+    os.makedirs(homework_folder, exist_ok=True)
+    
+    # Загружаем существующие файлы и изображения
+    existing_files = json.loads(existing_files)
+    existing_images = json.loads(existing_images)
+    
+    # Удаляем старые файлы, которых нет в existing_files
+    current_files = json.loads(db_homework.files) if db_homework.files else []
+    for file in current_files:
+        if file not in existing_files and os.path.exists(file):
+            os.remove(file)
+    
+    # Удаляем старые изображения, которых нет в existing_images
+    current_images = json.loads(db_homework.images) if db_homework.images else []
+    for image in current_images:
+        if image not in existing_images and os.path.exists(image):
+            os.remove(image)
+    
+    file_paths = existing_files[:]
+    image_paths = existing_images[:]
 
-    # Обновляем данные
-    for key, value in updated_homework.model_dump(exclude_unset=True).items():
-        setattr(homework, key, value)
-
+    # Загружаем новые файлы
+    if files:
+        for file in files:
+            file_location = os.path.join(homework_folder, file.filename)
+            with open(file_location, "wb") as f:
+                f.write(file.file.read())
+            file_paths.append(file_location)
+    
+    if images:
+        for image in images:
+            image_location = os.path.join(homework_folder, image.filename)
+            with open(image_location, "wb") as f:
+                f.write(image.file.read())
+            image_paths.append(image_location)
+    
+    # Обновляем данные в базе
+    db_homework.lesson_id = lesson_id
+    db_homework.description = description
+    db_homework.text = text
+    db_homework.date = date
+    db_homework.files = json.dumps(file_paths)
+    db_homework.images = json.dumps(image_paths)
+    
     db.commit()
-    db.refresh(homework)
-    return homework
+    db.refresh(db_homework)
+    
+    db_homework.files = json.loads(db_homework.files) if db_homework.files else []
+    db_homework.images = json.loads(db_homework.images) if db_homework.images else []
+    
+    return db_homework
