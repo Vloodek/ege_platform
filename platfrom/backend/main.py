@@ -688,3 +688,27 @@ async def update_homework(
     db_homework.images = json.loads(db_homework.images) if db_homework.images else []
     
     return db_homework
+
+# Роутер для работы с откликами на домашки
+@app.get("/api/homework/{homework_id}/submissions")
+async def get_submissions(homework_id: int, db: Session = Depends(get_db)):
+    # Получаем домашку по ID
+    homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
+    if not homework:
+        raise HTTPException(status_code=404, detail="Homework not found")
+
+    # Получаем все отклики на данную домашку
+    submissions = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.homework_id == homework_id).all()
+    
+    result = []
+    for submission in submissions:
+        user = db.query(database.User).filter(database.User.id == submission.user_id).first()
+        if user:
+            result.append({
+                "id": user.id,
+                "name": user.name,
+                "email": user.email,
+                "status": submission.status,  # Можно адаптировать кода для отображения статуса
+            })
+    
+    return result

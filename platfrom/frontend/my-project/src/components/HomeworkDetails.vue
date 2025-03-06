@@ -51,11 +51,14 @@
           </div>
 
           <!-- Если преподаватель, кнопка редактирования ДЗ -->
-          <div v-if="isTeacher" style="margin-top: 20px;">
-            <BaseButton color="green" @click="goToEditHomework">
-              Изменить ДЗ
-            </BaseButton>
-          </div>
+          <div v-if="isTeacher" style="display: flex; justify-content: space-between; margin-top: 20px;">
+  <BaseButton color="green" @click="goToEditHomework">
+    Изменить ДЗ
+  </BaseButton>
+  <BaseButton color="white" @click="goToResponses">
+    Отклики студентов
+  </BaseButton>
+</div>
 
           <!-- Для студентов: если ответ уже отправлен, показываем его -->
           <div v-if="!isTeacher && submission && !showResponseForm" style="margin-top: 20px;">
@@ -322,6 +325,9 @@ export default {
     cancelEdit() {
       this.$router.push(`/lesson/${this.homework.lesson_id}/details`);
     },
+    goToResponses() {
+    this.$router.push({ name: "homework-submissions", params: { id: this.$route.params.id } });
+  },
   },
 };
 </script>

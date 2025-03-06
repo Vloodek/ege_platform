@@ -10,7 +10,7 @@ import HomeworkDetails from './components/HomeworkDetails.vue';
 import LessonsList from './components/LessonsList.vue';
 import HomeworksList from './components/HomeworksList.vue'; 
 import EditHomework from './components/EditHomework.vue';
-
+import ShowSubmissions from './components/teacher/ShowSubmissions.vue';
 const routes = [
   {
     path: '/',
@@ -68,7 +68,11 @@ const routes = [
     name: 'homework-details',
     component: HomeworkDetails,
   },
-
+  {
+    path: '/homework/:id/submissions',
+    name: 'homework-submissions',
+    component: ShowSubmissions,
+  },
   {
     path: '/lesson/:id/edit',
     name: 'add-homework',
