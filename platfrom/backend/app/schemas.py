@@ -69,7 +69,6 @@ class HomeworkSubmissionResponse(BaseModel):
     id: int
     homework_id: int
     user_id: int
-    submission_date: datetime
     grade: Optional[int]
     status: str
 

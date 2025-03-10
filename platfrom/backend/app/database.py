@@ -72,10 +72,10 @@ class HomeworkSubmission(Base):
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
-    client_submission_time = Column(DateTime, nullable=True)  # Время отправки домашки
+    student_submission_time = Column(DateTime, nullable=True)  # Время отправки домашки
     modified_submission_time = Column(DateTime, nullable=True)  # Время последнего изменения отклика
     grade = Column(Integer, nullable=True)
-    status = Column(Enum("submitted", "graded", "pending", "checked", name="submission_status"), default="submitted")  # Статус
+    status = Column(Enum("submitted", "graded", "response_received", "waiting", name="submission_status"), default="submitted")  # Статус
     comment = Column(Text, nullable=True)
 
     user = relationship("User")
@@ -117,7 +117,7 @@ class TeacherResponseFile(Base):
     id = Column(Integer, primary_key=True, index=True)
     teacher_response_id = Column(Integer, ForeignKey("teacher_responses.id"))
     file_path = Column(String(500))
-    file_type = Column(String(50))
+    file_type = Column(String(255))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     teacher_response = relationship("TeacherResponse", backref="files")
 

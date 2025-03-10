@@ -368,14 +368,14 @@ async def submit_homework(
     homework_id: int = Form(...),
     user_id: int = Form(...),
     comment: Optional[str] = Form(None),
-    client_submission_time: Optional[str] = Form(None),
+    student_submission_time: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
     # Определяем клиентское время
-    if client_submission_time:
+    if student_submission_time:
         try:
-            client_time = datetime.fromisoformat(client_submission_time)
+            client_time = datetime.fromisoformat(student_submission_time)
         except Exception:
             client_time = datetime.utcnow()
     else:
@@ -386,8 +386,7 @@ async def submit_homework(
         homework_id=homework_id,
         user_id=user_id,
         comment=comment,
-        submission_date=datetime.utcnow(),
-        client_submission_time=client_time
+        student_submission_time=datetime.utcnow()
     )
     db.add(submission)
     db.commit()
@@ -458,11 +457,11 @@ async def get_submission(homework_id: int, user_id: int, db: Session = Depends(g
         "homework_id": submission.homework_id,
         "user_id": submission.user_id,
         "user_name": submission.user.name,
-        "submission_date": submission.submission_date.isoformat(),
+        "student_submission_time": submission.student_submission_time.isoformat(),
         "grade": teacher_grade,
         "status": submission.status,
         "comment": submission.comment,
-        "client_submission_time": submission.client_submission_time.isoformat() if submission.client_submission_time else None,
+        "modified_submission_time": submission.modified_submission_time.isoformat() if submission.modified_submission_time else None,
         "files": file_paths
     }
 
@@ -474,48 +473,42 @@ async def get_submission(homework_id: int, user_id: int, db: Session = Depends(g
 async def update_submission(
     submission_id: int,
     comment: str = Form(...),
-    client_submission_time: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = File(None),
     files_to_delete: str = Form("[]"),  # JSON-список файлов для удаления
     db: Session = Depends(get_db)
 ):
+    # Ищем существующий ответ по submission_id
     submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Ответ не найден")
 
-    # Обновляем комментарий и время отправки
+    # Обновляем комментарий
     submission.comment = comment
-    submission.submission_date = datetime.utcnow()
-    try:
-        submission.client_submission_time = datetime.fromisoformat(client_submission_time) if client_submission_time else datetime.utcnow()
-    except Exception:
-        submission.client_submission_time = datetime.utcnow()
+
+    # Устанавливаем время модификации на сервере (не от клиента)
+    submission.modified_submission_time = datetime.utcnow()
+
+    # Если время отправки еще не задано, то назначаем его (оно устанавливается только сервером)
+    if not submission.student_submission_time:
+        submission.student_submission_time = datetime.utcnow()
+
+    # Устанавливаем статус как "submitted", так как отклик обновляется
+    submission.status = "submitted"
 
     # Удаление файлов
     files_to_delete = json.loads(files_to_delete)  # Преобразуем JSON-строку в список
-
     if files_to_delete:
         for file_path in files_to_delete:
-            # Приводим путь к стандартному формату
             full_path = os.path.normpath(file_path)
-
-            # Выводим путь для отладки
-            print(f"Пытаемся удалить файл: {full_path}")
 
             # Удаляем физический файл
             if os.path.exists(full_path):
                 os.remove(full_path)
-                print(f"Файл удалён: {full_path}")
-            else:
-                print(f"Файл не найден на диске: {full_path}")
 
             # Удаляем запись о файле из БД
             file_record = db.query(database.HomeworkFile).filter(database.HomeworkFile.file_path == full_path).first()
             if file_record:
                 db.delete(file_record)
-                print(f"Запись о файле с путём {full_path} удалена из БД")
-            else:
-                print(f"Запись о файле с путём {full_path} не найдена в БД")
 
     # Если передаются новые файлы, сохраняем их
     if files:
@@ -540,10 +533,6 @@ async def update_submission(
     db.refresh(submission)
 
     return {"message": "Ответ обновлен", "deleted_files": files_to_delete, "submission": submission}
-
-
-
-
 
 
 
@@ -632,7 +621,7 @@ async def get_homework(homework_id: int, db: Session = Depends(get_db)):
         homework.images = json.loads(homework.images)
     return homework
 
-import shutil
+
 @app.put("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
 async def update_homework(
     homework_id: int,
@@ -819,8 +808,8 @@ async def update_teacher_response(
         else:
             grade_obj.grade = parsed_grade
             grade_obj.graded_at = datetime.utcnow()
-        # Если оценка указана, изменяем статус отклика (например, на "graded")
-        submission.status = "graded"  # или "получен ответ"
+        # Если оценка указана, изменяем статус отклика на "graded"
+        submission.status = "graded"  
     else:
         # Если оценка не задана, оставляем в таблице Grade значение None
         if grade_obj is None:
@@ -833,7 +822,10 @@ async def update_teacher_response(
         else:
             grade_obj.grade = None
             grade_obj.graded_at = datetime.utcnow()
-    
+        
+        # Если оценки нет, изменяем статус на "response_received"
+        submission.status = "response_received"
+
     db.commit()
     db.refresh(teacher_response)
     
@@ -852,6 +844,7 @@ async def update_teacher_response(
         "message": "Ответ преподавателя обновлён",
         "teacher_response": response_data
     }
+
 
 
 

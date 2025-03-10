@@ -111,7 +111,7 @@
   
         formData.append("user_id", userData.userId);
         formData.append("comment", this.responseText);
-        formData.append("client_submission_time", new Date().toISOString());
+        formData.append("student_submission_time", new Date().toISOString());
   
         formData.append("existing_files", JSON.stringify(this.existingSubmissionFiles));
         formData.append("files_to_delete", JSON.stringify(this.filesToDelete));

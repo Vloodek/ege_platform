@@ -135,8 +135,35 @@
         }
       };
   
-      const getStatusText = (status) => (status === 'submitted' ? 'Отправлено' : 'Не отправлено');
-      const getStatusClass = (status) => (status === 'submitted' ? 'status-sent' : 'status-not-sent');
+      const getStatusText = (status) => {
+        switch (status) {
+          case 'submitted':
+            return 'Получен ответ';
+          case 'graded':
+            return 'Оценено';
+          case 'response_received':
+            return 'На доработке';
+          case 'waiting':
+            return 'Нет ответа';
+          default:
+            return 'Неизвестный статус';
+        }
+      };
+  
+      const getStatusClass = (status) => {
+        switch (status) {
+          case 'submitted':
+            return 'status-received'; // Желтый
+          case 'graded':
+            return 'status-graded'; // Зеленый
+          case 'response_received':
+            return 'status-rework'; // Серый
+          case 'waiting':
+            return 'status-waiting'; // Красный
+          default:
+            return '';
+        }
+      };
   
       const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -146,14 +173,13 @@
           month: 'long',
           year: 'numeric',
           hour: '2-digit',
-          minute: '2-digit'
+          minute: '2-digit',
         });
       };
   
       // При клике на строку, делаем запрос к эндпоинту для получения деталей отклика
       const viewDetails = async (submissionData) => {
         try {
-          // Передаем homeworkId и user_id. Предполагаем, что submissionData содержит поле user_id.
           const userId = submissionData.user_id || submissionData.id;
           const { data } = await axios.get(`http://localhost:8000/homeworks/${homeworkId}/submission`, {
             params: { user_id: userId },
@@ -187,6 +213,7 @@
     },
   };
   </script>
+  
   
   <style scoped>
   /* Общий контейнер страницы */
@@ -289,16 +316,26 @@
     cursor: pointer;
   }
   
-  /* Статусы */
-  .status-sent {
-    color: green;
-    font-weight: bold;
-  }
-  
-  .status-not-sent {
-    color: red;
-    font-weight: bold;
-  }
+/* Статусы */
+.status-received {
+  color: rgb(255, 149, 0);
+  font-weight: bold;
+}
+
+.status-graded {
+  color: green;
+  font-weight: bold;
+}
+
+.status-rework {
+  color: gray;
+  font-weight: bold;
+}
+
+.status-waiting {
+  color: red;
+  font-weight: bold;
+}
   
   /* Сообщение, если данных нет */
   .no-data {
