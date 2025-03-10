@@ -372,21 +372,21 @@ async def submit_homework(
     files: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    # Определяем клиентское время: если пришло, пытаемся распарсить, иначе берем текущее время
+    # Определяем клиентское время
     if client_submission_time:
         try:
             client_time = datetime.fromisoformat(client_submission_time)
-        except Exception as e:
+        except Exception:
             client_time = datetime.utcnow()
     else:
         client_time = datetime.utcnow()
 
-    # Создаем запись отклика с клиентским временем
+    # Создаем запись отклика
     submission = database.HomeworkSubmission(
         homework_id=homework_id,
         user_id=user_id,
         comment=comment,
-        submission_date=datetime.utcnow(),  # серверное время
+        submission_date=datetime.utcnow(),
         client_submission_time=client_time
     )
     db.add(submission)
@@ -399,29 +399,31 @@ async def submit_homework(
         raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
     lesson_id = homework_obj.lesson_id
 
-    # Формируем базовый путь для откликов: uploads/<lesson_id>/homework/
-    base_homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
+    # Формируем путь для хранения файлов
+    base_homework_folder = os.path.normpath(os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework"))
     os.makedirs(base_homework_folder, exist_ok=True)
 
-    # Создаем папку для отклика по user_id (без даты)
-    submission_folder = os.path.join(base_homework_folder, str(user_id))
+    submission_folder = os.path.normpath(os.path.join(base_homework_folder, str(user_id)))
     os.makedirs(submission_folder, exist_ok=True)
 
-    # Сохраняем файлы отклика в созданную папку
+    # Сохраняем файлы отклика
     if files:
         for file in files:
-            file_location = os.path.join(submission_folder, file.filename)
+            file_location = os.path.normpath(os.path.join(submission_folder, file.filename))
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
+
             db_file = database.HomeworkFile(
                 submission_id=submission.id,
                 file_path=file_location,
                 file_type=file.content_type
             )
             db.add(db_file)
+
         db.commit()
 
     return submission
+
 
 @app.get("/homeworks/{homework_id}/submission")
 async def get_submission(homework_id: int, user_id: int, db: Session = Depends(get_db)):
@@ -438,22 +440,34 @@ async def get_submission(homework_id: int, user_id: int, db: Session = Depends(g
     )
     if not submission:
         raise HTTPException(status_code=404, detail="Ответ не найден")
+    
     # Получаем список файлов, прикрепленных к ответу
-    submission_files = db.query(database.HomeworkFile)\
-                         .filter(database.HomeworkFile.submission_id == submission.id)\
-                         .all()
+    submission_files = db.query(database.HomeworkFile).filter(
+        database.HomeworkFile.submission_id == submission.id
+    ).all()
     file_paths = [file.file_path for file in submission_files]
+    
+    # Получаем оценку из таблицы Grade
+    grade_obj = db.query(database.Grade).filter(
+        database.Grade.submission_id == submission.id
+    ).first()
+    teacher_grade = grade_obj.grade if grade_obj else None
+
     return {
         "id": submission.id,
         "homework_id": submission.homework_id,
         "user_id": submission.user_id,
+        "user_name": submission.user.name,
         "submission_date": submission.submission_date.isoformat(),
-        "grade": submission.grade,
+        "grade": teacher_grade,
         "status": submission.status,
         "comment": submission.comment,
         "client_submission_time": submission.client_submission_time.isoformat() if submission.client_submission_time else None,
         "files": file_paths
     }
+
+
+
 
 
 @app.put("/update_submission/{submission_id}")
@@ -482,8 +496,8 @@ async def update_submission(
 
     if files_to_delete:
         for file_path in files_to_delete:
-            # Преобразуем путь в формат с обратными слэшами, как в базе данных
-            full_path = file_path.replace("/", "\\")  # Заменяем прямые слэши на обратные
+            # Приводим путь к стандартному формату
+            full_path = os.path.normpath(file_path)
 
             # Выводим путь для отладки
             print(f"Пытаемся удалить файл: {full_path}")
@@ -495,10 +509,10 @@ async def update_submission(
             else:
                 print(f"Файл не найден на диске: {full_path}")
 
-            # Логирование, если запись о файле есть в БД
+            # Удаляем запись о файле из БД
             file_record = db.query(database.HomeworkFile).filter(database.HomeworkFile.file_path == full_path).first()
             if file_record:
-                db.query(database.HomeworkFile).filter(database.HomeworkFile.file_path == full_path).delete()
+                db.delete(file_record)
                 print(f"Запись о файле с путём {full_path} удалена из БД")
             else:
                 print(f"Запись о файле с путём {full_path} не найдена в БД")
@@ -507,11 +521,11 @@ async def update_submission(
     if files:
         homework_obj = db.query(database.Homework).filter(database.Homework.id == submission.homework_id).first()
         lesson_id = homework_obj.lesson_id if homework_obj else "default"
-        submission_folder = os.path.join("uploads", str(lesson_id), "homework", str(submission.user_id))
+        submission_folder = os.path.normpath(os.path.join("uploads", str(lesson_id), "homework", str(submission.user_id)))
         os.makedirs(submission_folder, exist_ok=True)
 
         for file in files:
-            file_location = os.path.join(submission_folder, file.filename)
+            file_location = os.path.normpath(os.path.join(submission_folder, file.filename))
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
 
@@ -526,6 +540,7 @@ async def update_submission(
     db.refresh(submission)
 
     return {"message": "Ответ обновлен", "deleted_files": files_to_delete, "submission": submission}
+
 
 
 
@@ -712,3 +727,177 @@ async def get_submissions(homework_id: int, db: Session = Depends(get_db)):
             })
     
     return result
+
+
+@app.put("/update_teacher_response/{submission_id}")
+async def update_teacher_response(
+    submission_id: int,
+    teacher_comment: str = Form(...),
+    teacher_grade: str = Form(""),  # Принимаем как строку, чтобы пустое значение не вызывало ошибок
+    files: Optional[List[UploadFile]] = File(None),
+    files_to_delete: str = Form("[]"),  # JSON-строка со списком файлов для удаления
+    db: Session = Depends(get_db)
+):
+    print(f"teacher_grade: {teacher_grade}, teacher_comment: {teacher_comment}, files: {files}")
+
+    # Получаем отклик школьника
+    submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Отклик не найден")
+    
+    # Пытаемся найти существующий ответ преподавателя (без оценки)
+    teacher_response = db.query(database.TeacherResponse).filter(database.TeacherResponse.submission_id == submission_id).first()
+    
+    if teacher_response is None:
+        teacher_response = database.TeacherResponse(
+            submission_id=submission_id,
+            teacher_comment=teacher_comment,
+            response_date=datetime.utcnow()
+        )
+        db.add(teacher_response)
+        db.commit()
+        db.refresh(teacher_response)
+    else:
+        teacher_response.teacher_comment = teacher_comment
+        teacher_response.response_date = datetime.utcnow()
+    
+    # Обработка удаления файлов
+    try:
+        files_to_delete_list = json.loads(files_to_delete)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Неверный формат files_to_delete")
+    
+    if files_to_delete_list:
+        for file_path in files_to_delete_list:
+            # Приводим путь к формату с обратными слэшами, как в БД
+            full_path = file_path.replace("/", "\\")
+            print(f"Пытаемся удалить файл: {full_path}")
+            if os.path.exists(full_path):
+                os.remove(full_path)
+                print(f"Файл удалён: {full_path}")
+            else:
+                print(f"Файл не найден на диске: {full_path}")
+            file_record = db.query(database.TeacherResponseFile).filter(
+                database.TeacherResponseFile.file_path == full_path,
+                database.TeacherResponseFile.teacher_response_id == teacher_response.id
+            ).first()
+            if file_record:
+                db.delete(file_record)
+                print(f"Запись о файле с путём {full_path} удалена из БД")
+            else:
+                print(f"Запись о файле с путём {full_path} не найдена в БД")
+    
+    # Обработка новых файлов
+    if files:
+        teacher_folder = os.path.join("uploads", str(submission.homework_id), "homework", str(submission.user_id), "teacher_answer")
+        os.makedirs(teacher_folder, exist_ok=True)
+        for file in files:
+            file_location = os.path.join(teacher_folder, file.filename)
+            with open(file_location, "wb") as f:
+                f.write(file.file.read())
+            new_file = database.TeacherResponseFile(
+                teacher_response_id=teacher_response.id,
+                file_path=file_location,
+                file_type=file.content_type
+            )
+            db.add(new_file)
+    
+    # Обработка оценки – сохраняем её в таблицу Grade (если поле заполнено)
+    grade_obj = db.query(database.Grade).filter(database.Grade.submission_id == submission_id).first()
+    if teacher_grade.strip() != "":
+        try:
+            parsed_grade = int(teacher_grade)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Оценка должна быть целым числом")
+        if grade_obj is None:
+            grade_obj = database.Grade(
+                submission_id=submission_id,
+                grade=parsed_grade,
+                graded_at=datetime.utcnow()
+            )
+            db.add(grade_obj)
+        else:
+            grade_obj.grade = parsed_grade
+            grade_obj.graded_at = datetime.utcnow()
+        # Если оценка указана, изменяем статус отклика (например, на "graded")
+        submission.status = "graded"  # или "получен ответ"
+    else:
+        # Если оценка не задана, оставляем в таблице Grade значение None
+        if grade_obj is None:
+            grade_obj = database.Grade(
+                submission_id=submission_id,
+                grade=None,
+                graded_at=datetime.utcnow()
+            )
+            db.add(grade_obj)
+        else:
+            grade_obj.grade = None
+            grade_obj.graded_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(teacher_response)
+    
+    # Формируем составной ответ: данные из teacher_response плюс оценка из таблицы Grade
+    response_data = {
+        "teacher_comment": teacher_response.teacher_comment,
+        "response_date": teacher_response.response_date.isoformat(),
+        "teacher_grade": grade_obj.grade if grade_obj else None,
+        "files": [
+            {"file_path": file.file_path, "file_name": os.path.basename(file.file_path)}
+            for file in teacher_response.files
+        ]
+    }
+    
+    return {
+        "message": "Ответ преподавателя обновлён",
+        "teacher_response": response_data
+    }
+
+
+
+@app.get("/teacher_response/{submission_id}")
+async def get_teacher_response(submission_id: int, db: Session = Depends(get_db)):
+    # Получаем отклик студента
+    submission = db.query(database.HomeworkSubmission).filter(
+        database.HomeworkSubmission.id == submission_id
+    ).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Отклик не найден")
+    
+    # Получаем ответ преподавателя (без оценки)
+    teacher_response = db.query(database.TeacherResponse).filter(
+        database.TeacherResponse.submission_id == submission_id
+    ).first()
+    if not teacher_response:
+        raise HTTPException(status_code=404, detail="Ответ преподавателя не найден")
+    
+    # Получаем оценку из таблицы Grade
+    grade_obj = db.query(database.Grade).filter(
+        database.Grade.submission_id == submission_id
+    ).first()
+    teacher_grade = grade_obj.grade if grade_obj else None
+
+    # Получаем список файлов, прикреплённых преподавателем
+    teacher_files = db.query(database.TeacherResponseFile).filter(
+        database.TeacherResponseFile.teacher_response_id == teacher_response.id
+    ).all()
+
+    response_data = {
+        "teacher_comment": teacher_response.teacher_comment,
+        "teacher_grade": teacher_grade,
+        "files": [
+            {"file_path": file.file_path, "file_name": os.path.basename(file.file_path)}
+            for file in teacher_files
+        ]
+    }
+
+    return response_data
+
+
+
+@app.get("/homeworks/{homework_id}/feedback")
+def get_teacher_feedback(homework_id: int, user_id: int, db: Session = Depends(get_db)):
+    feedback = db.query(database.teacher_responses).filter_by(homework_id=homework_id, user_id=user_id).first()
+    if not feedback:
+        return {"comment": None, "grade": None}
+    return {"comment": feedback.comment, "grade": feedback.grade}

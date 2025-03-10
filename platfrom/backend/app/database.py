@@ -4,9 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
-# DATABASE_URL = "sqlite:///E:/ege_platform/platfrom/backend/test.db"
 DATABASE_URL = "mysql+pymysql://root:ink-rooted-se1337@localhost:3306/ink"
-
 
 engine = create_engine(DATABASE_URL)
 
@@ -47,9 +45,9 @@ class Lesson(Base):
     files = Column(Text, nullable=True)
     image_links = Column(Text, nullable=True)
     date = Column(DateTime, default=datetime.utcnow)
-    homeworks = relationship("Homework", back_populates="lesson")
-    group_id = Column(Integer, ForeignKey("groups.id"), index=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), index=True)  # Новое поле для групп
     group = relationship("Group")
+    homeworks = relationship("Homework", back_populates="lesson")
 
 class Homework(Base):
     __tablename__ = "homeworks"
@@ -61,9 +59,12 @@ class Homework(Base):
     images = Column(Text, default="[]")  # Добавляем поле для хранения JSON с картинками
     date = Column(DateTime, default=datetime.utcnow)
     text = Column(Text)
-    group_id = Column(Integer, ForeignKey("groups.id"), index=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), index=True)  # Новое поле для групп
     lesson = relationship("Lesson", back_populates="homeworks")
     group = relationship("Group")
+
+    status = Column(Enum("dosed", "current", name="homework_status"), default="current")  # Новый статус
+
 # Таблица для отправленных домашних заданий
 class HomeworkSubmission(Base):
     __tablename__ = "homework_submissions"
@@ -71,15 +72,14 @@ class HomeworkSubmission(Base):
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
-    submission_date = Column(DateTime, default=datetime.utcnow)  # серверное время отправки
-    client_submission_time = Column(DateTime, nullable=True)      # клиентское время отправки
+    client_submission_time = Column(DateTime, nullable=True)  # Время отправки домашки
+    modified_submission_time = Column(DateTime, nullable=True)  # Время последнего изменения отклика
     grade = Column(Integer, nullable=True)
-    status = Column(String(50), default="submitted")  # submitted, graded, pending
+    status = Column(Enum("submitted", "graded", "pending", "checked", name="submission_status"), default="submitted")  # Статус
     comment = Column(Text, nullable=True)
 
     user = relationship("User")
     homework = relationship("Homework")
-
 
 # Таблица для файлов, прикрепленных к отправленным домашкам
 class HomeworkFile(Base):
@@ -103,6 +103,23 @@ class Grade(Base):
     graded_at = Column(DateTime, default=datetime.utcnow)
 
     submission = relationship("HomeworkSubmission")
+
+class TeacherResponse(Base):
+    __tablename__ = "teacher_responses"
+    id = Column(Integer, primary_key=True, index=True)
+    submission_id = Column(Integer, ForeignKey("homework_submissions.id"), unique=True)
+    teacher_comment = Column(Text, nullable=True)
+    response_date = Column(DateTime, default=datetime.utcnow)
+    submission = relationship("HomeworkSubmission", backref="teacher_response")
+
+class TeacherResponseFile(Base):
+    __tablename__ = "teacher_response_files"
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_response_id = Column(Integer, ForeignKey("teacher_responses.id"))
+    file_path = Column(String(500))
+    file_type = Column(String(50))
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    teacher_response = relationship("TeacherResponse", backref="files")
 
 def init_db():
     Base.metadata.create_all(bind=engine)
