@@ -31,6 +31,7 @@
 
 <script>
 import axios from 'axios';
+
 export default {
   data() {
     return {
@@ -45,46 +46,60 @@ export default {
   },
   methods: {
     async handleSubmit() {
+  console.log("Form submit triggered");
   this.error = null;
   this.success = false;
   this.isSubmitting = true;
 
-  const url = this.isLogin ? 'http://localhost:8000/login' : 'http://localhost:8000/register';
+  const url = this.isLogin 
+    ? 'http://localhost:8000/login' 
+    : 'http://localhost:8000/register';
+
+  console.log("Sending request to:", url);
+
   const data = this.isLogin
     ? { email: this.email, password: this.password }
-    : {
-        name: this.name,
-        email: this.email,
-        password: this.password,
-      };
+    : { name: this.name, email: this.email, password: this.password };
 
   try {
-    const response = await axios.post(url, data);
-    console.log(response.data); // Вывод данных из ответа сервера
+    // Отправляем запрос на сервер
+    const response = await axios.post(url, data, { withCredentials: true });
+
+    console.log("Response received:", response.data);
 
     this.success = true;
 
-    const { access_token, name, role, id, group_id } = response.data;
+    const { access_token, name, role, id, group_id, group_name } = response.data;
 
+    // Сохраняем данные пользователя в localStorage
     localStorage.setItem('access_token', access_token);
     localStorage.setItem(
       'user',
-      JSON.stringify({ name, role, userId: id, ...(group_id ? { group_id } : {}) })
+      JSON.stringify({ 
+        name, 
+        role, 
+        userId: id, 
+        ...(group_id ? { group_id } : {}), 
+        ...(group_name ? { group_name } : {}) // Добавляем имя группы, если есть
+      })
     );
 
-    this.$router.push('/');  // Перенаправление на главную страницу
+    // Перенаправление на главную страницу
+    this.$router.push('/');
   } catch (err) {
+    console.error('Request failed:', err);
     this.error = 'Ошибка: ' + (err.response ? err.response.data.detail : 'Неизвестная ошибка');
   } finally {
     this.isSubmitting = false;
   }
 }
-
 ,
+
     toggleForm() {
       this.isLogin = !this.isLogin;
     },
   },
+
   mounted() {
     const isLoggedIn = localStorage.getItem('access_token');
     if (isLoggedIn) {

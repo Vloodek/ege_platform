@@ -49,6 +49,7 @@
 
 
 <script>
+import axios from "axios";
 import SideBar from "./SideBar.vue";
 
 export default {
@@ -70,77 +71,65 @@ export default {
       this.$router.go(-1);
     },
     async fetchLesson() {
-    const lessonId = this.$route.params.id;
-    try {
-        const response = await fetch(`http://localhost:8000/lessons/${lessonId}`, {
-            headers: {
-                Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-            },
-        });
-        if (response.ok) {
-            this.lesson = await response.json();
-            console.log("Ответ от сервера:", this.lesson); // Печатаем весь ответ
-            console.log("Изображения из ответа:", this.lesson.images); // Печатаем изображения
-            console.log("Файлы из ответа:", this.lesson.files); // Печатаем файлы
+      const lessonId = this.$route.params.id;
+      try {
+        const response = await axios.get(`/lessons/${lessonId}`);
+        this.lesson = response.data;
+        console.log("Ответ от сервера:", this.lesson);
+        console.log("Изображения из ответа:", this.lesson.image_links);
+        console.log("Файлы из ответа:", this.lesson.files);
 
-            this.processMaterials();
-        } else {
-            console.error("Ошибка загрузки материалов");
-        }
-    } catch (error) {
-        console.error("Ошибка сети:", error);
-    }
-},
+        this.processMaterials();
+      } catch (error) {
+        console.error("Ошибка загрузки материалов", error);
+      }
+    },
 
-processMaterials() {
-    const baseUrl = "http://localhost:8000"; // Базовый URL сервера
+    processMaterials() {
+      const baseUrl = "http://localhost:8000"; // Базовый URL сервера
 
-    console.log("Обработка изображений и файлов:", this.lesson);
+      console.log("Обработка изображений и файлов:", this.lesson);
 
-    // Обработка изображений
-    if (this.lesson.image_links && this.lesson.image_links.length > 0) {
+      // Обработка изображений
+      if (this.lesson.image_links && this.lesson.image_links.length > 0) {
         const allImages = Array.isArray(this.lesson.image_links)
-            ? this.lesson.image_links
-            : this.lesson.image_links.split(",");
+          ? this.lesson.image_links
+          : this.lesson.image_links.split(",");
         console.log("Обработанные пути изображений:", allImages);
-        this.images = allImages.map(image => {
-            image = image.replace(/\\/g, "/");  // Заменяем обратные слэши на прямые
-            return `${baseUrl}/${image}`;       // Формируем полный URL
+        this.images = allImages.map((image) => {
+          image = image.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
+          return `${baseUrl}/${image}`; // Формируем полный URL
         });
-    } else {
+      } else {
         console.log("Изображения отсутствуют.");
-    }
+      }
 
-    // Обработка файлов
-    if (this.lesson.files && this.lesson.files.length > 0) {
+      // Обработка файлов
+      if (this.lesson.files && this.lesson.files.length > 0) {
         const allFiles = Array.isArray(this.lesson.files)
-            ? this.lesson.files
-            : this.lesson.files.split(",");
+          ? this.lesson.files
+          : this.lesson.files.split(",");
         console.log("Обработанные пути файлов:", allFiles);
-        this.files = allFiles.map(file => {
-            file = file.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
-            return `${baseUrl}/${file}`;     // Формируем полный URL
+        this.files = allFiles.map((file) => {
+          file = file.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
+          return `${baseUrl}/${file}`; // Формируем полный URL
         });
-    } else {
+      } else {
         console.log("Файлы отсутствуют.");
-    }
-}
-
-,
-
+      }
+    },
 
     getFileName(file) {
-      const lastIndex = file.lastIndexOf('/');
+      const lastIndex = file.lastIndexOf("/");
       return file.slice(lastIndex + 1);
     },
 
     openImage(imageUrl) {
-      window.open(imageUrl, '_blank');
+      window.open(imageUrl, "_blank");
     },
 
     downloadFile(fileUrl) {
-      // Имитация скачивания файла
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = fileUrl;
       link.download = this.getFileName(fileUrl);
       link.click();
@@ -152,6 +141,7 @@ processMaterials() {
   },
 };
 </script>
+
 
 <style scoped>
 #materials-page {

@@ -103,30 +103,18 @@ import SideBar from "./SideBar.vue";
 import axios from "axios";
 
 export default {
-  components: {
-    SideBar,
-  },
+  components: { SideBar },
   data() {
     return {
       homework: {
-        lessonId: "", // ID урока, например, полученный из URL
-        title: "",    // Название задания
-        text: "",     // Текст задания
+        lessonId: this.$route.params.id || "", // ID урока из URL
+        title: "",
+        text: "",
         images: [],
         files: [],
         date: "",
-        // group_id не требуется, так как определяется по уроку
       },
     };
-  },
-  created() {
-    // Получаем ID урока из параметров маршрута
-    const lessonId = this.$route.params.id;
-    if (lessonId) {
-      this.homework.lessonId = lessonId;
-    } else {
-      console.error("ID урока не найден в маршруте!");
-    }
   },
   methods: {
     handleImageUpload(event) {
@@ -135,10 +123,7 @@ export default {
         if (file.type.startsWith("image/")) {
           const reader = new FileReader();
           reader.onload = (e) => {
-            this.homework.images.push({
-              file,
-              preview: e.target.result,
-            });
+            this.homework.images.push({ file, preview: e.target.result });
           };
           reader.readAsDataURL(file);
         } else {
@@ -157,44 +142,32 @@ export default {
       });
     },
     confirmExit() {
-      const confirmed = confirm("Вы уверены, что не сохранили изменения?");
-      if (confirmed) {
+      if (confirm("Вы уверены, что не сохранили изменения?")) {
         this.$router.push(`/lesson/${this.homework.lessonId}/details`);
       }
     },
-    handleSubmit() {
-  console.log("🟡 Отправка формы домашнего задания...");
-  const formData = new FormData();
-  formData.append("lesson_id", this.homework.lessonId);
-  formData.append("description", this.homework.title);
-  formData.append("text", this.homework.text);
-  formData.append("date", this.homework.date);
+    async handleSubmit() {
+      try {
+        const formData = new FormData();
+        formData.append("lesson_id", this.homework.lessonId);
+        formData.append("description", this.homework.title);
+        formData.append("text", this.homework.text);
+        formData.append("date", this.homework.date);
 
-  this.homework.images.forEach(image => {
-    formData.append("images", image.file); // Отправляем картинки
-  });
+        this.homework.images.forEach(image => formData.append("images", image.file));
+        this.homework.files.forEach(file => formData.append("files", file));
 
-  this.homework.files.forEach(file => {
-    formData.append("files", file);
-  });
-
-  axios.post("http://localhost:8000/homeworks/", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
+        const response = await axios.post("/homeworks/", formData);
+        console.log("✅ Домашнее задание успешно добавлено", response.data);
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+      } catch (error) {
+        console.error("❌ Ошибка при добавлении домашнего задания", error);
+      }
     },
-  })
-  .then(response => {
-    console.log("✅ Домашнее задание успешно добавлено", response.data);
-    this.$router.push(`/lesson/${this.homework.lessonId}/details`);
-  })
-  .catch(error => {
-    console.error("❌ Ошибка при добавлении домашнего задания", error);
-  });
-}
-,
   },
 };
 </script>
+
 
 <style scoped>
 .add-homework-page {

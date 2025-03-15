@@ -94,43 +94,47 @@ export default {
         files: [],
         date: "",
       },
-      // Эти массивы хранят оригинальные пути, полученные с сервера (например, "./uploads/3\homework\JIsHq4Xph6M.jpg")
       existingFiles: [],
       existingImages: [],
     };
   },
   async created() {
     const homeworkId = this.$route.params.id;
-    if (homeworkId) await this.fetchHomeworkDetails(homeworkId);
+    if (homeworkId) {
+      try {
+        await this.fetchHomeworkDetails(homeworkId);
+      } catch (error) {
+        console.error("Ошибка загрузки домашнего задания:", error);
+      }
+    }
   },
   methods: {
+    // Функция для получения домашнего задания
     async fetchHomeworkDetails(homeworkId) {
       try {
-        const response = await axios.get(`http://localhost:8000/homework/${homeworkId}`);
-        // Получаем данные домашнего задания (файлы и изображения – это массивы строк)
+        const response = await axios.get(`/homework/${homeworkId}`);
         this.homework = response.data;
-        // Сохраняем оригинальные пути
         this.existingFiles = [...this.homework.files];
         this.existingImages = [...this.homework.images];
 
-        // Преобразуем пути изображений для отображения
+        // Преобразуем пути для отображения
         this.homework.images = this.existingImages.map(image => ({
-          url: `http://localhost:8000${image.replace("./", "/").replace(/\\/g, "/")}`,
-          original: image, // сохраняем оригинальный путь
+          url: `${axios.defaults.baseURL}${image.replace("./", "/").replace(/\\/g, "/")}`,
+          original: image,
           isLocal: false,
         }));
 
-        // Преобразуем пути файлов для отображения
         this.homework.files = this.existingFiles.map(file => ({
-          url: `http://localhost:8000${file.replace("./", "/").replace(/\\/g, "/")}`,
-          original: file, // сохраняем оригинальный путь
+          url: `${axios.defaults.baseURL}${file.replace("./", "/").replace(/\\/g, "/")}`,
+          original: file,
           isLocal: false,
         }));
       } catch (error) {
-        console.error("Ошибка загрузки:", error);
+        console.error("Ошибка получения данных с сервера:", error);
       }
     },
 
+    // Обработчик для загрузки изображений
     handleImageUpload(event) {
       const files = Array.from(event.target.files);
       files.forEach(file => {
@@ -150,9 +154,9 @@ export default {
       });
     },
 
+    // Обработчик для удаления изображений
     removeImage(index) {
       const image = this.homework.images[index];
-      // Если изображение изначально было с сервера, удаляем его оригинальный путь из existingImages
       if (!image.isLocal) {
         this.existingImages = this.existingImages.filter(img => img !== image.original);
       }
@@ -160,6 +164,7 @@ export default {
       console.log("Изображение удалено локально (отложенное удаление).");
     },
 
+    // Обработчик для загрузки файлов
     handleFileUpload(event) {
       const files = Array.from(event.target.files);
       files.forEach(file => {
@@ -175,6 +180,7 @@ export default {
       });
     },
 
+    // Обработчик для удаления файлов
     removeFile(index) {
       const file = this.homework.files[index];
       if (!file.isLocal) {
@@ -184,24 +190,25 @@ export default {
       console.log("Файл удален локально (отложенное удаление).");
     },
 
+    // Отправка данных на сервер
     async handleSubmit() {
       const formData = new FormData();
       formData.append("lesson_id", this.homework.lesson_id);
       formData.append("description", this.homework.description);
       formData.append("text", this.homework.text);
       formData.append("date", this.homework.date);
-      // Передаём обновлённые списки существующих файлов и изображений
+
+      // Передача существующих файлов и изображений
       formData.append("existing_files", JSON.stringify(this.existingFiles));
       formData.append("existing_images", JSON.stringify(this.existingImages));
 
-      // Добавляем новые файлы
+      // Добавление новых изображений и файлов
       this.homework.files.forEach(file => {
         if (file.isLocal) {
           formData.append("files", file.file);
         }
       });
 
-      // Добавляем новые изображения
       this.homework.images.forEach(image => {
         if (image.isLocal) {
           formData.append("images", image.file);
@@ -209,12 +216,12 @@ export default {
       });
 
       try {
-        await axios.put(`http://localhost:8000/homeworks/${this.homework.id}`, formData, {
+        await axios.put(`/homeworks/${this.homework.id}`, formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
         this.$router.push(`/lesson/${this.homework.lesson_id}/details`);
       } catch (error) {
-        console.error("Ошибка сохранения:", error);
+        console.error("Ошибка при сохранении домашнего задания:", error);
       }
     },
 
@@ -224,6 +231,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 /* Стили остаются без изменений */

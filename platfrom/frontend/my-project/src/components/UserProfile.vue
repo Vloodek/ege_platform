@@ -1,203 +1,249 @@
 <template>
-    <div id="user-profile">
-      <div class="container">
-        <SideBar :isTestActive="false" />
-        
-        <main class="main-content">
-          <h2>Профиль</h2>
-  
-          <div class="profile-form">
-            <div class="form-group">
-              <label for="name">Имя:</label>
-              <input type="text" id="name" v-model="user.name" disabled />
-            </div>
-  
-            <div class="form-group">
-              <label for="email">Почта:</label>
-              <input type="email" id="email" v-model="user.email" disabled />
-            </div>
-  
-            <div class="form-group">
-              <label for="group">Группа:</label>
-              <input type="text" id="group" v-model="user.groupName" disabled />
-            </div>
+  <div id="user-profile">
+    <div class="container">
+      <SideBar :isTestActive="false" />
+
+      <main class="main-content">
+        <h2>Профиль</h2>
+
+        <!-- Блок сообщений -->
+        <div v-if="messageText" :class="['message', messageType]">
+          {{ messageText }}
+        </div>
+
+        <!-- Форма профиля -->
+        <div class="profile-form">
+          <div class="form-group">
+            <label for="name">Имя:</label>
+            <input type="text" id="name" v-model="user.name" disabled />
           </div>
-  
-          <div v-if="user.role === 'teacher'" class="group-actions">
-            <input type="text" v-model="newGroupName" placeholder="Название группы" />
-            <button @click="createGroup">Создать группу</button>
+
+          <div class="form-group">
+            <label for="email">Почта:</label>
+            <input type="email" id="email" v-model="user.email" disabled />
           </div>
-  
-          <div v-if="user.role === 'student'" class="group-actions">
-            <input type="text" v-model="joinCode" placeholder="Код группы" />
-            <button @click="joinGroup">Присоединиться</button>
+
+          <div class="form-group">
+            <label for="group">Группа:</label>
+            <input type="text" id="group" v-model="user.group_name" disabled />
           </div>
-  
-        </main>
-      </div>
+        </div>
+
+        <!-- Для студента: форма для вступления в группу -->
+        <div v-if="user.role === 'student' && !user.group_id" class="join-group">
+          <h3>Вступить в группу</h3>
+          <input type="text" v-model="joinGroupCode" placeholder="Введите код группы" />
+          <BaseButton @click="joinGroup">Вступить</BaseButton>
+        </div>
+
+      </main>
     </div>
-  </template>
-  
-  <script>
-  import axios from "axios";
-  import SideBar from "@/components/SideBar.vue";
-  
-  export default {
-    components: {
-      SideBar,
-    },
-    data() {
-      return {
-        user: {
-          name: "",
-          email: "",
-          role: "",
-          groupName: "",
-        },
-        newGroupName: "",
-        joinCode: "",
-      };
-    },
-    mounted() {
-      this.loadUserData();
-    },
-    methods: {
-      loadUserData() {
+  </div>
+</template>
+
+<script>
+import axios from "axios";
+import SideBar from "@/components/SideBar.vue";
+import BaseButton from "@/components/UI/BaseButton.vue";
+
+export default {
+  components: { SideBar, BaseButton },
+  data() {
+    return {
+      user: {
+        userId: "",
+        name: "",
+        email: "",
+        role: "student",
+        group_name: "Нет группы",
+        group_id: null,
+      },
+      joinGroupCode: "",
+      messageText: "",
+      messageType: "", // "success" или "error"
+    };
+  },
+
+  mounted() {
+    this.loadUserData();
+  },
+
+  methods: {
+    loadUserData() {
+      try {
         const userData = JSON.parse(localStorage.getItem("user")) || {};
         this.user = {
+          userId: userData.userId || "",
           name: userData.name || "",
           email: userData.email || "",
           role: userData.role || "student",
-          groupName: userData.groupName || "Нет группы",
+          group_name: userData.group_name || "Нет группы",  // Группа всегда берется из localStorage
+          group_id: userData.group_id || null,
         };
-      },
-      async createGroup() {
-        try {
-          const response = await axios.post("/groups", {
-            name: this.newGroupName,
-          }, { params: { user_id: localStorage.getItem("user_id") } });
-  
-          alert(`Группа создана! Код: ${response.data.code}`);
-          this.loadUserData();
-        } catch (error) {
-          alert("Ошибка при создании группы");
-        }
-      },
-      async joinGroup() {
-  try {
-    const userData = JSON.parse(localStorage.getItem("user"));
-    const userId = userData?.userId;
-
-    if (!userId) {
-      alert("Ошибка: не удалось получить userId");
-      return;
-    }
-
-    if (!this.joinCode) {
-      alert("Ошибка: введите код группы");
-      return;
-    }
-
-    const requestData = { user_id: userId };
-
-    console.log("📤 Отправляем запрос:", JSON.stringify(requestData));
-
-    await axios.post(`/groups/join/${this.joinCode}`, requestData, {
-      headers: { 
-        "Content-Type": "application/json" 
+      } catch (error) {
+        console.error("Ошибка загрузки данных пользователя:", error);
       }
-    });
+    },
 
-    alert("Вы успешно присоединились к группе!");
-    this.loadUserData();
-  } catch (error) {
-    console.error("❌ Ошибка с сервером:", error.response?.data || error);
-    alert("Ошибка при присоединении к группе");
-  }
+    async joinGroup() {
+      if (!this.joinGroupCode.trim()) {
+        this.messageText = "Введите код группы";
+        this.messageType = "error";
+        return;
+      }
+
+      if (!this.user.userId) {
+        this.messageText = "Ошибка: не удалось получить ID пользователя";
+        this.messageType = "error";
+        return;
+      }
+
+      try {
+        const response = await axios.post(
+          `/groups/join/${this.joinGroupCode}`,
+          { user_id: this.user.userId }
+        );
+        this.messageText = response.data.message;
+        this.messageType = "success";
+
+        // Обновляем данные в localStorage
+        const storedUser = JSON.parse(localStorage.getItem("user")) || {};
+        storedUser.group_id = response.data.group_id;
+        storedUser.group_name = response.data.group_name;
+        localStorage.setItem("user", JSON.stringify(storedUser));
+
+        // Обновляем данные в компоненте
+        this.user.group_id = response.data.group_id;
+        this.user.group_name = response.data.group_name;
+      } catch (error) {
+        console.error("Ошибка при вступлении в группу:", error);
+        this.messageText = "Ошибка при вступлении в группу. Проверьте код и попробуйте снова.";
+        this.messageType = "error";
+      }
+    },
+  },
+};
+</script>
+
+<style scoped>
+#user-profile {
+  display: flex;
+  min-height: 100vh;
+  background-color: #f5f5f5;
 }
 
+.container {
+  display: flex;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
 
+.main-content {
+  flex: 1;
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 20px;
+  margin-left: 20px;
+}
 
+h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
 
+.message {
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 5px;
+  font-weight: bold;
+  text-align: center;
+}
 
+/* Успешное сообщение */
+.message.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
 
-,
-    },
-  };
-  </script>
-  
-  <style scoped>
-  #user-profile {
-    display: flex;
-    min-height: 100vh;
-    background-color: #f5f5f5;
-  }
-  
-  .container {
-    display: flex;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
-  }
-  
-  .main-content {
-    flex: 1;
-    background-color: #fff;
-    padding: 20px;
-    border-radius: 20px;
-    margin-left: 20px;
-  }
-  
-  h2 {
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  
-  .profile-form {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  
-  .form-group {
-    display: flex;
-    flex-direction: column;
-  }
-  
-  label {
-    font-size: 14px;
-    margin-bottom: 5px;
-  }
-  
-  input {
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-  }
-  
-  .button-container {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 20px;
-  }
-  
-  button {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    background-color: #ccc;
-    color: white;
-  }
-  
-  button.active {
-    background-color: #115544;
-  }
-  
-  button:hover {
-    opacity: 0.8;
-  }
-  </style>
-  
+/* Сообщение об ошибке */
+.message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.profile-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+.group-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-create {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* Секция для вступления в группу (для студентов) */
+.join-group {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.join-group input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+/* Таблица студентов в зеленых тонах */
+.students-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.students-table th,
+.students-table td {
+  border: 1px solid #115544;
+  padding: 10px;
+  text-align: left;
+}
+
+.students-table thead {
+  background-color: #115544;
+  color: #fff;
+}
+
+.students-table tbody tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+</style>

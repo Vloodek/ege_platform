@@ -136,7 +136,7 @@ export default {
     await this.fetchHomeworkDetails();
     const userData = JSON.parse(localStorage.getItem("user"));
 
-    if (userData && userData.role === "teacher") {
+    if (userData?.role === "teacher") {
       this.isTeacher = true;
     } else {
       this.isTeacher = false;
@@ -146,10 +146,7 @@ export default {
   methods: {
     async fetchHomeworkDetails() {
       try {
-        const response = await axios.get(`http://localhost:8000/homeworks/${this.$route.params.id}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
-        });
-
+        const response = await axios.get(`/homeworks/${this.$route.params.id}`);
         if (response.status === 200) {
           this.homework = response.data[0];
         }
@@ -160,11 +157,10 @@ export default {
     async fetchSubmission() {
       try {
         const userData = JSON.parse(localStorage.getItem("user"));
-        if (!userData || !userData.userId) return;
+        if (!userData?.userId) return;
 
         const response = await axios.get(
-          `http://localhost:8000/homeworks/${this.$route.params.id}/submission?user_id=${userData.userId}`,
-          { headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` } }
+          `/homeworks/${this.$route.params.id}/submission?user_id=${userData.userId}`
         );
 
         if (response.data) {
@@ -177,7 +173,7 @@ export default {
     },
     async fetchTeacherResponse(submissionId) {
       try {
-        const response = await axios.get(`http://localhost:8000/teacher_response/${submissionId}`);
+        const response = await axios.get(`/teacher_response/${submissionId}`);
         this.teacherResponse = response.data;
       } catch (error) {
         console.error("Ошибка загрузки отклика преподавателя", error);
@@ -216,6 +212,7 @@ export default {
   },
 };
 </script>
+
 
 
 

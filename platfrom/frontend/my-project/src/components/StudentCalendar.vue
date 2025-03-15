@@ -133,25 +133,20 @@ export default {
   },
   methods: {
     async fetchLessons() {
-      try {
-        const response = await fetch(
-          `http://localhost:8000/lessons?month=${this.currentMonth + 1}&year=${this.currentYear}`,
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+    try {
+        const response = await this.$axios.get("/lessons", {
+            params: {
+                month: this.currentMonth + 1,
+                year: this.currentYear,
             },
-          }
-        );
-        if (response.ok) {
-          const lessons = await response.json();
-          this.lessonsByDate = this.groupLessonsByDate(lessons);
-        } else {
-          console.error('Ошибка загрузки занятий');
-        }
-      } catch (error) {
-        console.error('Ошибка сети:', error);
-      }
-    },
+        });
+        this.lessonsByDate = this.groupLessonsByDate(response.data);
+        console.log("Занятия загружены:", response.data);
+    } catch (error) {
+        console.error("Ошибка при загрузке занятий:", error);
+    }
+}
+,
     groupLessonsByDate(lessons) {
       const grouped = {};
       lessons.forEach((lesson) => {

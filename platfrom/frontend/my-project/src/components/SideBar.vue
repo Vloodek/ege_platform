@@ -1,7 +1,6 @@
 <template>
   <div :class="['sidebar', userTypeClass]" :style="{ height: sidebarHeight }">
     <ul class="menu">
-      <!-- Пункты меню -->
       <li v-for="item in menuItems" :key="item.label" class="menu-item">
         <router-link :to="item.link" class="menu-link">
           <img :src="item.icon" alt="icon" class="menu-icon" />
@@ -17,46 +16,47 @@ import lessonsIcon from "@/assets/svg/sidebar/lessons.svg";
 import scheduleIcon from "@/assets/svg/sidebar/calendar.svg";
 import homeworkIcon from "@/assets/svg/sidebar/dz.svg";
 import trainerIcon from "@/assets/svg/sidebar/train.svg";
-import groupsIcon from "@/assets/svg/sidebar/groups.svg";
+import groupsIcon from "@/assets/svg/sidebar/calendar.svg"; // Заглушка иконки
 
 export default {
-  props: {
-    userType: {
-      type: String,
-      required: true, // student, teacher, или test
-    },
-    isTestActive: {
-      type: Boolean,
-      default: false,
-    },
+  data() {
+    return {
+      userRole: this.getUserRole(),
+    };
   },
   computed: {
     userTypeClass() {
       return {
-        teacher: this.userType === "teacher",
-        student: this.userType === "student",
-        test: this.isTestActive,
+        teacher: this.userRole === "teacher",
+        student: this.userRole === "student",
       };
     },
     sidebarHeight() {
-      if (this.isTestActive) return "100vh";
-      return this.userType === "teacher" ? "350px" : "270px";
+      return this.userRole === "teacher" ? "340px" : "270px";
     },
     menuItems() {
       const commonItems = [
         { label: "Занятия", icon: lessonsIcon, link: "/lessons" },
-        { label: "Расписание", icon: scheduleIcon, link: "/calendar" }, // Ссылка на календарь
+        { label: "Расписание", icon: scheduleIcon, link: "/calendar" },
         { label: "Домашние задания", icon: homeworkIcon, link: "/homeworks" },
         { label: "Тренажёр", icon: trainerIcon, link: "/trainer" },
       ];
-      if (this.userType === "teacher") {
+      if (this.userRole === "teacher") {
         return [...commonItems, { label: "Группы", icon: groupsIcon, link: "/groups" }];
       }
       return commonItems;
     },
   },
+  methods: {
+    getUserRole() {
+      const userData = JSON.parse(localStorage.getItem("user")) || {};
+      return userData.role || "student"; // По умолчанию студент
+    },
+  },
 };
 </script>
+
+
 
 <style scoped>
 /* Общий стиль бокового меню */

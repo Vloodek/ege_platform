@@ -56,7 +56,7 @@
 </template>
 
 <script>
-
+import axios from "axios";
 import SideBar from "./SideBar.vue";
 
 export default {
@@ -79,19 +79,11 @@ export default {
     async fetchLesson() {
       const lessonId = this.$route.params.id;
       try {
-        const response = await fetch(`http://localhost:8000/lessons/${lessonId}`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-          },
-        });
-        if (response.ok) {
-          this.lesson = await response.json();
-          this.processVideoLink(this.lesson.videoLink);
-        } else {
-          console.error("Ошибка загрузки занятия");
-        }
+        const response = await axios.get(`/lessons/${lessonId}`);
+        this.lesson = response.data;
+        this.processVideoLink(this.lesson.videoLink);
       } catch (error) {
-        console.error("Ошибка сети:", error);
+        console.error("Ошибка загрузки занятия", error);
       }
     },
     processVideoLink(videoLink) {
@@ -129,6 +121,7 @@ export default {
   },
 };
 </script>
+
 
 
 <style scoped>

@@ -61,21 +61,15 @@
     },
     methods: {
       async fetchHomeworks() {
-        try {
-          const response = await fetch("http://localhost:8000/homeworks", {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-            },
-          });
-          if (response.ok) {
-            this.homeworks = await response.json();
-          } else {
-            console.error("Ошибка загрузки домашних заданий");
-          }
-        } catch (error) {
-          console.error("Ошибка сети:", error);
-        }
-      },
+    try {
+        const response = await this.$axios.get("/homeworks");
+        this.homeworks = response.data;
+        console.log("Домашние задания загружены:", this.homeworks);
+    } catch (error) {
+        console.error("Ошибка при загрузке домашних заданий:", error);
+    }
+}
+,
       openHomework(homework) {
         if (!homework.id || !homework.lesson_id) {
           console.error("ID домашки или ID урока отсутствует");

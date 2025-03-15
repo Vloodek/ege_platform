@@ -11,6 +11,7 @@ import LessonsList from './components/LessonsList.vue';
 import HomeworksList from './components/HomeworksList.vue'; 
 import EditHomework from './components/EditHomework.vue';
 import ShowSubmissions from './components/teacher/ShowSubmissions.vue';
+import StudentGroups from './components/teacher/StudentGroups.vue';
 const routes = [
   {
     path: '/',
@@ -31,6 +32,11 @@ const routes = [
     path: '/register',
     name: 'register',
     component: StudentRegister,
+  },
+  {
+    path: "/groups",
+    name: "groups",
+    component: StudentGroups,
   },
   {
     path: '/calendar',

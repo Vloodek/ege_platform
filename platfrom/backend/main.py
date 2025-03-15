@@ -19,19 +19,12 @@ from app.database import init_db  # Импортируем функцию ини
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this in production
+    allow_origins=["http://localhost:8080"],  # Указываем разрешенные источники
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-
-
-
-
-
-
 
 # Инициализация базы данных
 database.init_db()
@@ -58,7 +51,8 @@ def verify_password(plain_password, hashed_password):
 # Секретный ключ для подписи JWT
 SECRET_KEY = "your_secret_key"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 200 # Время жизни токена
+ACCESS_TOKEN_EXPIRE_MINUTES = 200
+REFRESH_TOKEN_EXPIRE_DAYS = 1  # Время жизни рефреш-токена
 
 # Функция для создания JWT токена
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -73,40 +67,156 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
 @app.post("/register")
 async def register(user: UserRegister, db: Session = Depends(get_db)):
+    # Проверка, что пользователь с таким email уже существует
     db_user = db.query(database.User).filter(database.User.email == user.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
     
+    # Хэширование пароля
     hashed_password = hash_password(user.password)
     new_user = database.User(name=user.name, email=user.email, password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Создание access_token
+    access_token = create_access_token(data={"sub": new_user.email})
     
-    return {
-        "id": new_user.id,
+    # Создание refresh_token и сохранение в базе данных
+    refresh_token = create_refresh_token(new_user.id, db)
+
+    # Формирование ответа
+    response = JSONResponse(content={
+        "access_token": access_token,
+        "token_type": "bearer",
         "name": new_user.name,
-        "email": new_user.email
-    }
+        "role": new_user.role,
+        "id": new_user.id,
+        "group_id": new_user.group_id
+    })
+    
+    # Установка рефреш-токена в куки
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,  # Убедитесь, что сервер работает через HTTPS
+        samesite="Strict",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Время жизни куки в секундах
+    )
+
+    # Добавление CORS заголовков
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:8080"  # Разрешаем доступ только с клиента на 8080 порту
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+
+    return response
+
+import secrets
+
+def create_refresh_token(user_id: int, db: Session):
+    expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    print(expires_at,'DDDDDDDDDDDDDDDDDD')
+    print(datetime.utcnow())
+    print(timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))
+    refresh_token = secrets.token_urlsafe(32)  # Генерация случайного токена
+    db_refresh_token = database.RefreshToken(
+        user_id=user_id,
+        token=refresh_token,
+        expires_at=expires_at,
+    )
+    db.add(db_refresh_token)
+    db.commit()
+    db.refresh(db_refresh_token)
+    return refresh_token
 
 @app.post("/login")
-async def login(user: UserLogin, db: Session = Depends(get_db)):
+async def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
     db_user = db.query(database.User).filter(database.User.email == user.email).first()
-    if not db_user:
-        raise HTTPException(status_code=401, detail="Неверный email или пароль")
-
-    if not verify_password(user.password, db_user.password):
+    if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
 
     access_token = create_access_token(data={"sub": db_user.email})
-    return {
+    refresh_token = create_refresh_token(db_user.id, db)
+
+    # Если у пользователя установлен group_id, получаем имя группы
+    group_name = None
+    if db_user.group_id:
+        group = db.query(database.StudyGroup).filter(database.StudyGroup.id == db_user.group_id).first()
+        if group:
+            group_name = group.name
+
+    response = JSONResponse(content={
         "access_token": access_token,
         "token_type": "bearer",
         "name": db_user.name,
         "role": db_user.role,
-        "id": db_user.id,  # Возвращаем id пользователя
-        "group_id": db_user.group_id  # Добавляем номер группы
-    }
+        "id": db_user.id,
+        "group_id": db_user.group_id,
+        "group_name": group_name  # Добавлено имя группы
+    })
+
+    # Установка куки с рефреш-токеном
+    response.set_cookie(
+        key="refresh_token", 
+        value=refresh_token, 
+        httponly=True,  # Запрещает доступ к куки через JavaScript
+        samesite="Strict",  # Ограничение для куки по сайтам
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Время жизни куки в секундах
+    )
+
+    response.headers["Access-Control-Allow-Origin"] = "http://localhost:8080"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+
+    return response
+
+
+@app.post("/refresh-token")
+async def refresh_token(request: Request, db: Session = Depends(get_db)):
+    # Получаем refresh_token из куки
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        print("Refresh token not found in cookies")
+        raise HTTPException(status_code=401, detail="Рефреш-токен отсутствует")
+
+    print(f"Received refresh token: {refresh_token}")
+
+    
+
+    db_refresh_token = db.query(database.RefreshToken).filter_by(token=refresh_token).first()
+    if not db_refresh_token:
+        print("Refresh token not found in database")
+        raise HTTPException(status_code=401, detail="Неверный рефреш-токен")
+
+    # Проверка срока действия рефреш-токена
+    if db_refresh_token.expires_at < datetime.utcnow():
+        print(f"Refresh token expired: {db_refresh_token.expires_at}")
+        raise HTTPException(status_code=401, detail="Рефреш-токен истек")
+
+    
+
+    # Удаляем старый рефреш-токен
+    db.delete(db_refresh_token)
+    db.commit()
+
+    # Создаем новый access и refresh токены
+    user = db.query(database.User).filter_by(id=db_refresh_token.user_id).first()
+    access_token = create_access_token(data={"sub": user.email})
+    new_refresh_token = create_refresh_token(user.id, db)
+
+    response = JSONResponse(content={"access_token": access_token})
+    response.set_cookie(
+        key="refresh_token", 
+        value=new_refresh_token, 
+        httponly=True, 
+        samesite="Strict",  # Ограничение для куки по сайтам
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Время жизни куки в секундах
+    )
+    return response
+
 
 UPLOAD_FOLDER = "./uploads/"
 
@@ -324,7 +434,7 @@ async def check_authorization(request: Request, call_next):
     if request.url.path.startswith("/uploads/") or request.url.path == "/favicon.ico":  # Исключение для маршрутов /uploads/
         return await call_next(request)
 
-    excluded_routes = ["/register", "/login"]  # Маршруты, где не требуется токен
+    excluded_routes = ["/register", "/login", "/refresh-token"]  # Маршруты, где не требуется токен
     if any(request.url.path.startswith(route) for route in excluded_routes):
         return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
 
@@ -542,19 +652,30 @@ async def grade_homework(
     grade: int = Form(...),
     db: Session = Depends(get_db)
 ):
-    submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
-
+    # Получаем отклик
+    submission = db.query(database.HomeworkSubmission)\
+                   .filter(database.HomeworkSubmission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
-
+    
     submission.grade = grade
     submission.status = "graded"
-
+    
+    # Создаем запись в таблице Grade
     db_grade = database.Grade(submission_id=submission.id, grade=grade)
     db.add(db_grade)
+    
+    # Обновляем total_points пользователя
+    user = db.query(database.User).filter(database.User.id == submission.user_id).first()
+    if user:
+        # Если total_points ещё не инициализировано, считаем его равным 0
+        user.total_points = (user.total_points or 0) + grade
+    
     db.commit()
     
     return {"message": "Grade assigned successfully"}
+
+
 
 import random
 import string
@@ -565,7 +686,7 @@ def generate_group_code(length=6):
 @app.post("/groups/", response_model=schemas.GroupResponse)
 async def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
     group_code = generate_group_code()
-    db_group = database.Group(name=group.name, code=group_code)
+    db_group = database.StudyGroup(name=group.name, code=group_code)  # Заменено на StudyGroup
     db.add(db_group)
     db.commit()
     db.refresh(db_group)
@@ -580,33 +701,40 @@ async def join_group(
     body: JoinGroupRequest = Body(...), 
     db: Session = Depends(get_db)
 ):
-    print(f"📥 Получен запрос с кодом группы: {group_code}")
-    print(f"🔹 Заголовки запроса: {request.headers}")
-    print(f"🔹 Данные из тела запроса: {body}")
-
-    # Ищем группу по коду
-    group = db.query(database.Group).filter(database.Group.code == group_code).first()
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.code == group_code).first()
     if not group:
         return JSONResponse(status_code=404, content={"message": "Группа не найдена"})
-
-    # Ищем пользователя
+    
     user = db.query(database.User).filter(database.User.id == body.user_id).first()
     if not user:
         return JSONResponse(status_code=404, content={"message": "Пользователь не найден"})
 
-    # Обновляем group_id у пользователя
     user.group_id = group.id
     db.commit()
 
-    return {"message": f"Пользователь {user.name} успешно добавлен в группу {group.name}"}
+    return {
+        "message": f"Пользователь {user.name} успешно добавлен в группу {group.name}",
+        "group_id": group.id,
+        "group_name": group.name
+    }
 
-#список всех групп
+
+
+# Список всех групп
 @app.get("/groups/", response_model=List[schemas.GroupResponse])
 async def get_groups(db: Session = Depends(get_db)):
-    groups = db.query(database.Group).all()
+    groups = db.query(database.StudyGroup).all()  
     return groups
 
-
+# Эндпоинт для получения всех пользователей в группе
+@app.get("/groups/{group_id}/users", response_model=List[schemas.UserResponse])
+async def get_group_users(group_id: int, db: Session = Depends(get_db)):
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    
+    users = db.query(database.User).filter(database.User.group_id == group.id).all()
+    return users
 
 @app.get("/homework/{homework_id}", response_model=schemas.HomeworkResponse)
 async def get_homework(homework_id: int, db: Session = Depends(get_db)):
@@ -729,13 +857,15 @@ async def update_teacher_response(
 ):
     print(f"teacher_grade: {teacher_grade}, teacher_comment: {teacher_comment}, files: {files}")
 
-    # Получаем отклик школьника
-    submission = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.id == submission_id).first()
+    # Получаем отклик
+    submission = db.query(database.HomeworkSubmission)\
+                   .filter(database.HomeworkSubmission.id == submission_id).first()
     if not submission:
         raise HTTPException(status_code=404, detail="Отклик не найден")
     
-    # Пытаемся найти существующий ответ преподавателя (без оценки)
-    teacher_response = db.query(database.TeacherResponse).filter(database.TeacherResponse.submission_id == submission_id).first()
+    # Получаем или создаем ответ преподавателя
+    teacher_response = db.query(database.TeacherResponse)\
+                         .filter(database.TeacherResponse.submission_id == submission_id).first()
     
     if teacher_response is None:
         teacher_response = database.TeacherResponse(
@@ -758,7 +888,6 @@ async def update_teacher_response(
     
     if files_to_delete_list:
         for file_path in files_to_delete_list:
-            # Приводим путь к формату с обратными слэшами, как в БД
             full_path = file_path.replace("/", "\\")
             print(f"Пытаемся удалить файл: {full_path}")
             if os.path.exists(full_path):
@@ -791,13 +920,19 @@ async def update_teacher_response(
             )
             db.add(new_file)
     
-    # Обработка оценки – сохраняем её в таблицу Grade (если поле заполнено)
-    grade_obj = db.query(database.Grade).filter(database.Grade.submission_id == submission_id).first()
+    # Обработка оценки – обновляем запись в таблице Grade и корректируем total_points
+    grade_obj = db.query(database.Grade)\
+                  .filter(database.Grade.submission_id == submission_id).first()
+    # Определяем старую оценку (если есть); если оценки не было, считаем old_grade = 0
+    old_grade = grade_obj.grade if (grade_obj is not None and grade_obj.grade is not None) else 0
+    print("DDDDDDDDDDDDDDDDDAS")
+    print(old_grade)
     if teacher_grade.strip() != "":
         try:
             parsed_grade = int(teacher_grade)
         except ValueError:
             raise HTTPException(status_code=400, detail="Оценка должна быть целым числом")
+        diff = parsed_grade - old_grade  # разница между новой и старой оценкой
         if grade_obj is None:
             grade_obj = database.Grade(
                 submission_id=submission_id,
@@ -808,10 +943,9 @@ async def update_teacher_response(
         else:
             grade_obj.grade = parsed_grade
             grade_obj.graded_at = datetime.utcnow()
-        # Если оценка указана, изменяем статус отклика на "graded"
-        submission.status = "graded"  
+        submission.status = "graded"
     else:
-        # Если оценка не задана, оставляем в таблице Grade значение None
+        diff = -old_grade
         if grade_obj is None:
             grade_obj = database.Grade(
                 submission_id=submission_id,
@@ -822,14 +956,20 @@ async def update_teacher_response(
         else:
             grade_obj.grade = None
             grade_obj.graded_at = datetime.utcnow()
-        
-        # Если оценки нет, изменяем статус на "response_received"
         submission.status = "response_received"
-
+    
+    # Отладка: выводим diff и текущее значение total_points
+    user = db.query(database.User).filter(database.User.id == submission.user_id).first()
+    if user:
+        current_total = user.total_points or 0
+        new_total = current_total + diff
+        print(f"Updating user {user.id}: total_points {current_total} + diff {diff} = {new_total}")
+        user.total_points = new_total
+        db.flush()  # явно отправляем изменения в базу (без коммита)
+    
     db.commit()
     db.refresh(teacher_response)
     
-    # Формируем составной ответ: данные из teacher_response плюс оценка из таблицы Grade
     response_data = {
         "teacher_comment": teacher_response.teacher_comment,
         "response_date": teacher_response.response_date.isoformat(),
@@ -844,6 +984,8 @@ async def update_teacher_response(
         "message": "Ответ преподавателя обновлён",
         "teacher_response": response_data
     }
+
+
 
 
 

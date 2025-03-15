@@ -1,5 +1,4 @@
-# database.py
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Enum
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Enum, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -7,13 +6,28 @@ from datetime import datetime
 DATABASE_URL = "mysql+pymysql://root:ink-rooted-se1337@localhost:3306/ink"
 
 engine = create_engine(DATABASE_URL)
-
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
 
-class Group(Base):
-    __tablename__ = "groups"
+# Промежуточная таблица для связи уроков с группами
+lesson_groups = Table(
+    "lesson_groups",
+    Base.metadata,
+    Column("lesson_id", Integer, ForeignKey("lessons.id"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("study_groups.id"), primary_key=True)  # Заменено на study_groups
+)
+
+# Промежуточная таблица для связи домашних заданий с группами
+homework_groups = Table(
+    "homework_groups",
+    Base.metadata,
+    Column("homework_id", Integer, ForeignKey("homeworks.id"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("study_groups.id"), primary_key=True)  # Заменено на study_groups
+)
+
+
+class StudyGroup(Base):
+    __tablename__ = "study_groups"  # Переименовали таблицу, чтобы избежать конфликтов с зарезервированными словами
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), unique=True, index=True)
@@ -21,6 +35,8 @@ class Group(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     users = relationship("User", back_populates="group")
+    lessons = relationship("Lesson", secondary=lesson_groups, back_populates="groups")
+    homeworks = relationship("Homework", secondary=homework_groups, back_populates="groups")
 
 class User(Base):
     __tablename__ = "users"
@@ -28,11 +44,15 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), index=True)
     email = Column(String(255), unique=True, index=True)
-    password = Column(String(255))  # Пароль может быть хешированным, задаем длину
+    password = Column(String(255))
     role = Column(String(50), default="student")  # student/teacher
-    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    group_id = Column(Integer, ForeignKey("study_groups.id"), nullable=True)
+    total_points = Column(Integer, default=0, server_default="0")
 
-    group = relationship("Group", back_populates="users")
+
+    group = relationship("StudyGroup", back_populates="users")
+    refresh_tokens = relationship("RefreshToken", back_populates="user")
+
 
 class Lesson(Base):
     __tablename__ = "lessons"
@@ -40,13 +60,14 @@ class Lesson(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), index=True)
     description = Column(Text)
-    videoLink = Column(String(500), nullable=True)  # Длина URL обычно больше стандартных 255
+    videoLink = Column(String(500), nullable=True)  # Длина URL может превышать 255 символов
     text = Column(Text)
     files = Column(Text, nullable=True)
     image_links = Column(Text, nullable=True)
     date = Column(DateTime, default=datetime.utcnow)
-    group_id = Column(Integer, ForeignKey("groups.id"), index=True)  # Новое поле для групп
-    group = relationship("Group")
+    
+    # Связь "многие ко многим" с группами через промежуточную таблицу lesson_groups
+    groups = relationship("StudyGroup", secondary=lesson_groups, back_populates="lessons")
     homeworks = relationship("Homework", back_populates="lesson")
 
 class Homework(Base):
@@ -56,13 +77,14 @@ class Homework(Base):
     lesson_id = Column(Integer, ForeignKey("lessons.id"), index=True)
     description = Column(Text)
     files = Column(Text, nullable=True)
-    images = Column(Text, default="[]")  # Добавляем поле для хранения JSON с картинками
+    images = Column(Text, default="[]")  # Поле для хранения JSON с картинками
     date = Column(DateTime, default=datetime.utcnow)
     text = Column(Text)
-    group_id = Column(Integer, ForeignKey("groups.id"), index=True)  # Новое поле для групп
+    
+    # Связь "многие ко многим" с группами через промежуточную таблицу homework_groups
+    groups = relationship("StudyGroup", secondary=homework_groups, back_populates="homeworks")
     lesson = relationship("Lesson", back_populates="homeworks")
-    group = relationship("Group")
-
+    
     status = Column(Enum("dosed", "current", name="homework_status"), default="current")  # Новый статус
 
 # Таблица для отправленных домашних заданий
@@ -72,23 +94,23 @@ class HomeworkSubmission(Base):
     id = Column(Integer, primary_key=True, index=True)
     homework_id = Column(Integer, ForeignKey("homeworks.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
-    student_submission_time = Column(DateTime, nullable=True)  # Время отправки домашки
-    modified_submission_time = Column(DateTime, nullable=True)  # Время последнего изменения отклика
+    student_submission_time = Column(DateTime, nullable=True)
+    modified_submission_time = Column(DateTime, nullable=True)
     grade = Column(Integer, nullable=True)
-    status = Column(Enum("submitted", "graded", "response_received", "waiting", name="submission_status"), default="submitted")  # Статус
+    status = Column(Enum("submitted", "graded", "response_received", "waiting", name="submission_status"), default="submitted")
     comment = Column(Text, nullable=True)
 
     user = relationship("User")
     homework = relationship("Homework")
 
-# Таблица для файлов, прикрепленных к отправленным домашкам
+# Таблица для файлов, прикрепленных к отправленным домашним заданиям
 class HomeworkFile(Base):
     __tablename__ = "homework_files"
 
     id = Column(Integer, primary_key=True, index=True)
     submission_id = Column(Integer, ForeignKey("homework_submissions.id"))
-    file_path = Column(String(500))  # Указываем 500, если файлы хранятся по длинным путям
-    file_type = Column(String(50))
+    file_path = Column(String(500))  # Длинный путь может занимать до 500 символов
+    file_type = Column(String(255))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 
     submission = relationship("HomeworkSubmission")
@@ -120,6 +142,17 @@ class TeacherResponseFile(Base):
     file_type = Column(String(255))
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     teacher_response = relationship("TeacherResponse", backref="files")
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    token = Column(String(255), unique=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="refresh_tokens")
 
 def init_db():
     Base.metadata.create_all(bind=engine)

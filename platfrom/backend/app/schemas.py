@@ -129,3 +129,14 @@ class HomeworkListItem(BaseModel):
     lesson_id: int
     description: str
     date: datetime
+
+# Схема для отображения пользователя (ответ от сервера)
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    group_id: Optional[int] = None  # ID группы, если есть
+    total_points: int
+
+    class Config:
+        orm_mode = True
