@@ -8,37 +8,41 @@
       <main class="main-content">
         <div class="lesson-detail" v-if="lesson">
           <!-- Стрелка возврата и заголовок -->
-<div class="header-section">
-  <div class="back-arrow" @click="goBack"></div>
-  <h1 class="lesson-title">{{ lesson.name }}</h1>
-</div>
-
+          <div class="header-section">
+            <div class="back-arrow" @click="goBack"></div>
+            <h1 class="lesson-title">{{ lesson.name }}</h1>
+          </div>
 
           <!-- Видео блок -->
           <div v-if="lesson.videoLink" class="video-container">
-            <iframe :src="videoEmbedUrl" width="100%" height="400" frameborder="0" allowfullscreen></iframe>
+            <!-- Если embed-код передан, выводим его через v-html -->
+            <div v-if="videoEmbedHtml" v-html="videoEmbedHtml"></div>
+            <!-- Если видео задано ссылкой, используем iframe с нужным src -->
+            <iframe
+              v-else-if="videoEmbedUrl"
+              :src="videoEmbedUrl"
+              width="100%"
+              height="400"
+              frameborder="0"
+              allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;"
+              allowfullscreen
+            ></iframe>
           </div>
 
           <!-- Блок с описанием и кнопками -->
           <div class="content-section">
-            <!-- Левая часть -->
             <div class="left-column">
-              <!-- Иконка календаря и дата -->
               <div class="calendar">
-  <img class="calendar-icon" src="@/assets/svg/TaskDetail/calendar.svg" alt="Calendar Icon" />
-  <span class="lesson-date">{{ formatDateTime(lesson.date) }}</span>
-</div>
-
-              <!-- Описание занятия -->
+                <img class="calendar-icon" src="@/assets/svg/TaskDetail/calendar.svg" alt="Calendar Icon" />
+                <span class="lesson-date">{{ formatDateTime(lesson.date) }}</span>
+              </div>
               <p class="lesson-description">{{ lesson.description }}</p>
-              <!-- Чекбокс "Просмотрено" -->
               <div class="checkbox-container">
                 <input type="checkbox" id="watched" v-model="lesson.watched" />
                 <label for="watched">Просмотрено</label>
               </div>
             </div>
 
-            <!-- Правая часть -->
             <div class="right-column">
               <button class="lesson-button white" @click="viewMaterials">Материалы занятия</button>
               <button class="lesson-button green" @click="completeHomework">Выполнить ДЗ</button>
@@ -67,6 +71,7 @@ export default {
     return {
       lesson: null,
       videoEmbedUrl: null,
+      videoEmbedHtml: null,
     };
   },
   created() {
@@ -76,6 +81,7 @@ export default {
     goBack() {
       this.$router.go(-1);
     },
+
     async fetchLesson() {
       const lessonId = this.$route.params.id;
       try {
@@ -86,43 +92,84 @@ export default {
         console.error("Ошибка загрузки занятия", error);
       }
     },
+
     processVideoLink(videoLink) {
-      if (videoLink.includes("youtube.com") || videoLink.includes("youtu.be")) {
-        const videoId = this.extractYouTubeId(videoLink);
-        this.videoEmbedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-      } else {
-        console.error("Неподдерживаемый формат видео.");
+      if (!videoLink) return;
+
+      // Если в строке содержится iframe, то считаем, что сервер передал embed-код
+      if (videoLink.includes("<iframe")) {
+        this.videoEmbedHtml = videoLink;
         this.videoEmbedUrl = null;
       }
+      // Если ссылка на YouTube
+      else if (videoLink.includes("youtube.com") || videoLink.includes("youtu.be")) {
+        const videoId = this.extractYouTubeId(videoLink);
+        this.videoEmbedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : null;
+        this.videoEmbedHtml = null;
+      }
+      // Если ссылка на VK видео
+      else if (videoLink.includes("vkvideo.ru/video")) {
+        this.videoEmbedUrl = this.extractVkVideoUrl(videoLink);
+        this.videoEmbedHtml = null;
+      }
+      // Если ссылка на VK live-стрим
+      else if (videoLink.includes("live.vkvideo.ru")) {
+        if (!videoLink.includes("/app/embed/")) {
+          videoLink = videoLink.replace("live.vkvideo.ru/", "live.vkvideo.ru/app/embed/");
+        }
+        this.videoEmbedUrl = videoLink;
+        this.videoEmbedHtml = null;
+      }
+      else {
+        console.error("Неподдерживаемый формат видео.");
+        this.videoEmbedUrl = null;
+        this.videoEmbedHtml = null;
+      }
     },
+
     extractYouTubeId(url) {
       const match = url.match(/(?:youtube\.com.*[?&]v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
       return match ? match[1] : null;
     },
+
+    extractVkVideoUrl(url) {
+      // Если ссылка уже является embed-ссылкой, возвращаем её без изменений
+      if (url.includes("video_ext.php")) {
+        return url;
+      }
+      // Пример входящей ссылки: https://vkvideo.ru/video-225596675_456239032
+      // Из неё извлекаем oid и id
+      const match = url.match(/video-?(\d+)_(\d+)/);
+      if (match) {
+        return `https://vk.com/video_ext.php?oid=-${match[1]}&id=${match[2]}&hd=2`;
+      }
+      return null;
+    },
+
     viewMaterials() {
       this.$router.push(`/lesson/${this.lesson.id}/materials`);
     },
+
     completeHomework() {
       this.$router.push(`/homework/${this.lesson.id}`);
     },
+
     editLesson() {
       this.$router.push(`/lesson/${this.lesson.id}/edit`);
     },
+
     formatDateTime(datetime) {
-      const options = {
+      return new Date(datetime).toLocaleString("ru-RU", {
         day: "2-digit",
         month: "2-digit",
         year: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
-      };
-      return new Date(datetime).toLocaleString("ru-RU", options);
+      });
     },
   },
 };
 </script>
-
-
 
 <style scoped>
 #lesson-detail {
@@ -138,9 +185,11 @@ export default {
   margin: 0 auto;
   padding: 20px;
 }
-.body{
+
+.body {
   font-family: 'Navigo', sans-serif;
 }
+
 .main-content {
   flex: 1;
   background-color: #fff;
@@ -150,10 +199,10 @@ export default {
 }
 
 .back-arrow {
-  position: absolute; /* Размещаем стрелку независимо от потока */
-  left: 0; /* Привязываем к левому краю контейнера */
-  top: 50%; /* Центруем по вертикали */
-  transform: translateY(-50%); /* Устраняем смещение */
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
   width: 20px;
   height: 20px;
   background-color: #115544;
@@ -243,7 +292,6 @@ export default {
   transform: translate(-50%, -50%);
 }
 
-
 .checkbox-container label {
   font-size: 16px;
   color: #333;
@@ -265,7 +313,6 @@ export default {
   height: 54px;
   font-family: 'Navigo', sans-serif;
   font-weight: 300;
-  
 }
 
 .lesson-button.green {
@@ -281,11 +328,12 @@ export default {
 .lesson-button:hover {
   opacity: 0.8;
 }
+
 .header-section {
-  position: relative; /* Для позиционирования стрелки */
+  position: relative;
   display: flex;
-  justify-content: center; /* Центруем заголовок */
-  align-items: center; /* Выравниваем элементы по вертикали */
+  justify-content: center;
+  align-items: center;
   margin-bottom: 20px;
 }
 </style>

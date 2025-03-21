@@ -243,11 +243,19 @@ async def create_lesson(
         videoLink=videoLink,
         text=text,
         date=date,
-        group_id=group_id,  # Сохраняем ID группы
+        
     )
     db.add(db_lesson)
     db.commit()
     db.refresh(db_lesson)
+
+    # Получаем группу по group_id
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
+    if group:
+        # Добавляем группу в список групп урока
+        db_lesson.groups.append(group)
+        db.commit()
+        db.refresh(db_lesson)
 
     lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
     os.makedirs(lesson_folder, exist_ok=True)
@@ -352,9 +360,16 @@ async def create_homework(
         date=date,
         files="[]",
         images="[]",
-        group_id=lesson.group_id  
+        
     )
     db.add(db_homework)
+    db.commit()
+    db.refresh(db_homework)
+
+    # Привязываем домашнее задание к группам, к которым принадлежит урок
+    # Если урок может принадлежать сразу нескольким группам:
+    for group in lesson.groups:
+        db_homework.groups.append(group)
     db.commit()
     db.refresh(db_homework)
 
@@ -434,7 +449,7 @@ async def check_authorization(request: Request, call_next):
     if request.url.path.startswith("/uploads/") or request.url.path == "/favicon.ico":  # Исключение для маршрутов /uploads/
         return await call_next(request)
 
-    excluded_routes = ["/register", "/login", "/refresh-token"]  # Маршруты, где не требуется токен
+    excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json"]  # Маршруты, где не требуется токен
     if any(request.url.path.startswith(route) for route in excluded_routes):
         return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
 

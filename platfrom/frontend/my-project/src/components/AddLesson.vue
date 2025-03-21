@@ -29,7 +29,23 @@
               ></textarea>
             </div>
 
+            <!-- Выбор типа видео -->
             <div class="form-group">
+              <label>Тип видео</label>
+              <div>
+                <label>
+                  <input type="radio" value="video" v-model="lesson.videoType" />
+                  Видео
+                </label>
+                <label>
+                  <input type="radio" value="stream" v-model="lesson.videoType" />
+                  Стрим
+                </label>
+              </div>
+            </div>
+
+            <!-- Если выбран тип Видео -->
+            <div class="form-group" v-if="lesson.videoType === 'video'">
               <label for="videoLink">Ссылка на видео</label>
               <input
                 type="text"
@@ -39,6 +55,17 @@
                 @blur="validateVideoLink"
               />
               <p v-if="videoLinkError" class="error-text">Пожалуйста, введите корректную ссылку на видео.</p>
+            </div>
+
+            <!-- Если выбран тип Стрим -->
+            <div class="form-group" v-else>
+              <label for="iframeEmbed">Embed-код стрима</label>
+              <textarea
+                id="iframeEmbed"
+                v-model="lesson.iframeEmbed"
+                placeholder="Вставьте HTML-код iframe стрима"
+                required
+              ></textarea>
             </div>
           </div>
 
@@ -66,7 +93,7 @@
                   id="lessonFiles"
                   @change="handleFileUpload"
                   multiple
-                   style="display: none;"
+                  style="display: none;"
                 />
                 <p>Перетащите файлы сюда или выберите</p>
               </div>
@@ -106,15 +133,14 @@
             />
           </div>
           <div class="form-group">
-  <label for="groupSelect">Выберите группу</label>
-  <select id="groupSelect" v-model="lesson.group_id" required @focus="fetchGroups">
-    <option v-if="!groupsLoaded" disabled>Загрузка...</option>
-    <option v-for="group in groups" :key="group.id" :value="group.id">
-      {{ group.name }}
-    </option>
-  </select>
-</div>
-
+            <label for="groupSelect">Выберите группу</label>
+            <select id="groupSelect" v-model="lesson.group_id" required @focus="fetchGroups">
+              <option v-if="!groupsLoaded" disabled>Загрузка...</option>
+              <option v-for="group in groups" :key="group.id" :value="group.id">
+                {{ group.name }}
+              </option>
+            </select>
+          </div>
 
           <button type="submit" class="submit-btn">Добавить урок</button>
         </form>
@@ -140,15 +166,19 @@ export default {
       lesson: {
         name: "",
         description: "",
+        // Для обычного видео – ссылка; для стрима – iframe-код
         videoLink: "",
+        // Дополнительное поле для iframe-кода стрима
+        iframeEmbed: "",
+        videoType: "video", // "video" или "stream"
         text: "",
         files: [],
         images: [],
         date: "",
-        group_id: "",  // Добавляем выбор группы
+        group_id: "",
       },
-      groups: [], // Список групп
-      groupsLoaded: false, // Флаг, загружены ли группы
+      groups: [],
+      groupsLoaded: false,
       videoLinkError: false,
       fullImage: null,
     };
@@ -189,19 +219,15 @@ export default {
       });
     },
     async fetchGroups() {
-  if (this.groupsLoaded) return; // Чтобы не загружать снова, если уже загружено
-
-  console.log("🔵 Загрузка списка групп...");
-  try {
-    const response = await axios.get("http://localhost:8000/groups/");
-    console.log("✅ Группы загружены:", response.data);
-    this.groups = response.data;
-    this.groupsLoaded = true; // Отмечаем, что загрузили
-  } catch (error) {
-    console.error("❌ Ошибка при загрузке групп", error);
-  }
-}
-,
+      if (this.groupsLoaded) return;
+      try {
+        const response = await axios.get("http://localhost:8000/groups/");
+        this.groups = response.data;
+        this.groupsLoaded = true;
+      } catch (error) {
+        console.error("Ошибка при загрузке групп", error);
+      }
+    },
     removeImage(index) {
       this.lesson.images.splice(index, 1);
     },
@@ -209,47 +235,49 @@ export default {
       this.lesson.files.splice(index, 1);
     },
     validateVideoLink() {
-      const regex = /https?:\/\/.*/;
-      this.videoLinkError = !regex.test(this.lesson.videoLink);
+      // Простейшая валидация ссылки (будет применяться для типа "video")
+      if (this.lesson.videoType === "video") {
+        const regex = /https?:\/\/.*/;
+        this.videoLinkError = !regex.test(this.lesson.videoLink);
+      } else {
+        this.videoLinkError = false;
+      }
     },
     handleSubmit() {
-      console.log("🟡 Отправка формы урока...");
-  const formData = new FormData();
-  formData.append("name", this.lesson.name);
-  formData.append("description", this.lesson.description);
-  formData.append("videoLink", this.lesson.videoLink);
-  formData.append("text", this.lesson.text);
-  formData.append("date", this.lesson.date);
-  formData.append("group_id", this.lesson.group_id); // Добавляем ID группы
+      // Если выбран тип "stream", отправляем iframe-код вместо обычной ссылки
+      if (this.lesson.videoType === "stream") {
+        this.lesson.videoLink = this.lesson.iframeEmbed;
+      }
+      
+      const formData = new FormData();
+      formData.append("name", this.lesson.name);
+      formData.append("description", this.lesson.description);
+      formData.append("videoLink", this.lesson.videoLink);
+      formData.append("text", this.lesson.text);
+      formData.append("date", this.lesson.date);
+      formData.append("group_id", this.lesson.group_id);
 
-  this.lesson.images.forEach((imageObj) => {
-    formData.append("images", imageObj.file);
-  });
+      this.lesson.images.forEach((imageObj) => {
+        formData.append("images", imageObj.file);
+      });
+      this.lesson.files.forEach((file) => {
+        formData.append("files", file);
+      });
 
-  this.lesson.files.forEach((file) => {
-    formData.append("files", file);
-  });
-
-  axios
-    .post("http://localhost:8000/lessons/", formData, {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    })
-    .then((response) => {
-      console.log("Урок успешно добавлен", response.data);
-      this.$router.push("/day-plan");
-    })
-    .catch((error) => {
-      console.error("Ошибка при добавлении урока", error);
-    });
-},
-mounted() {
-  console.log("🔵 AddLessonPage.vue загружен!");
-  console.log("🔵 mounted() вызван");
-    this.fetchGroups(); // Вызываем метод при загрузке страницы
-  },
-
+      axios
+        .post("http://localhost:8000/lessons/", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        })
+        .then((response) => {
+          console.log("Урок успешно добавлен", response.data);
+          this.$router.push("/day-plan");
+        })
+        .catch((error) => {
+          console.error("Ошибка при добавлении урока", error);
+        });
+    },
     openImage(preview) {
       this.fullImage = preview;
     },
@@ -257,8 +285,10 @@ mounted() {
       this.fullImage = null;
     },
   },
+  mounted() {
+    this.fetchGroups();
+  },
 };
-
 </script>
 
 <style scoped>
@@ -317,7 +347,8 @@ mounted() {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   width: 100%;
   padding: 10px;
   font-size: 14px;
@@ -413,7 +444,6 @@ mounted() {
   border-radius: 10px;
 }
 
-/* Drag and Drop area */
 .drag-drop-area {
   border: 2px dashed #4caf50;
   padding: 20px;
@@ -431,8 +461,10 @@ mounted() {
 .hidden-input {
   display: none;
 }
-.page-title, h3, h4 {
-  font-weight: 500; /* Было 700 */
-}
 
+.page-title,
+h3,
+h4 {
+  font-weight: 500;
+}
 </style>
