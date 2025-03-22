@@ -1,6 +1,0 @@
-{
-  "dependencies": {
-    "@fingerprintjs/fingerprintjs": "^4.6.1",
-    "fingerprintjs": "^0.5.3"
-  }
-}

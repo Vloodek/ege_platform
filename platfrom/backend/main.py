@@ -1,4 +1,6 @@
 # main.py
+import sys
+print(sys.path)
 
 from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
