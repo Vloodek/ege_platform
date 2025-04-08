@@ -76,16 +76,13 @@
           <!-- Ответ -->
           <section class="section-input">
             <label>Ответ:</label>
-  
             <!-- Однострочный ответ -->
             <input v-if="isTextInput" type="text" v-model="form.answerText" />
-  
             <!-- Таблица 2x1 -->
             <div v-if="isTableTwo">
               <input v-model="form.answerTable[0]" type="text" style="width: 60px;" />
               <input v-model="form.answerTable[1]" type="text" style="width: 60px;" />
             </div>
-  
             <!-- Таблица 10x1 -->
             <div v-if="isTableTen">
               <div v-for="(val, index) in form.answerTable" :key="index">
@@ -172,39 +169,19 @@
         this.form.taskFiles.splice(index, 1);
       },
       handleTaskImageUpload(event) {
-  const files = event.target.files;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const imageUrl = URL.createObjectURL(file);
-    
-    // Вставляем изображение в описание задания
-    const range = this.descriptionEditor.getSelection();
-    if (range) {
-      this.descriptionEditor.insertEmbed(range.index, 'image', imageUrl);
-    }
-
-    // Добавляем файл в форму
-    this.form.taskImages.push(file);
-  }
-},
-
-handleSolutionImageUpload(event) {
-  const files = event.target.files;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    const imageUrl = URL.createObjectURL(file);
-    
-    // Вставляем изображение в решение
-    const range = this.solutionEditor.getSelection();
-    if (range) {
-      this.solutionEditor.insertEmbed(range.index, 'image', imageUrl);
-    }
-
-    // Добавляем файл в форму
-    this.form.solution_images.push(file);
-  }
-}
-,
+        const files = event.target.files;
+        for (let i = 0; i < files.length; i++) {
+          // Если необходимо, можно вставлять изображение сразу из file input
+          // В данном примере для файловых загрузок используем прямую вставку временного URL:
+          const file = files[i];
+          const imageUrl = URL.createObjectURL(file);
+          const range = this.descriptionEditor.getSelection();
+          if (range) {
+            this.descriptionEditor.insertEmbed(range.index, 'image', imageUrl);
+          }
+          this.form.taskImages.push(file);
+        }
+      },
       removeTaskImage(index) {
         this.form.taskImages.splice(index, 1);
       },
@@ -213,6 +190,18 @@ handleSolutionImageUpload(event) {
       },
       removeSolutionFile(index) {
         this.form.solution_files.splice(index, 1);
+      },
+      handleSolutionImageUpload(event) {
+        const files = event.target.files;
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          const imageUrl = URL.createObjectURL(file);
+          const range = this.solutionEditor.getSelection();
+          if (range) {
+            this.solutionEditor.insertEmbed(range.index, 'image', imageUrl);
+          }
+          this.form.solution_images.push(file);
+        }
       },
       removeSolutionImage(index) {
         this.form.solution_images.splice(index, 1);
@@ -241,22 +230,34 @@ handleSolutionImageUpload(event) {
         }
         formData.append(
           "correct_answer",
-          this.isTextInput ? this.form.answerText : JSON.stringify(this.form.answerTable)
+          this.isTextInput
+            ? this.form.answerText
+            : JSON.stringify(this.form.answerTable)
         );
   
         // Файлы
         this.form.taskFiles.forEach(file => formData.append("taskFiles", file));
         this.form.taskImages.forEach(file => formData.append("taskImages", file));
-        this.form.solution_files.forEach(file => formData.append("solution_files", file));
-        this.form.solution_images.forEach(file => formData.append("solution_images", file));
+        this.form.solution_files.forEach(file =>
+          formData.append("solution_files", file)
+        );
+        this.form.solution_images.forEach(file =>
+          formData.append("solution_images", file)
+        );
   
         try {
-          const response = await axios.post("http://localhost:8000/exam_tasks", formData, {
-            headers: {
-              "Content-Type": "multipart/form-data",
-              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-            },
-          });
+          const response = await axios.post(
+            "http://localhost:8000/exam_tasks",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+                Authorization: `Bearer ${localStorage.getItem(
+                  "access_token"
+                )}`,
+              },
+            }
+          );
           if (response.status === 200) {
             this.$emit("success", "Задание успешно добавлено");
             this.resetForm();
@@ -282,93 +283,102 @@ handleSolutionImageUpload(event) {
           answerTable: [],
         };
       },
+      // Функция для инициализации редакторов Quill с кастомным image handler
       initEditors() {
-  this.$nextTick(() => {
-    const descriptionEditorElement = this.$refs.descriptionEditor;
-    const solutionEditorElement = this.$refs.solutionEditor;
-
-    if (descriptionEditorElement && solutionEditorElement) {
-      const toolbarOptions = [
-        [{ 'header': '1' }, { 'header': '2' }, { 'font': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        ['bold', 'italic', 'underline'],
-        [{ 'align': [] }],
-        ['link', 'image'],
-      ];
-
-      // Функция-обработчик для изображений
-      const imageHandler = function() {
-        const input = document.createElement('input');
-        input.setAttribute('type', 'file');
-        input.setAttribute('accept', 'image/*');
-        input.click();
-
-        input.onchange = async () => {
-          const file = input.files[0];
-          if (file) {
-            // Создаем FormData и отправляем файл на сервер
-            const formData = new FormData();
-            formData.append("image", file); // убедитесь, что сервер принимает имя "image" или измените его под ваш эндпоинт
-
-            try {
-              const response = await axios.post("http://localhost:8000/upload_image", formData, {
-                headers: {
-                  "Content-Type": "multipart/form-data",
-                  Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-                },
-              });
-              // Предполагается, что сервер возвращает JSON с полем image_url
-              const imageUrl = response.data.image_url;
-
-              const range = this.quill.getSelection();
-              this.quill.insertEmbed(range.index, 'image', imageUrl);
-            } catch (error) {
-              console.error("Ошибка загрузки изображения:", error);
-              alert("Ошибка загрузки изображения");
-            }
+        this.$nextTick(() => {
+          const descriptionEditorElement = this.$refs.descriptionEditor;
+          const solutionEditorElement = this.$refs.solutionEditor;
+          if (!descriptionEditorElement || !solutionEditorElement) {
+            console.error("Ошибка: не найдены элементы для Quill.");
+            return;
           }
-        };
-      };
-
-      // Инициализация редакторов с кастомным обработчиком
-      this.descriptionEditor = new Quill(descriptionEditorElement, {
-        theme: 'snow',
-        modules: {
-          toolbar: {
-            container: toolbarOptions,
-            handlers: {
-              image: imageHandler,
+          const toolbarOptions = [
+            [{ header: "1" }, { header: "2" }, { font: [] }],
+            [{ list: "ordered" }, { list: "bullet" }],
+            ["bold", "italic", "underline"],
+            [{ align: [] }],
+            ["link", "image"],
+          ];
+  
+          // Кастомный обработчик изображений для Quill, использующий временную загрузку
+          const customImageHandler = async function () {
+            const input = document.createElement("input");
+            input.setAttribute("type", "file");
+            input.setAttribute("accept", "image/*");
+            input.click();
+  
+            input.onchange = async () => {
+              const file = input.files[0];
+              if (file) {
+                const formData = new FormData();
+                formData.append("image", file);
+                try {
+                  // Эндпоинт временной загрузки, который сохраняет файл в ./uploads/temp и возвращает URL
+                  const response = await axios.post(
+                    "http://localhost:8000/upload_temp_image",
+                    formData,
+                    {
+                      headers: {
+                        "Content-Type": "multipart/form-data",
+                        Authorization: `Bearer ${localStorage.getItem(
+                          "access_token"
+                        )}`,
+                      },
+                    }
+                  );
+                  const imageUrl = response.data.image_url;
+                  const range = this.quill.getSelection();
+                  if (range) {
+                    // Вставляем полученный временный URL в редактор
+                    this.quill.insertEmbed(range.index, "image", imageUrl, "user");
+                  }
+                } catch (error) {
+                  console.error("Ошибка загрузки временного изображения:", error);
+                  alert("Ошибка загрузки изображения");
+                }
+              }
+            };
+          };
+  
+          // Инициализация описания задания
+          this.descriptionEditor = new Quill(descriptionEditorElement, {
+            theme: "snow",
+            modules: {
+              toolbar: {
+                container: toolbarOptions,
+                handlers: {
+                  // Обратите внимание на передачу контекста через call()
+                  image: function () {
+                    customImageHandler.call(this);
+                  },
+                },
+              },
             },
-          },
-        },
-      });
-
-      this.solutionEditor = new Quill(solutionEditorElement, {
-        theme: 'snow',
-        modules: {
-          toolbar: {
-            container: toolbarOptions,
-            handlers: {
-              image: imageHandler,
+          });
+          // Инициализация текста решения
+          this.solutionEditor = new Quill(solutionEditorElement, {
+            theme: "snow",
+            modules: {
+              toolbar: {
+                container: toolbarOptions,
+                handlers: {
+                  image: function () {
+                    customImageHandler.call(this);
+                  },
+                },
+              },
             },
-          },
-        },
-      });
-
-      // Обновление состояния формы при изменении содержимого редакторов
-      this.descriptionEditor.on('text-change', () => {
-        this.form.description = this.descriptionEditor.root.innerHTML;
-      });
-
-      this.solutionEditor.on('text-change', () => {
-        this.form.solution_text = this.solutionEditor.root.innerHTML;
-      });
-    } else {
-      console.error("Ошибка: не удалось найти элементы для инициализации Quill.");
-    }
-  });
-}
-,
+          });
+  
+          // Отслеживаем изменения в редакторах для обновления полей формы
+          this.descriptionEditor.on("text-change", () => {
+            this.form.description = this.descriptionEditor.root.innerHTML;
+          });
+          this.solutionEditor.on("text-change", () => {
+            this.form.solution_text = this.solutionEditor.root.innerHTML;
+          });
+        });
+      },
     },
     mounted() {
       this.initEditors();
@@ -377,7 +387,6 @@ handleSolutionImageUpload(event) {
   </script>
   
   <style scoped>
-  /* Основной контейнер */
   .modal-overlay {
     position: fixed;
     top: 0;

@@ -9,11 +9,7 @@
 
         <div v-if="tasks.length === 0">Нет заданий для этого типа.</div>
 
-        <div
-          v-for="(task, index) in tasks"
-          :key="task.id"
-          class="task-card"
-        >
+        <div v-for="(task, index) in tasks" :key="task.id" class="task-card">
           <div class="task-header">
             <strong>{{ index + 1 }}. Задание №{{ task.id }}</strong>
             <span v-if="!noPoints(task.task_number)">
@@ -21,7 +17,7 @@
             </span>
           </div>
 
-          <div class="task-description" v-html="task.description" />
+          <div class="task-description ql-editor" v-html="task.description" />
 
           <div class="task-images">
             <img
@@ -64,9 +60,11 @@
   </div>
 </template>
 
+
 <script>
 import SideBar from "@/components/SideBar.vue";
 import axios from "axios";
+import "quill/dist/quill.snow.css";
 
 export default {
   name: "ExamTaskList",
@@ -82,58 +80,88 @@ export default {
   async created() {
     await this.loadTasks();
   },
-  methods: {
-    async loadTasks() {
-      try {
-        const res = await axios.get(`/exam_tasks/by_type/${this.taskId}`);
-        const rawTasks = res.data.tasks;
-
-        // Парсим вложения
-        this.tasks = rawTasks.map((task) => {
-  const base = window.location.origin;
-
-  const task_images = task.attachments
-    .filter((a) => a.attachment_type === "task_image")
-    .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
-  const task_files = task.attachments
-    .filter((a) => a.attachment_type === "task_file")
-    .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
-  const solution_images = task.attachments
-    .filter((a) => a.attachment_type === "solution_image")
-    .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
-  return {
-    ...task,
-    task_images,
-    task_files,
-    solution_images,
-  };
-});
-
-      } catch (err) {
-        console.error("Ошибка при загрузке заданий:", err);
-      }
-    },
-    toggleSolution(id) {
-      this.$set(this.showSolution, id, !this.showSolution[id]);
-    },
-    getPoints(taskNumber) {
-      if ([26, 27].includes(taskNumber)) return null;
-      if ([19, 20, 21].includes(taskNumber)) return 2;
-      if ([16].includes(taskNumber)) return 3;
-      return 1;
-    },
-    noPoints(taskNumber) {
-      return [26, 27].includes(taskNumber);
-    },
-    getFileName(path) {
-      return path.split("/").pop();
-    },
+  mounted() {
+    this.applyImageStyles(); // Применяем стили сразу после монтирования
   },
+  updated() {
+    this.$nextTick(() => {
+      this.applyImageStyles(); // Применяем стили после обновления DOM
+    });
+  },
+  methods: {
+  async loadTasks() {
+    try {
+      const res = await axios.get(`/exam_tasks/by_type/${this.taskId}`);
+      const rawTasks = res.data.tasks;
+
+      // Парсим вложения
+      this.tasks = rawTasks.map((task) => {
+        const base = window.location.origin;
+
+        const task_images = task.attachments
+          .filter((a) => a.attachment_type === "task_image")
+          .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
+
+        const task_files = task.attachments
+          .filter((a) => a.attachment_type === "task_file")
+          .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
+
+        const solution_images = task.attachments
+          .filter((a) => a.attachment_type === "solution_image")
+          .map((a) => `${base}/${a.file_path.replace(/\\/g, "/")}`);
+
+        return {
+          ...task,
+          task_images,
+          task_files,
+          solution_images,
+        };
+      });
+    } catch (err) {
+      console.error("Ошибка при загрузке заданий:", err);
+    }
+  },
+
+  // Добавляем стили для изображений внутри .task-description и .solution-images
+  applyImageStyles() {
+  // Для основного контента заданий
+  document.querySelectorAll('.task-description img, .solution-section img, .solution-text img').forEach(img => {
+    img.style.maxWidth = '70%';
+    img.style.width = 'auto';
+    img.style.height = 'auto';
+    img.style.objectFit = 'contain';
+    img.style.display = 'block';
+    img.style.margin = '10px auto';
+  });
+},
+
+toggleSolution(id) {
+  this.showSolution[id] = !this.showSolution[id];
+  this.$nextTick(() => {
+    this.applyImageStyles();
+    // Принудительно обновляем стили для вновь отображенных изображений
+    setTimeout(() => this.applyImageStyles(), 100);
+  });
+},
+
+  getPoints(taskNumber) {
+    if ([26, 27].includes(taskNumber)) return null;
+    if ([19, 20, 21].includes(taskNumber)) return 2;
+    if ([16].includes(taskNumber)) return 3;
+    return 1;
+  },
+
+  noPoints(taskNumber) {
+    return [26, 27].includes(taskNumber);
+  },
+
+  getFileName(path) {
+    return path.split("/").pop();
+  },
+}
 };
 </script>
+
 
 <style scoped>
 #exam-task-list {
@@ -239,4 +267,46 @@ h2 {
   margin-top: 10px;
   font-weight: bold;
 }
+
+
+
+/* Уменьшаем изображения внутри Quill */
+.ql-editor img {
+  width: 20% !important;         /* Устанавливаем максимальную ширину */
+  max-width: 20% !important;      /* Устанавливаем максимальную ширину на 80% */
+  height: auto !important;        /* Сохраняем пропорции */
+  object-fit: contain !important; /* Изображение вмещается в блок */
+  display: block !important;      /* Делаем картинку блочным элементом */
+  margin: 10px auto !important;   /* Центрируем картинку */
+  box-sizing: border-box !important; /* Учитываем padding */
+  overflow: hidden !important;    /* Обрезаем лишнюю часть */
+}
+
+/* Для картинок в .task-description */
+.task-description img {
+  width: 20% !important;
+  max-width: 20% !important;      /* Уменьшаем максимальную ширину на 80% */
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 10px auto !important;
+  box-sizing: border-box !important;
+}
+
+::v-deep(.solution-section) img {
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 10px auto !important;
+}
+
+::v-deep(.solution-text) img {
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+
 </style>

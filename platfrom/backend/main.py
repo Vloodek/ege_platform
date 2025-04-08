@@ -447,8 +447,9 @@ async def check_authorization(request: Request, call_next):
         return await call_next(request)  # Пропускаем OPTIONS-запросы
     print(f"Обрабатываемый путь запроса: {request.url.path}")
 
-    if request.url.path.startswith("/uploads/") or request.url.path == "/favicon.ico":  # Исключение для маршрутов /uploads/
+    if "/uploads/" in request.url.path or request.url.path == "/favicon.ico":
         return await call_next(request)
+
 
     excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json"]  # Маршруты, где не требуется токен
     if any(request.url.path.startswith(route) for route in excluded_routes):
@@ -1086,7 +1087,7 @@ def create_exam_task(
     solution_images: list[UploadFile] = File(default=[]),
     db: Session = Depends(get_db),
 ):
-    # Создание задания
+    # Создаем задание в БД
     task = database.ExamTask(
         task_number=task_number,
         description=description,
@@ -1095,37 +1096,49 @@ def create_exam_task(
         correct_answer=correct_answer,
     )
     db.add(task)
-    db.commit()
+    db.commit()   # фиксируем задание, чтобы получить task.id
     db.refresh(task)
 
-    # Структура хранения файлов
+    # Определяем путь для хранения файлов: ./uploads/tasks_bank/{task_number}/{task.id}
     base_path = f"./uploads/tasks_bank/{task_number}/{task.id}"
-    os.makedirs(base_path + "/files", exist_ok=True)
-    os.makedirs(base_path + "/images", exist_ok=True)
+    os.makedirs(os.path.join(base_path, "files"), exist_ok=True)
+    os.makedirs(os.path.join(base_path, "images"), exist_ok=True)
 
-    # Функция для сохранения файлов
+    # Функция сохранения файлов и записи в БД
     def save_files(files: list[UploadFile], folder: str, file_type: str):
         for file in files:
+            # Обязательно сбрасываем указатель, если файл уже был прочитан
+            file.file.seek(0)
             content = file.file.read()
             save_path = os.path.join(base_path, folder, file.filename)
             with open(save_path, "wb") as f:
                 f.write(content)
+            # Формируем запись вложения
             attachment = database.ExamTaskAttachment(
                 exam_task_id=task.id,
                 file_path=save_path.replace("\\", "/"),
                 attachment_type=file_type,
             )
             db.add(attachment)
+            # Если связь attachment определена у ExamTask, можно добавить в список:
+            if not hasattr(task, "attachments") or task.attachments is None:
+                task.attachments = []
+            task.attachments.append(attachment)
+            db.flush()  # отправляем изменения в сессию
 
-    # Сохранение файлов и изображений
+    # Сохраняем файлы, прикрепленные через file inputs
     save_files(taskFiles, "files", "task_file")
     save_files(taskImages, "images", "task_image")
     save_files(solution_files, "files", "solution_file")
     save_files(solution_images, "images", "solution_image")
 
-    # Завершаем транзакцию
-    db.commit()
+    # Перемещаем временные изображения, вставленные через Quill,
+    # и заменяем URL на итоговые.
+    # Если требуется добавить записи attachments для этих картинок – здесь можно добавить дополнительную логику.
+    task.description = move_temp_images(task.description, base_path, task_number, task.id)
+    task.solution_text = move_temp_images(task.solution_text, base_path, task_number, task.id)
 
+    db.commit()
     return task
 
 
@@ -1145,11 +1158,21 @@ async def get_exam_tasks(db: Session = Depends(get_db)):
 # Эндпоинт для отдачи файла, прикрепленного к заданию
 @app.get("/exam_tasks/{task_id}/uploads/{filename}")
 async def get_exam_task_file(task_id: int, filename: str):
-    file_path = os.path.join(UPLOAD_FOLDER, str(task_id), filename)
+    # Формируем путь для файла
+    # Здесь предполагается, что файлы хранятся в папке tasks_bank/task_number/task_id
+    # Нужно либо сохранить task_number где-то, либо указывать иной маршрут.
+    # Пример: получаем путь без task_number (если он не нужен) или добавьте логику поиска.
+    file_path = f"./uploads/tasks_bank/{task_id}/{task_id}/uploads/{filename}"  # измените под вашу логику
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
     return FileResponse(file_path)
 
+@app.get("/exam_tasks/{task_number}/{task_id}/uploads/{filename}")
+async def get_exam_task_file(task_number: int, task_id: int, filename: str):
+    file_path = f"./uploads/tasks_bank/{task_number}/{task_id}/images/{filename}"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(file_path)
 
 @app.get("/exam_tasks/count_by_type", response_model=schemas.ExamTaskCountByTypeResponse)
 async def count_exam_tasks_by_type(db: Session = Depends(get_db)):
@@ -1198,3 +1221,44 @@ def get_tasks_by_type(type_id: int, db: Session = Depends(get_db)):
     return {"tasks": result}
 
 
+@app.post("/upload_temp_image")
+async def upload_temp_image(image: UploadFile = File(...)):
+    temp_folder = "./uploads/temp"
+    os.makedirs(temp_folder, exist_ok=True)
+
+    # Формируем уникальное имя файла с timestamp
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    file_name = f"{timestamp}_{image.filename}"
+    file_path = os.path.join(temp_folder, file_name)
+    try:
+        content = await image.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка загрузки файла: {str(e)}")
+    # Возвращаем временный URL (он будет заменён при сохранении задания)
+    image_url = f"http://localhost:8000/uploads/temp/{file_name}"
+    return JSONResponse(content={"image_url": image_url})
+
+import re
+import shutil
+def move_temp_images(html: str, base_path: str, task_number: int, task_id: int) -> str:
+    """
+    Ищет ссылки на временные изображения (uploads/temp) в HTML,
+    перемещает файлы в папку base_path/images и заменяет URL на итоговые.
+    Итоговый URL формируется как:
+      http://localhost:8000/uploads/tasks_bank/{task_number}/{task_id}/images/{filename}
+    """
+    pattern = r'src="(http://localhost:8000/uploads/temp/([^"]+))"'
+    matches = re.findall(pattern, html)
+    new_html = html
+    for full_url, filename in matches:
+        temp_path = os.path.join("./uploads/temp", filename)
+        dest_folder = os.path.join(base_path, "images")
+        os.makedirs(dest_folder, exist_ok=True)
+        dest_path = os.path.join(dest_folder, filename)
+        if os.path.exists(temp_path):
+            shutil.move(temp_path, dest_path)
+            final_url = f"http://localhost:8000/uploads/tasks_bank/{task_number}/{task_id}/images/{filename}"
+            new_html = new_html.replace(full_url, final_url)
+    return new_html
