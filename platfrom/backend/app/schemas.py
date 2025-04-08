@@ -140,3 +140,34 @@ class UserResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+class ExamTaskAttachmentResponse(BaseModel):
+    id: int
+    exam_task_id: int
+    file_path: str
+    attachment_type: str  # Было file_type → attachment_type
+    uploaded_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class ExamTaskResponse(BaseModel):
+    id: int
+    task_number: int
+    description: str
+    answer_format: str
+    correct_answer: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    attachments: List[ExamTaskAttachmentResponse]  # Используем исправленную схему
+
+    class Config:
+        orm_mode = True
+
+from typing import Dict
+class ExamTaskCountByTypeResponse(BaseModel):
+    counts: Dict[int, int]  # Ключ - тип задания (task_number), значение - количество
+
+    class Config:
+        orm_mode = True
+

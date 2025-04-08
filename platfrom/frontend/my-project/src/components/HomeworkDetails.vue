@@ -148,6 +148,7 @@ export default {
       try {
         const response = await axios.get(`/homeworks/${this.$route.params.id}`);
         if (response.status === 200) {
+          // Если API возвращает массив, берем первый элемент
           this.homework = response.data[0];
         }
       } catch (error) {
@@ -157,12 +158,12 @@ export default {
     async fetchSubmission() {
       try {
         const userData = JSON.parse(localStorage.getItem("user"));
-        if (!userData?.userId) return;
-
+        if (!userData?.userId || !this.homework) return;
+        // Используем id домашнего задания, полученный в fetchHomeworkDetails
+        const homeworkId = this.homework.id;
         const response = await axios.get(
-          `/homeworks/${this.$route.params.id}/submission?user_id=${userData.userId}`
+          `/homeworks/${homeworkId}/submission?user_id=${userData.userId}`
         );
-
         if (response.data) {
           this.submission = response.data;
           await this.fetchTeacherResponse(response.data.id);
@@ -212,6 +213,7 @@ export default {
   },
 };
 </script>
+
 
 
 

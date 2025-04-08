@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import app.schemas as schemas  # Импортируем схемы из модуля app.schemas
 import os
-from typing import List
+from typing import List, Dict
 from fastapi.responses import FileResponse
 import json
 from app.database import init_db  # Импортируем функцию инициализации БД
@@ -102,7 +102,7 @@ async def register(user: UserRegister, db: Session = Depends(get_db)):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,  # Убедитесь, что сервер работает через HTTPS
+        secure=True,  
         samesite="Strict",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Время жизни куки в секундах
     )
@@ -226,7 +226,6 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
 # Эндпоинт для создания урока (lesson)
-# Внесите эти изменения в метод создания урока
 @app.post("/lessons/", response_model=schemas.LessonResponse)
 async def create_lesson(
     name: str = Form(...),
@@ -304,7 +303,7 @@ async def get_lessons(db: Session = Depends(get_db)):
         lesson.files = lesson.files.split(",") if lesson.files else []
         lesson.image_links = lesson.image_links.split(",") if lesson.image_links else []
     return lessons
-
+ 
 
 # Эндпоинт для получения конкретного урока (lesson) по ID
 # Возвращаем нормализованные данные в формате JSON
@@ -454,8 +453,6 @@ async def check_authorization(request: Request, call_next):
     excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json"]  # Маршруты, где не требуется токен
     if any(request.url.path.startswith(route) for route in excluded_routes):
         return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
-
-    
 
     token = request.headers.get("Authorization")
     if not token:
@@ -838,28 +835,45 @@ async def update_homework(
     
     return db_homework
 
-# Роутер для работы с откликами на домашки
+
+from fastapi import Query
+
 @app.get("/api/homework/{homework_id}/submissions")
-async def get_submissions(homework_id: int, db: Session = Depends(get_db)):
-    # Получаем домашку по ID
+async def get_submissions(
+    homework_id: int,
+    group: int = Query(None),
+    db: Session = Depends(get_db)
+):
+    # Получаем домашнее задание по ID
     homework = db.query(database.Homework).filter(database.Homework.id == homework_id).first()
     if not homework:
         raise HTTPException(status_code=404, detail="Homework not found")
 
-    # Получаем все отклики на данную домашку
-    submissions = db.query(database.HomeworkSubmission).filter(database.HomeworkSubmission.homework_id == homework_id).all()
-    
+    # Базовый запрос на отклики для домашнего задания
+    submissions_query = db.query(database.HomeworkSubmission).filter(
+        database.HomeworkSubmission.homework_id == homework_id
+    )
+
+    # Если передан параметр group, объединяем с таблицей пользователей и фильтруем по группе
+    if group is not None:
+        submissions_query = submissions_query.join(database.User).filter(database.User.group_id == group)
+
+    submissions = submissions_query.all()
+
     result = []
     for submission in submissions:
         user = db.query(database.User).filter(database.User.id == submission.user_id).first()
         if user:
             result.append({
-                "id": user.id,
+                "id": submission.id,       # id отклика
+                "user_id": user.id,        # id пользователя
                 "name": user.name,
                 "email": user.email,
-                "status": submission.status,  # Можно адаптировать кода для отображения статуса
+                "status": submission.status,
+                "submission_date": submission.student_submission_time.isoformat() if submission.student_submission_time else None,
+                "client_submission_time": submission.modified_submission_time.isoformat() if submission.modified_submission_time else None,
             })
-    
+
     return result
 
 
@@ -1003,10 +1017,6 @@ async def update_teacher_response(
     }
 
 
-
-
-
-
 @app.get("/teacher_response/{submission_id}")
 async def get_teacher_response(submission_id: int, db: Session = Depends(get_db)):
     # Получаем отклик студента
@@ -1053,3 +1063,138 @@ def get_teacher_feedback(homework_id: int, user_id: int, db: Session = Depends(g
     if not feedback:
         return {"comment": None, "grade": None}
     return {"comment": feedback.comment, "grade": feedback.grade}
+
+
+@app.get("/homeworks/by_lesson/{lesson_id}/id")
+async def get_homework_id_by_lesson(lesson_id: int, db: Session = Depends(get_db)):
+    homework_obj = db.query(database.Homework).filter(database.Homework.lesson_id == lesson_id).first()
+    if not homework_obj:
+        raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
+    return {"id": homework_obj.id}
+
+
+@app.post("/exam_tasks/", response_model=schemas.ExamTaskResponse)
+def create_exam_task(
+    task_number: int = Form(...),
+    description: str = Form(...),
+    solution_text: str = Form(""),
+    answer_format: str = Form(...),
+    correct_answer: str = Form(...),
+    taskFiles: list[UploadFile] = File(default=[]),
+    taskImages: list[UploadFile] = File(default=[]),
+    solution_files: list[UploadFile] = File(default=[]),
+    solution_images: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    # Создание задания
+    task = database.ExamTask(
+        task_number=task_number,
+        description=description,
+        solution_text=solution_text,
+        answer_format=answer_format,
+        correct_answer=correct_answer,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+
+    # Структура хранения файлов
+    base_path = f"./uploads/tasks_bank/{task_number}/{task.id}"
+    os.makedirs(base_path + "/files", exist_ok=True)
+    os.makedirs(base_path + "/images", exist_ok=True)
+
+    # Функция для сохранения файлов
+    def save_files(files: list[UploadFile], folder: str, file_type: str):
+        for file in files:
+            content = file.file.read()
+            save_path = os.path.join(base_path, folder, file.filename)
+            with open(save_path, "wb") as f:
+                f.write(content)
+            attachment = database.ExamTaskAttachment(
+                exam_task_id=task.id,
+                file_path=save_path.replace("\\", "/"),
+                attachment_type=file_type,
+            )
+            db.add(attachment)
+
+    # Сохранение файлов и изображений
+    save_files(taskFiles, "files", "task_file")
+    save_files(taskImages, "images", "task_image")
+    save_files(solution_files, "files", "solution_file")
+    save_files(solution_images, "images", "solution_image")
+
+    # Завершаем транзакцию
+    db.commit()
+
+    return task
+
+
+# Эндпоинт для получения списка всех заданий
+@app.get("/exam_tasks/", response_model=List[schemas.ExamTaskResponse])
+async def get_exam_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(database.ExamTask).all()
+    # Преобразуем attachments в список путей (если нужно)
+    for task in tasks:
+        task.attachments = [
+            {"file_path": att.file_path, "file_type": att.file_type}
+            for att in task.attachments
+        ]
+    return tasks
+
+
+# Эндпоинт для отдачи файла, прикрепленного к заданию
+@app.get("/exam_tasks/{task_id}/uploads/{filename}")
+async def get_exam_task_file(task_id: int, filename: str):
+    file_path = os.path.join(UPLOAD_FOLDER, str(task_id), filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+    return FileResponse(file_path)
+
+
+@app.get("/exam_tasks/count_by_type", response_model=schemas.ExamTaskCountByTypeResponse)
+async def count_exam_tasks_by_type(db: Session = Depends(get_db)):
+    tasks = db.query(database.ExamTask).all()
+    
+    # Если заданий нет, возвращаем пустой объект для counts
+    if not tasks:
+        return {"counts": {}}
+    
+    counts = {}
+    
+    for task in tasks:
+        task_type = task.task_number  # В данном случае task_number будет типом
+        counts[task_type] = counts.get(task_type, 0) + 1
+    
+    return {"counts": counts}
+
+
+@app.get("/exam_tasks/by_type/{type_id}")
+def get_tasks_by_type(type_id: int, db: Session = Depends(get_db)):
+    tasks = (
+        db.query(database.ExamTask)
+        .filter(database.ExamTask.task_number == type_id)
+        .all()
+    )
+
+    result = []
+    for task in tasks:
+        attachments = []
+        for a in task.attachments:
+            cleaned_path = a.file_path.lstrip("./\\")  # сначала обрабатываем строку
+            attachments.append({
+                "file_path": f"{cleaned_path}",  # потом вставляем в f-string
+                "attachment_type": a.attachment_type,
+            })
+
+        result.append({
+            "id": task.id,
+            "task_number": task.task_number,
+            "description": task.description,
+            "solution_text": task.solution_text,
+            "correct_answer": task.correct_answer,
+            "attachments": attachments,
+        })
+
+    return {"tasks": result}
+
+

@@ -12,6 +12,9 @@ import HomeworksList from './components/HomeworksList.vue';
 import EditHomework from './components/EditHomework.vue';
 import ShowSubmissions from './components/teacher/ShowSubmissions.vue';
 import StudentGroups from './components/teacher/StudentGroups.vue';
+import TaskTrainer from './components/TaskTrainer.vue';
+import UserProfile from './components/UserProfile.vue';
+import ExamTaskList from './components/ExamTaskList.vue';
 const routes = [
   {
     path: '/',
@@ -24,6 +27,16 @@ const routes = [
     component: HomeworksList, 
   },
   {
+    path: '/task-detail/:id',
+    name: 'task-detail',
+    component: ExamTaskList,
+    // Передаём параметры как props: id — числовой идентификатор, name — название из query-параметров.
+    props: route => ({
+      id: Number(route.params.id),
+      name: route.query.name || ''
+    })
+  },
+  {
     path: '/edit-homework/:id',
     name: 'EditHomework',
     component: EditHomework
@@ -32,6 +45,11 @@ const routes = [
     path: '/register',
     name: 'register',
     component: StudentRegister,
+  },
+  {
+    path: "/trainer",
+    name: "trainer",
+    component: TaskTrainer,
   },
   {
     path: "/groups",
@@ -119,7 +137,7 @@ router.beforeEach((to, from, next) => {
 
 
 
-import UserProfile from './components/UserProfile.vue';
+
 
 
 export default router;
