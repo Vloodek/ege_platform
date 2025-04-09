@@ -1158,10 +1158,6 @@ async def get_exam_tasks(db: Session = Depends(get_db)):
 # Эндпоинт для отдачи файла, прикрепленного к заданию
 @app.get("/exam_tasks/{task_id}/uploads/{filename}")
 async def get_exam_task_file(task_id: int, filename: str):
-    # Формируем путь для файла
-    # Здесь предполагается, что файлы хранятся в папке tasks_bank/task_number/task_id
-    # Нужно либо сохранить task_number где-то, либо указывать иной маршрут.
-    # Пример: получаем путь без task_number (если он не нужен) или добавьте логику поиска.
     file_path = f"./uploads/tasks_bank/{task_id}/{task_id}/uploads/{filename}"  # измените под вашу логику
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Файл не найден")
@@ -1262,3 +1258,145 @@ def move_temp_images(html: str, base_path: str, task_number: int, task_id: int) 
             final_url = f"http://localhost:8000/uploads/tasks_bank/{task_number}/{task_id}/images/{filename}"
             new_html = new_html.replace(full_url, final_url)
     return new_html
+
+
+@app.get("/exam_tasks/{id}", response_model=schemas.ExamTaskResponse)
+def get_exam_task(id: int, db: Session = Depends(get_db)):
+    task = db.query(database.ExamTask).filter(database.ExamTask.id == id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Задание не найдено")
+    
+    # Обрабатываем вложения, чтобы изменить путь (например, убрать "./" в начале)
+    attachments = []
+    for a in task.attachments:
+        cleaned_path = a.file_path.lstrip("./\\")
+        attachments.append({
+            "id": a.id,
+            "exam_task_id": a.exam_task_id,
+            "file_path": cleaned_path,
+            "attachment_type": a.attachment_type,
+            "uploaded_at": a.uploaded_at,
+        })
+
+    # Собираем словарь с данными задания
+    task_data = {
+        "id": task.id,
+        "task_number": task.task_number,
+        "description": task.description,
+        "answer_format": task.answer_format,
+        "correct_answer": task.correct_answer,
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+        "attachments": attachments,
+    }
+    return task_data
+
+
+
+from fastapi.responses import StreamingResponse
+import asyncio
+@app.get("/sse/timer")
+async def sse_timer(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    
+    end_time = session.expires_at
+
+    async def event_generator():
+        while True:
+            now = datetime.utcnow()
+            remaining = (end_time - now).total_seconds()
+            if remaining <= 0:
+                yield "data: Test finished\n\n"
+                break
+            yield f"data: {int(remaining)}\n\n"
+            await asyncio.sleep(1)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/testing/start", response_model=dict)
+def start_test_session(test_type: str = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)):
+    selected_tasks = []
+    # Для каждого типа заданий (от 1 до 27) выбираем случайное задание, если таковых есть
+    for task_number in range(1, 28):
+        tasks = db.query(database.ExamTask).filter(database.ExamTask.task_number == task_number).all()
+        if tasks:
+            selected = random.choice(tasks)
+            selected_tasks.append(selected.id)
+        else:
+            selected_tasks.append(0)  # Если задания нет, добавляем 0
+    
+    # Если это тест trainvariant, время теста 30 секунд, иначе 2 часа
+    if test_type == "train":
+        expires_at = datetime.utcnow() + timedelta(seconds=30)
+    else:
+        expires_at = datetime.utcnow() + timedelta(minutes=120)
+    
+    # Сохраняем сессию тестирования в БД
+    task_ids_json = json.dumps(selected_tasks)
+    session = database.TestSession(
+        user_id=user_id,
+        task_ids=task_ids_json,
+        expires_at=expires_at,
+        # Если нужно, можно инициализировать поле answers как пустой json-объект
+        answers="{}"
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    return {
+        "session_id": session.id,
+        "task_ids": selected_tasks,
+        "expires_at": expires_at.isoformat()
+    }
+
+
+
+@app.post("/testing/submit_answer", response_model=dict)
+def submit_test_answer(
+    session_id: int = Form(...),
+    task_id: int = Form(...),
+    answer: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    
+    answers = json.loads(session.answers or "{}")
+    answers[str(task_id)] = answer
+    session.answers = json.dumps(answers)
+    db.commit()
+    return {"message": "Ответ сохранён"}
+
+@app.get("/testing/session/{session_id}", response_model=dict)
+def get_test_session(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    return {
+        "session_id": session.id,
+        "task_ids": json.loads(session.task_ids),
+        "answers": json.loads(session.answers or "{}"),
+        "expires_at": session.expires_at.isoformat(),
+        "is_completed": bool(session.is_completed)
+    }
+
+
+
+@app.post("/testing/complete", response_model=dict)
+def complete_test(session_id: int = Form(...), db: Session = Depends(get_db)):
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    session.is_completed = 1
+    db.commit()
+    return {"message": "Тест завершён"}
+
+
+@app.get("/exam_tasks")
+def list_tasks(db: Session = Depends(get_db)):
+    return db.query(database.ExamTask).all()

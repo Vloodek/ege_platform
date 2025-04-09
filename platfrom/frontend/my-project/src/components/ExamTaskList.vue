@@ -10,12 +10,14 @@
         <div v-if="tasks.length === 0">Нет заданий для этого типа.</div>
 
         <div v-for="(task, index) in tasks" :key="task.id" class="task-card">
-          <div class="task-header">
-            <strong>{{ index + 1 }}. Задание №{{ task.id }}</strong>
-            <span v-if="!noPoints(task.task_number)">
-              — {{ getPoints(task.task_number) }} балла
-            </span>
-          </div>
+        <div class="task-header">
+          <router-link :to="{ name: 'TrainTaskDetail', params: { id: task.id } }" class="task-link">
+            {{ index + 1 }}. Задание №{{ task.id }}
+          </router-link>
+          <span v-if="!noPoints(task.task_number)">
+            — {{ getPoints(task.task_number) }} балла
+          </span>
+        </div>
 
           <div class="task-description ql-editor" v-html="task.description" />
 

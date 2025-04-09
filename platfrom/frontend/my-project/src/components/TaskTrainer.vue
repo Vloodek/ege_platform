@@ -147,9 +147,39 @@ export default {
       this.closeAddTaskModal();
     },
 
-    randomVariant() {
-      alert("Функционал случайного варианта пока не реализован");
-    },
+    async randomVariant() {
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+    if (!user || !user.userId) {
+      throw new Error("Пользователь не авторизован");
+    }
+
+    const formData = new FormData();
+formData.append("test_type", "train"); // ← Должно быть до запроса
+formData.append("user_id", user.userId);
+
+// Проверка перед отправкой
+for (let pair of formData.entries()) {
+  console.log(pair[0]+ ': ' + pair[1]);
+}
+
+const response = await axios.post("/testing/start", formData);
+
+    const sessionId = response.data.session_id;
+
+    this.$router.push({
+  name: "test-session",
+  params: { id: sessionId },
+  query: { testType: "train" }
+});
+
+  } catch (error) {
+    console.error("Ошибка при запуске теста:", error.response?.data || error);
+    alert("Не удалось запустить случайный вариант.");
+  }
+}
+
+,
   },
 };
 </script>

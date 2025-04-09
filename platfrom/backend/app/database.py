@@ -188,5 +188,21 @@ class RefreshToken(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     user = relationship("User", back_populates="refresh_tokens")
 
+
+class TestSession(Base):
+    __tablename__ = "test_sessions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    # Храним JSON список с ID выбранных заданий (27 заданий)
+    task_ids = Column(Text, nullable=False, default="[]")
+    # Для сохранения ответов, можно хранить JSON с ключами – номерами заданий
+    answers = Column(Text, nullable=True, default="{}")
+    expires_at = Column(DateTime, nullable=False)
+    is_completed = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+
+

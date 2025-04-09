@@ -15,6 +15,8 @@ import StudentGroups from './components/teacher/StudentGroups.vue';
 import TaskTrainer from './components/TaskTrainer.vue';
 import UserProfile from './components/UserProfile.vue';
 import ExamTaskList from './components/ExamTaskList.vue';
+import TrainTaskDetail from './components/TrainTaskDetail.vue';
+import TestSession from './components/testing/TestSession.vue';
 const routes = [
   {
     path: '/',
@@ -25,6 +27,18 @@ const routes = [
     path: '/homeworks',  // Путь к компоненту с домашними заданиями
     name: 'homeworks',    
     component: HomeworksList, 
+  },
+  {
+    path: '/test-session/:id',
+    name: 'test-session',
+    component: TestSession,
+    props: true
+  },
+  {
+    path: '/train-tasks/:id',
+    name: 'TrainTaskDetail',
+    component: TrainTaskDetail,
+    props:true
   },
   {
     path: '/task-detail/:id',
