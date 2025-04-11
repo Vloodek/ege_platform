@@ -12,7 +12,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# Таблица для хранения заданий из банка
+# Таблица для хранения заданий из банк
 
 
 # Таблица для хранения заданий из банка
