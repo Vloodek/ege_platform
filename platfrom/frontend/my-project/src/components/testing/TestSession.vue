@@ -88,54 +88,80 @@ export default {
     };
   },
   computed: {
-    currentTaskId() {
-      return this.taskIds[this.currentTaskIndex];
-    }
+  testType() {
+    return this.$route.query.test_type || "regular";
   },
-  watch: {
-    // При изменении текущего задания грузим новое задание
-    currentTaskId(newVal) {
-      if (newVal) {
-        this.loadTask();
-        // Сбрасываем поле ответа (при необходимости)
-        this.userAnswer = "";
-      }
-    }
-  },
-  props: {
-  testType: {
-    type: String,
-    required: true
+  currentTaskId() {
+    return this.taskIds[this.currentTaskIndex];
   }
 },
+
+watch: {
+  currentTaskId: {
+    handler(newVal) {
+      if (newVal) {
+        this.loadTask();
+        this.userAnswer = "";
+      }
+    },
+    immediate: true
+  }
+},
+
   async created() {
+  const savedSessionId = localStorage.getItem("testSessionId");
+  if (savedSessionId) {
+    try {
+      const res = await axios.get(`http://localhost:8000/testing/session/${savedSessionId}`);
+      const session = res.data;
+      const now = new Date();
+      const expires = new Date(session.expires_at);
+
+      if (!session.is_completed && expires > now) {
+        // Если сессия активна — восстанавливаем её
+        this.sessionId = session.session_id;
+        this.taskIds = session.task_ids;
+        this.answers = session.answers || {};
+        this.startTimer();
+        this.loadTask(); // 👈 нужно добавить
+
+        return;
+      } else {
+        // Сессия истекла или завершена — удаляем и запускаем новую
+        localStorage.removeItem("testSessionId");
+      }
+    } catch (err) {
+      console.error("Ошибка восстановления сессии:", err);
+      localStorage.removeItem("testSessionId");
+    }
+  }
+
+  // Если нет сессии или она неактивна — запускаем новую
   const userData = JSON.parse(localStorage.getItem("user")) || {};
   const userId = userData.userId || 1;
 
   try {
     const formData = new FormData();
     formData.append("user_id", userId);
-    formData.append("test_type", this.testType); // ← ← ← здесь используем prop
+    formData.append("test_type", this.testType);
 
-    const res = await axios.post("http://localhost:8000/testing/start", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const res = await axios.post("http://localhost:8000/testing/start", formData);
 
     this.sessionId = res.data.session_id;
     this.taskIds = res.data.task_ids;
+    localStorage.setItem("testSessionId", this.sessionId); // ← сохраняем новую сессию
     this.startTimer();
-    if (this.currentTaskId) {
-      this.loadTask();
-    }
   } catch (error) {
     console.error("Ошибка запуска тестовой сессии:", error);
     alert("Не удалось запустить тестовую сессию.");
   }
 }
+
 ,
   methods: {
     startTimer() {
-  const eventSource = new EventSource(`http://localhost:8000/sse/timer?session_id=${this.sessionId}`);
+      const eventSource = new EventSource(`http://localhost:8000/sse/timer?session_id=${this.sessionId}`);
+
   eventSource.onmessage = (event) => {
     if (event.data === "Test finished") {
       this.remainingTime = 0;
@@ -221,6 +247,7 @@ export default {
     async finishTest() {
       try {
         await axios.post("http://localhost:8000/testing/complete", new URLSearchParams({ session_id: this.sessionId }));
+        localStorage.removeItem("testSessionId");
         alert("Тест завершён! Результаты теста сохранены на сервере.");
         this.$router.push("/trainer");
       } catch (error) {

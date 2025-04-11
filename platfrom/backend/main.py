@@ -451,7 +451,7 @@ async def check_authorization(request: Request, call_next):
         return await call_next(request)
 
 
-    excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json"]  # Маршруты, где не требуется токен
+    excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json","/sse/timer"]  # Маршруты, где не требуется токен
     if any(request.url.path.startswith(route) for route in excluded_routes):
         return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
 
@@ -1318,41 +1318,49 @@ async def sse_timer(session_id: int, db: Session = Depends(get_db)):
 
 @app.post("/testing/start", response_model=dict)
 def start_test_session(test_type: str = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)):
+    # Проверяем, есть ли активная сессия для данного пользователя, которая не завершена и не истекла
+    active_session = db.query(database.TestSession)\
+        .filter(database.TestSession.user_id == user_id, database.TestSession.is_completed == 0, database.TestSession.expires_at > datetime.utcnow())\
+        .first()
+    if active_session:
+        # Если сессия уже существует, возвращаем её данные
+        return {
+            "session_id": active_session.id,
+            "task_ids": json.loads(active_session.task_ids),
+            "expires_at": active_session.expires_at.isoformat()
+        }
+
+    # Если активной сессии нет, создаём новую:
     selected_tasks = []
-    # Для каждого типа заданий (от 1 до 27) выбираем случайное задание, если таковых есть
     for task_number in range(1, 28):
         tasks = db.query(database.ExamTask).filter(database.ExamTask.task_number == task_number).all()
         if tasks:
             selected = random.choice(tasks)
             selected_tasks.append(selected.id)
         else:
-            selected_tasks.append(0)  # Если задания нет, добавляем 0
+            selected_tasks.append(0)
     
-    # Если это тест trainvariant, время теста 30 секунд, иначе 2 часа
     if test_type == "train":
-        expires_at = datetime.utcnow() + timedelta(seconds=30)
+        expires_at = datetime.utcnow() + timedelta(minutes=30)
     else:
         expires_at = datetime.utcnow() + timedelta(minutes=120)
     
-    # Сохраняем сессию тестирования в БД
     task_ids_json = json.dumps(selected_tasks)
     session = database.TestSession(
         user_id=user_id,
         task_ids=task_ids_json,
         expires_at=expires_at,
-        # Если нужно, можно инициализировать поле answers как пустой json-объект
         answers="{}"
     )
     db.add(session)
     db.commit()
     db.refresh(session)
-
+    
     return {
         "session_id": session.id,
         "task_ids": selected_tasks,
         "expires_at": expires_at.isoformat()
     }
-
 
 
 @app.post("/testing/submit_answer", response_model=dict)

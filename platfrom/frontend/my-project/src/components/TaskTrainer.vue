@@ -170,8 +170,9 @@ const response = await axios.post("/testing/start", formData);
     this.$router.push({
   name: "test-session",
   params: { id: sessionId },
-  query: { testType: "train" }
+  query: { test_type: "train" }  // Теперь имя соответствует
 });
+
 
   } catch (error) {
     console.error("Ошибка при запуске теста:", error.response?.data || error);

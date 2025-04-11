@@ -1,7 +1,7 @@
 <template>
   <div :class="['sidebar', userTypeClass]" :style="{ height: sidebarHeight }">
     <!-- Если тест активен, отображаем только тестовую навигацию -->
-    <div v-if="isTestActive" class="test-sidebar-navigation">
+    <div v-if="internalTestActive" class="test-sidebar-navigation">
       <!-- Маленькая сетка для навигации между заданиями -->
       <div class="task-grid-sidebar">
         <div
@@ -21,7 +21,7 @@
       </div>
       <!-- Информация о времени и количестве вопросов -->
       <div class="test-info">
-        <p>Осталось: {{ timerDisplay }} сек.</p>
+        <p>Осталось: {{ formattedTimer }}</p>
         <p>Всего вопросов: {{ totalQuestions }}</p>
       </div>
       <!-- Кнопка выхода -->
@@ -38,7 +38,7 @@
         </li>
       </ul>
       <!-- Дополнительная информация, если требуется, можно оставить блок ниже -->
-      <div class="test-sidebar-info">
+      <div v-if="internalTestActive" class="test-sidebar-info">
         <p>Тест активен</p>
         <p>Время до конца: {{ timerDisplay }}</p>
         <p>Всего вопросов: {{ totalQuestions }}</p>
@@ -71,20 +71,22 @@ export default {
     },
     taskIds: {
       type: Array,
-      default: () => []
+      default: () => [],
     },
     currentTaskIndex: {
       type: Number,
-      default: 0
+      default: 0,
     },
     answers: {
       type: Object,
-      default: () => ({})
-    }
+      default: () => ({}),
+    },
   },
   data() {
     return {
       userData: JSON.parse(localStorage.getItem("user")) || {},
+      // Локальное состояние для режима теста
+      internalTestActive: this.isTestActive,
     };
   },
   computed: {
@@ -95,8 +97,7 @@ export default {
       };
     },
     sidebarHeight() {
-      // Если тест активен, фиксированная высота, иначе по роли
-      if (this.isTestActive) return "400px";
+      if (this.internalTestActive) return "400px";
       return this.userData.role === "teacher" ? "340px" : "270px";
     },
     menuItems() {
@@ -111,9 +112,39 @@ export default {
       }
       return commonItems;
     },
+    // Вычисляем часы из timerDisplay (секунды)
+    hours() {
+      const totalSeconds = this.timerDisplay;
+      return Math.floor(totalSeconds / 3600);
+    },
+    // Вычисляем минуты из оставшихся секунд
+    minutes() {
+      const totalSeconds = this.timerDisplay;
+      return Math.floor((totalSeconds % 3600) / 60);
+    },
+    // Объединяем часы и минуты в строку с пояснениями
+    formattedTimer() {
+      return `${this.hours} часов, ${this.minutes} минут`;
+    },
+  },
+  watch: {
+    // Отслеживаем изменение маршрута
+    $route(to) {
+      // Если имя маршрута не test-session, выключаем тестовый режим
+      if (to.name !== "test-session") {
+        this.internalTestActive = false;
+      } else {
+        this.internalTestActive = true;
+      }
+    },
   },
   mounted() {
-    // Дополнительная логика обновления таймера или иных данных (при необходимости)
+    // При инициализации выставляем internalTestActive согласно текущему маршруту
+    if (this.$route.name !== "test-session") {
+      this.internalTestActive = false;
+    } else {
+      this.internalTestActive = true;
+    }
   },
 };
 </script>

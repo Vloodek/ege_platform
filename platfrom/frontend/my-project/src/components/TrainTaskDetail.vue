@@ -90,38 +90,40 @@
   try {
     const res = await axios.get(`/exam_tasks/${this.id}`);
     console.log("Ответ API:", res.data);
-    const taskFromApi = res.data.task; // Проверьте, что в ответе действительно есть ключ task
+    // Используем данные напрямую, без обращения к .task
+    const taskFromApi = res.data;
     if (!taskFromApi) {
       console.error("Данные о задании отсутствуют!");
       return;
     }
     const base = window.location.origin;
-
+  
     // Парсинг вложений
     const task_images = taskFromApi.attachments
       .filter(a => a.attachment_type === "task_image")
       .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
+  
     const task_files = taskFromApi.attachments
       .filter(a => a.attachment_type === "task_file")
       .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
+  
     const solution_images = taskFromApi.attachments
       .filter(a => a.attachment_type === "solution_image")
       .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-
+  
     this.task = {
       ...taskFromApi,
       task_images,
       task_files,
       solution_images,
-    }
+    };
   } catch (err) {
     console.error("Ошибка при загрузке задания:", err);
   } finally {
     this.loading = false;
   }
 }
+
 ,
   
       applyImageStyles() {
