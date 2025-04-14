@@ -1,33 +1,48 @@
 <template>
   <div :class="['sidebar', userTypeClass]" :style="{ height: sidebarHeight }">
-    <!-- Если тест активен, отображаем только тестовую навигацию -->
+    <!-- Тестовая навигация -->
     <div v-if="internalTestActive" class="test-sidebar-navigation">
-      <!-- Маленькая сетка для навигации между заданиями -->
+      <!-- Сетка для навигации между заданиями -->
       <div class="task-grid-sidebar">
         <div
-          v-for="(id, index) in taskIds"
-          :key="index"
+          v-for="(taskId, index) in taskIds"
+          :key="taskId"
           class="task-square-sidebar"
-          :class="{ active: currentTaskIndex === index, answered: answers[index + 1] }"
+          :class="squareClass(taskId, index)"
           @click="$emit('selectTask', index)"
         >
           {{ index + 1 }}
         </div>
       </div>
-      <!-- Кнопки переключения заданий -->
-      <div class="nav-controls">
+      <!-- Кнопки переключения заданий (скрываем, если тест завершён) -->
+      <div class="nav-controls" v-if="!testFinished">
         <button @click="$emit('prevTask')" class="nav-arrow">←</button>
         <button @click="$emit('nextTask')" class="nav-arrow">→</button>
       </div>
-      <!-- Информация о времени и количестве вопросов -->
+      <!-- Информация: либо время теста, либо итоговый балл -->
       <div class="test-info">
-        <p>Осталось: {{ formattedTimer }}</p>
+        <p v-if="!testFinished">Осталось: {{ formattedTimer }}</p>
+        <p v-else>Итоговый балл: {{ score }}</p>
         <p>Всего вопросов: {{ totalQuestions }}</p>
       </div>
-      <!-- Кнопка выхода -->
-      <button class="exit-btn-sidebar" @click="$emit('exitTest')">Выход</button>
+      <!-- Кнопка завершения теста (если тест ещё идёт) -->
+
+<button 
+  v-if="!testFinished" 
+  class="exit-btn-sidebar" 
+  @click="$emit('finishTest')">
+  Завершить тест
+</button>
+<!-- Новая кнопка "Выйти" после завершения теста -->
+<button 
+  v-if="testFinished" 
+  class="exit-btn-sidebar" 
+  @click="$emit('exitTest')">
+  Выйти
+</button>
+
     </div>
-    <!-- Если тест не активен, показываем стандартное меню -->
+    <!-- Стандартное меню -->
     <div v-else class="default-menu">
       <ul class="menu">
         <li v-for="item in menuItems" :key="item.label" class="menu-item">
@@ -37,7 +52,6 @@
           </router-link>
         </li>
       </ul>
-      <!-- Дополнительная информация, если требуется, можно оставить блок ниже -->
       <div v-if="internalTestActive" class="test-sidebar-info">
         <p>Тест активен</p>
         <p>Время до конца: {{ timerDisplay }}</p>
@@ -57,35 +71,19 @@ import groupsIcon from "@/assets/svg/sidebar/groups.svg";
 export default {
   name: "SideBar",
   props: {
-    isTestActive: {
-      type: Boolean,
-      default: false,
-    },
-    timerDisplay: {
-      type: Number,
-      default: 0,
-    },
-    totalQuestions: {
-      type: Number,
-      default: 0,
-    },
-    taskIds: {
-      type: Array,
-      default: () => [],
-    },
-    currentTaskIndex: {
-      type: Number,
-      default: 0,
-    },
-    answers: {
-      type: Object,
-      default: () => ({}),
-    },
+    isTestActive: { type: Boolean, default: false },
+    timerDisplay: { type: Number, default: 0 },
+    totalQuestions: { type: Number, default: 0 },
+    taskIds: { type: Array, default: () => [] },
+    currentTaskIndex: { type: Number, default: 0 },
+    answers: { type: Object, default: () => ({}) },
+    results: { type: Object, default: () => ({}) },
+    score: { type: Number, default: 0 },
+    testFinished: { type: Boolean, default: false }
   },
   data() {
     return {
       userData: JSON.parse(localStorage.getItem("user")) || {},
-      // Локальное состояние для режима теста
       internalTestActive: this.isTestActive,
     };
   },
@@ -112,25 +110,20 @@ export default {
       }
       return commonItems;
     },
-    // Вычисляем часы из timerDisplay (секунды)
     hours() {
       const totalSeconds = this.timerDisplay;
       return Math.floor(totalSeconds / 3600);
     },
-    // Вычисляем минуты из оставшихся секунд
     minutes() {
       const totalSeconds = this.timerDisplay;
       return Math.floor((totalSeconds % 3600) / 60);
     },
-    // Объединяем часы и минуты в строку с пояснениями
     formattedTimer() {
       return `${this.hours} часов, ${this.minutes} минут`;
     },
   },
   watch: {
-    // Отслеживаем изменение маршрута
     $route(to) {
-      // Если имя маршрута не test-session, выключаем тестовый режим
       if (to.name !== "test-session") {
         this.internalTestActive = false;
       } else {
@@ -139,13 +132,30 @@ export default {
     },
   },
   mounted() {
-    // При инициализации выставляем internalTestActive согласно текущему маршруту
-    if (this.$route.name !== "test-session") {
-      this.internalTestActive = false;
-    } else {
-      this.internalTestActive = true;
-    }
+    this.internalTestActive = (this.$route.name === "test-session");
   },
+  methods: {
+    /**
+     * Функция для определения класса квадратика задания.
+     * Если тест не завершён, отмечается наличие ответа в answers.
+     * Если тест завершён, используется объект results: если результат true – зеленый, false – красный.
+     */
+    squareClass(taskId, index) {
+      if (!this.testFinished) {
+        return {
+          active: this.currentTaskIndex === index,
+          answered: Boolean(this.answers[String(taskId)])
+        };
+      } else {
+        const res = this.results[String(taskId)];
+        return {
+          active: this.currentTaskIndex === index,
+          answered: res === true, // зеленый – правильный
+          wrong: res === false    // красный – неправильный
+        };
+      }
+    }
+  }
 };
 </script>
 
@@ -158,14 +168,11 @@ export default {
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
-/* Стандартное меню */
 .menu {
   list-style: none;
   padding: 0;
   margin: 0;
 }
-
 .menu-item {
   display: flex;
   align-items: center;
@@ -176,17 +183,14 @@ export default {
   cursor: pointer;
   color: #000000;
 }
-
 .menu-item:hover {
   background-color: #e0e0e0;
 }
-
 .menu-icon {
   width: 40px;
   height: 40px;
   margin-right: 15px;
 }
-
 .menu-link {
   display: flex;
   align-items: center;
@@ -194,29 +198,23 @@ export default {
   text-decoration: none;
   color: inherit;
 }
-
 .menu-label {
   font-size: 18px;
   font-weight: 350;
   flex-grow: 1;
 }
-
-/* Тестовая панель навигации */
 .test-sidebar-navigation {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-top: 20px;
 }
-
-/* Сетка маленьких квадратиков */
 .task-grid-sidebar {
   display: grid;
   grid-template-columns: repeat(5, 20px);
   grid-gap: 4px;
   margin-bottom: 10px;
 }
-
 .task-square-sidebar {
   width: 20px;
   height: 20px;
@@ -229,21 +227,20 @@ export default {
   font-size: 10px;
   cursor: pointer;
 }
-
 .task-square-sidebar.active {
-  background-color: #d0f0e8;
+  border: 2px solid #115544;
 }
-
 .task-square-sidebar.answered {
-  background-color: #66bb6a;
+  background-color: #66bb6a; /* зеленый */
 }
-
+.task-square-sidebar.wrong {
+  background-color: #e57373; /* красный */
+}
 .nav-controls {
   display: flex;
   gap: 10px;
   margin-bottom: 10px;
 }
-
 .nav-arrow {
   background-color: #115544;
   color: #fff;
@@ -252,17 +249,14 @@ export default {
   border-radius: 5px;
   cursor: pointer;
 }
-
 .test-info {
   text-align: center;
   margin-bottom: 10px;
 }
-
 .test-info p {
   margin: 5px 0;
   font-size: 16px;
 }
-
 .exit-btn-sidebar {
   background-color: #dc3545;
   color: #fff;

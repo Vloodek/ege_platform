@@ -21,19 +21,16 @@ class ExamTask(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     task_number = Column(Integer, nullable=False)
-    description = Column(Text, nullable=False)  
-    # Формат ответа: текстовый, таблица 2 ячейки или таблица 10 ячеек
-    answer_format = Column(Enum("text", "table2", "table10", name="exam_task_format"), default="text", nullable=False)
-    solution_text = Column(Text, nullable=True)  # Добавил новое поле для решения
-    # Правильный ответ. Если формат табличный, можно сохранить JSON-строку с массивом значений;
-    # если текстовый – обычное текстовое значение.
+    description = Column(Text, nullable=False)
+    # Обновлённое определение перечисления: добавлены "tableDyn1Col" и "tableDyn2Col"
+    answer_format = Column(Enum("text", "table2", "table10", "tableDyn1Col", "tableDyn2Col", name="exam_task_format"),
+                             default="text", nullable=False)
+    solution_text = Column(Text, nullable=True)
     correct_answer = Column(Text, nullable=True)
-
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Связь с вложениями (файлы и картинки)
     attachments = relationship("ExamTaskAttachment", back_populates="exam_task", cascade="all, delete-orphan")
+
 
 
 from sqlalchemy import Enum as SQLAlchemyEnum

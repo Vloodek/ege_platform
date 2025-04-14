@@ -1289,7 +1289,17 @@ def get_exam_task(id: int, db: Session = Depends(get_db)):
         "updated_at": task.updated_at,
         "attachments": attachments,
     }
+
+    # Специальная логика для задания 25
+    if task.task_number == 25:
+        task_data['is_task_25'] = True
+
+    # Специальная логика для заданий 26 и 27: принудительный ввод в формате таблицы 1×2
+    if task.task_number in [26, 27]:
+        task_data['is_table_1x2'] = True
+
     return task_data
+
 
 
 
@@ -1385,13 +1395,27 @@ def get_test_session(session_id: int, db: Session = Depends(get_db)):
     session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    now = datetime.utcnow()
+    is_expired = session.expires_at <= now
+    is_completed = bool(session.is_completed)
+
+    if is_completed:
+        status = "completed"
+    elif is_expired:
+        status = "expired"
+    else:
+        status = "active"
+
     return {
         "session_id": session.id,
         "task_ids": json.loads(session.task_ids),
         "answers": json.loads(session.answers or "{}"),
         "expires_at": session.expires_at.isoformat(),
-        "is_completed": bool(session.is_completed)
+        "is_completed": is_completed,
+        "status": status  # 👈 добавляем статус
     }
+
 
 
 
@@ -1408,3 +1432,102 @@ def complete_test(session_id: int = Form(...), db: Session = Depends(get_db)):
 @app.get("/exam_tasks")
 def list_tasks(db: Session = Depends(get_db)):
     return db.query(database.ExamTask).all()
+
+
+
+
+def normalize_answer(answer_str: str, column_count: int = None) -> list:
+    try:
+        arr = json.loads(answer_str)
+        # Если ответ является одномерным массивом, оборачиваем его в список (1 строка)
+        if arr and all(not isinstance(x, list) for x in arr):
+            arr = [arr]
+        normalized = [row for row in arr if any(cell.strip() for cell in row)]
+        if column_count:
+            normalized = [row + [""] * (column_count - len(row)) for row in normalized]
+        return normalized
+    except Exception as e:
+        print("Ошибка парсинга:", e)
+        return []
+
+
+
+def get_column_count(answer_str: str) -> int:
+    try:
+        arr = json.loads(answer_str)
+        # Если ответ является одномерным массивом, оборачиваем его в список (1 строка)
+        if arr and all(not isinstance(x, list) for x in arr):
+            arr = [arr]
+        return max(len(row) for row in arr if isinstance(row, list))
+    except Exception as e:
+        print("Ошибка определения количества колонок:", e)
+        return 1
+
+
+
+
+
+@app.get("/testing/results", response_model=dict)
+def get_test_results(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    
+    user_answers = json.loads(session.answers or "{}")
+    task_ids = json.loads(session.task_ids)
+    results = {}
+    total_score = 0
+
+    for task_id in task_ids:
+        task = db.query(database.ExamTask).filter(database.ExamTask.id == task_id).first()
+        if not task:
+            continue
+
+        correct_raw = task.correct_answer or ""
+        user_answer_raw = user_answers.get(str(task_id), "")
+        print(f"Task {task_id} - корректный ответ (raw): {correct_raw}")
+        print(f"Task {task_id} - ответ пользователя (raw): {user_answer_raw}")
+
+        if task.answer_format in ["tableDyn1Col", "tableDyn2Col", "table10"] or task.task_number in [26, 27]:
+            column_count = get_column_count(correct_raw)
+            correct_norm = normalize_answer(correct_raw, column_count)
+            user_norm = normalize_answer(user_answer_raw, column_count)
+            print(f"Task {task_id} - нормализованный корректный ответ: {correct_norm}")
+            print(f"Task {task_id} - нормализованный ответ пользователя: {user_norm}")
+            is_correct = user_norm == correct_norm
+        else:
+            is_correct = user_answer_raw.strip().lower() == correct_raw.strip().lower()
+
+
+        results[task_id] = is_correct
+        if is_correct:
+            total_score += 2 if task.task_number in [26, 27] else 1
+
+    print("Итоговые результаты:", results, "итоговый счет:", total_score)
+    return {
+        "results": results,
+        "score": total_score
+    }
+
+
+
+
+@app.get("/testing/solutions", response_model=dict)
+def get_test_solutions(session_id: int, db: Session = Depends(get_db)):
+    # Получаем сессию тестирования
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+    
+    # Извлекаем список идентификаторов заданий
+    task_ids = json.loads(session.task_ids)
+    solutions = {}
+    
+    # Для каждого задания получаем текст решения
+    for task_id in task_ids:
+        task = db.query(database.ExamTask).filter(database.ExamTask.id == task_id).first()
+        if task:
+            # Если поле solution_text отсутствует или пустое, возвращаем сообщение о его отсутствии
+            solutions[task_id] = task.solution_text or "Решение отсутствует"
+    
+    return {"solutions": solutions}

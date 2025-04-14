@@ -15,13 +15,22 @@
           </select>
         </section>
 
+        <!-- Если задание №25, показываем выбор режима динамической таблицы -->
+        <section class="section-input" v-if="isTableDynamic25">
+          <label>Тип таблицы:</label>
+          <select v-model="form.tableMode">
+            <option value="list">Один столбец (список)</option>
+            <option value="table">Два столбца (таблица)</option>
+          </select>
+        </section>
+
         <!-- Описание задания с использованием Quill -->
         <section class="section-input">
           <label for="description">Описание задания:</label>
           <div ref="descriptionEditor" class="quill-editor"></div>
         </section>
 
-        <!-- Прикрепить файлы -->
+        <!-- Прикрепить файлы задания -->
         <section class="section-input">
           <label>Прикрепить файлы:</label>
           <input type="file" multiple @change="handleTaskFileUpload" ref="taskFileInput" />
@@ -32,7 +41,7 @@
           </ul>
         </section>
 
-        <!-- Прикрепить картинки -->
+        <!-- Прикрепить картинки задания -->
         <section class="section-input">
           <label>Прикрепить картинки:</label>
           <input type="file" multiple accept="image/*" @change="handleTaskImageUpload" ref="taskImageInput" />
@@ -51,7 +60,7 @@
           <div ref="solutionEditor" class="quill-editor"></div>
         </section>
 
-        <!-- Файлы решения -->
+        <!-- Прикрепить файлы решения -->
         <section class="section-input">
           <label>Прикрепить файлы решения:</label>
           <input type="file" multiple @change="handleSolutionFileUpload" ref="solutionFileInput" />
@@ -62,7 +71,7 @@
           </ul>
         </section>
 
-        <!-- Картинки решения -->
+        <!-- Прикрепить картинки решения -->
         <section class="section-input">
           <label>Прикрепить картинки решения:</label>
           <input type="file" multiple accept="image/*" @change="handleSolutionImageUpload" ref="solutionImageInput" />
@@ -73,21 +82,36 @@
           </ul>
         </section>
 
-        <!-- Ответ -->
+        <!-- Блок для ввода ответа -->
         <section class="section-input">
           <label>Ответ:</label>
-          <!-- Однострочный ответ -->
+          <!-- Для текстовых заданий: 1–16 и 18–24 -->
           <input v-if="isTextInput" type="text" v-model="form.answerText" />
-          <!-- Таблица 2x1 -->
+          
+          <!-- Для заданий с таблицей из двух ячеек (например, 17, 26, 27) -->
           <div v-if="isTableTwo">
-            <input v-model="form.answerTable[0]" type="text" style="width: 60px;" />
-            <input v-model="form.answerTable[1]" type="text" style="width: 60px;" />
+            <input v-model="form.answerTableSimple[0]" type="text" placeholder="Ячейка 1" style="width: 60px;" />
+            <input v-model="form.answerTableSimple[1]" type="text" placeholder="Ячейка 2" style="width: 60px;" />
           </div>
-          <!-- Таблица 10x1 -->
-          <div v-if="isTableTen">
-            <div v-for="(val, index) in form.answerTable" :key="index">
-              <input v-model="form.answerTable[index]" type="text" style="width: 60px; margin: 2px 0;" />
+          
+          <!-- Для задания 25 – динамическая таблица -->
+          <div v-if="isTableDynamic25">
+            <div 
+              v-for="(row, rowIndex) in form.answerTable" 
+              :key="rowIndex" 
+              style="display: flex; gap: 10px; margin-bottom: 5px;">
+              <input v-model="form.answerTable[rowIndex][0]" 
+                     type="text" 
+                     :placeholder="form.tableMode === 'list' ? 'Ответ' : 'Найденное число'" 
+                     style="width: 120px;" />
+              <input v-if="form.tableMode === 'table'" 
+                     v-model="form.answerTable[rowIndex][1]" 
+                     type="text" 
+                     placeholder="Результат деления" 
+                     style="width: 120px;" />
+              <button @click="removeRow(rowIndex)">Удалить</button>
             </div>
+            <button v-if="form.answerTable.length < 20" @click="addRow">Добавить строку</button>
           </div>
         </section>
       </div>
@@ -110,10 +134,7 @@ import "quill/dist/quill.snow.css";
 export default {
   name: "AddTrainTaskModal",
   props: {
-    visible: {
-      type: Boolean,
-      default: true,
-    },
+    visible: { type: Boolean, default: true },
   },
   data() {
     return {
@@ -126,7 +147,11 @@ export default {
         solution_files: [],
         solution_images: [],
         answerText: "",
+        // Для заданий 17,26,27 – простая таблица из 2 ячеек:
+        answerTableSimple: ["", ""],
+        // Для задания 25 – динамическая таблица (каждая строка — массив из 2 элементов)
         answerTable: [],
+        tableMode: "list", // "list" (один столбец) или "table" (два столбца)
       },
       isLoading: false,
       descriptionEditor: null,
@@ -134,27 +159,35 @@ export default {
     };
   },
   computed: {
+    // Текстовый ответ для заданий: 1–16 и 18–24
     isTextInput() {
-      return this.form.taskNumber >= 1 && this.form.taskNumber <= 16;
+      return (
+        (this.form.taskNumber >= 1 && this.form.taskNumber <= 16) ||
+        (this.form.taskNumber >= 18 && this.form.taskNumber <= 24)
+      );
     },
+    // Таблица с 2 ячейками для заданий 17,26,27
     isTableTwo() {
       return [17, 26, 27].includes(this.form.taskNumber);
     },
-    isTableTen() {
+    // Динамическая таблица для задания 25
+    isTableDynamic25() {
       return this.form.taskNumber === 25;
     },
   },
   watch: {
     "form.taskNumber"() {
       if (this.isTableTwo) {
-        this.form.answerTable = ["", ""];
         this.form.answerText = "";
-      } else if (this.isTableTen) {
-        this.form.answerTable = Array(10).fill("");
+        this.form.answerTableSimple = ["", ""];
+        this.form.answerTable = [];
+      } else if (this.isTableDynamic25) {
         this.form.answerText = "";
+        this.form.answerTable = [];
       } else {
         this.form.answerText = "";
         this.form.answerTable = [];
+        this.form.answerTableSimple = ["", ""];
       }
     },
   },
@@ -172,7 +205,6 @@ export default {
       const files = event.target.files;
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        // Предпросмотр можно оставить как есть, если требуется
         const imageUrl = URL.createObjectURL(file);
         const range = this.descriptionEditor.getSelection();
         if (range) {
@@ -205,6 +237,12 @@ export default {
     removeSolutionImage(index) {
       this.form.solution_images.splice(index, 1);
     },
+    addRow() {
+      this.form.answerTable.push(["", ""]);
+    },
+    removeRow(rowIndex) {
+      this.form.answerTable.splice(rowIndex, 1);
+    },
     async submitTask() {
       this.isLoading = true;
       const formData = new FormData();
@@ -213,28 +251,31 @@ export default {
       formData.append("solution_text", this.form.solution_text);
 
       let answer_format = "text";
-      if ([17, 26, 27].includes(this.form.taskNumber)) {
+      if (this.isTableTwo) {
         answer_format = "table2";
-      } else if (this.form.taskNumber === 25) {
-        answer_format = "table10";
+      } else if (this.isTableDynamic25) {
+        answer_format = this.form.tableMode === "table" ? "tableDyn2Col" : "tableDyn1Col";
       }
       formData.append("answer_format", answer_format);
 
       if (this.isTextInput) {
         formData.append("answer", this.form.answerText);
-      } else {
+      } else if (this.isTableTwo) {
+        formData.append("answer", JSON.stringify(this.form.answerTableSimple));
+      } else if (this.isTableDynamic25) {
         formData.append("answer", JSON.stringify(this.form.answerTable));
       }
       formData.append(
         "correct_answer",
-        this.isTextInput ? this.form.answerText : JSON.stringify(this.form.answerTable)
+        this.isTextInput
+          ? this.form.answerText
+          : JSON.stringify(this.isTableTwo ? this.form.answerTableSimple : this.form.answerTable)
       );
 
-      // Прикрепляем файлы
-      this.form.taskFiles.forEach(file => formData.append("taskFiles", file));
-      this.form.taskImages.forEach(file => formData.append("taskImages", file));
-      this.form.solution_files.forEach(file => formData.append("solution_files", file));
-      this.form.solution_images.forEach(file => formData.append("solution_images", file));
+      this.form.taskFiles.forEach((file) => formData.append("taskFiles", file));
+      this.form.taskImages.forEach((file) => formData.append("taskImages", file));
+      this.form.solution_files.forEach((file) => formData.append("solution_files", file));
+      this.form.solution_images.forEach((file) => formData.append("solution_images", file));
 
       try {
         const response = await axios.post("http://localhost:8000/exam_tasks/", formData, {
@@ -265,10 +306,48 @@ export default {
         solution_files: [],
         solution_images: [],
         answerText: "",
+        answerTableSimple: ["", ""],
         answerTable: [],
+        tableMode: "list",
       };
     },
-    // Инициализация редакторов Quill с кастомым обработчиком для вставки изображения по URL
+    async uploadAndInsertImage(quill, file) {
+      const formData = new FormData();
+      formData.append("image", file);
+      try {
+        const response = await axios.post("http://localhost:8000/upload_temp_image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          },
+        });
+        const imageUrl = response.data.image_url;
+        const range = quill.getSelection();
+        if (range) {
+          const imgHtml = `<img src="${imageUrl}" alt="${file.name}" />`;
+          quill.clipboard.dangerouslyPasteHTML(range.index, imgHtml);
+        }
+      } catch (error) {
+        console.error("Ошибка загрузки изображения:", error);
+        alert("Ошибка загрузки изображения");
+      }
+    },
+    handlePaste(e, quill) {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+      const items = clipboardData.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            this.uploadAndInsertImage(quill, file);
+          }
+        }
+      }
+    },
     initEditors() {
       this.$nextTick(() => {
         const descriptionEditorElement = this.$refs.descriptionEditor;
@@ -285,75 +364,48 @@ export default {
           ["link", "image"]
         ];
 
-        // Кастомый обработчик для кнопки "image":
-        // Загружает файл на сервер через эндпоинт /upload_temp_image
-        // После получения URL вставляет в редактор HTML с тегом <img>
+        const vm = this;
         const customImageHandler = async function () {
-          const quill = this.quill; // Получаем редактор
+          const quill = this.quill;
           const input = document.createElement("input");
           input.setAttribute("type", "file");
           input.setAttribute("accept", "image/*");
           input.click();
-
           input.onchange = async () => {
             const file = input.files[0];
             if (file) {
-              const formData = new FormData();
-              formData.append("image", file); // имя поля должно совпадать с параметром в FastAPI
-              try {
-                const response = await axios.post("http://localhost:8000/upload_temp_image", formData, {
-                  headers: {
-                    "Content-Type": "multipart/form-data",
-                    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-                  },
-                });
-                // Ожидаем, что сервер вернет поле image_url
-                const imageUrl = response.data.image_url;
-                const range = quill.getSelection();
-                if (range) {
-                  // Вставляем HTML с тегом <img>
-                  const imgHtml = `<img src="${imageUrl}" alt="${file.name}" />`;
-                  quill.clipboard.dangerouslyPasteHTML(range.index, imgHtml);
-                }
-              } catch (error) {
-                console.error("Ошибка загрузки изображения:", error);
-                alert("Ошибка загрузки изображения");
-              }
+              vm.uploadAndInsertImage(quill, file);
             }
           };
         };
 
-        // Инициализация редактора для описания задания
         this.descriptionEditor = new Quill(descriptionEditorElement, {
           theme: "snow",
           modules: {
             toolbar: {
               container: toolbarOptions,
-              handlers: {
-                // Переопределяем стандартный обработчик image
-                image: function () {
-                  customImageHandler.call(this);
-                },
-              },
-            },
-          },
+              handlers: { image: function () { customImageHandler.call(this); } }
+            }
+          }
         });
-        // Инициализация редактора для решения
+
         this.solutionEditor = new Quill(solutionEditorElement, {
           theme: "snow",
           modules: {
             toolbar: {
               container: toolbarOptions,
-              handlers: {
-                image: function () {
-                  customImageHandler.call(this);
-                },
-              },
-            },
-          },
+              handlers: { image: function () { customImageHandler.call(this); } }
+            }
+          }
         });
 
-        // Синхронизация содержимого редакторов с моделью формы
+        this.descriptionEditor.root.addEventListener("paste", (e) => {
+          this.handlePaste(e, this.descriptionEditor);
+        });
+        this.solutionEditor.root.addEventListener("paste", (e) => {
+          this.handlePaste(e, this.solutionEditor);
+        });
+
         this.descriptionEditor.on("text-change", () => {
           this.form.description = this.descriptionEditor.root.innerHTML;
         });
