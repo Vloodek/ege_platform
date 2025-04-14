@@ -4,27 +4,27 @@
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
 
-      <!-- Основной контент с планом на день -->
+      <!-- Основной контент -->
       <main class="main-content">
         <h2>План на день</h2>
 
-        <!-- Контейнер для блоков с заданиями -->
+        <!-- Блоки заданий -->
         <div class="task-container">
           <div
             class="task-block"
-            v-for="(lesson, index) in lessons"
+            v-for="(item, index) in dayItems"
             :key="index"
-            @click="openLesson(lesson.id)"
+            @click="openItem(item)"
           >
             <div class="task-left">
-              <div class="task-type">{{ lesson.type }}</div>
-              <div class="task-name">{{ lesson.name }}</div>
+              <div class="task-type">{{ item.type }}</div>
+              <div class="task-name">{{ item.name }}</div>
             </div>
-            <div class="task-time">{{ formatTime(lesson.date) }}</div>
+            <div class="task-time">{{ formatTime(item.date) }}</div>
           </div>
         </div>
 
-        <!-- Кнопка Плюс (видна только для учителя) -->
+        <!-- Кнопка Плюс (только для учителя) -->
         <div v-if="isTeacher" class="add-task-btn-container">
           <div class="add-task-btn" @click="goToAddLessonPage">
             <span class="plus-icon">+</span>
@@ -44,55 +44,76 @@ export default {
   },
   data() {
     return {
-      lessons: [],
-      isTeacher: false, // По умолчанию считаем, что это не учитель
+      dayItems: [],
+      isTeacher: false,
     };
   },
   created() {
-    this.fetchLessons();
-    this.checkUserRole(); // Проверяем роль пользователя
+    this.fetchDayItems();
+    this.checkUserRole();
   },
   methods: {
-    async fetchLessons() {
-    try {
-        const response = await this.$axios.get("/lessons");
-        this.lessons = response.data;
-        console.log("Уроки получены:", this.lessons);
-    } catch (error) {
-        console.error("Ошибка Axios:", error);
-    }
-},
+    async fetchDayItems() {
+      try {
+        const [lessonsRes, homeworksRes] = await Promise.all([
+          this.$axios.get("/lessons"),
+          this.$axios.get("/homeworks/")
+        ]);
 
-    // Проверка роли пользователя
+        const today = new Date().toISOString().split("T")[0];
+
+        const lessons = lessonsRes.data
+          .filter(l => l.date.startsWith(today))
+          .map(l => ({ ...l, type: "Занятие" }));
+
+        const homeworks = homeworksRes.data
+          .filter(h => h.date.startsWith(today))
+          .map(h => ({
+            ...h,
+            type: "Домашнее задание",
+            name: h.description || "Домашнее задание"
+          }));
+
+        this.dayItems = [...lessons, ...homeworks].sort(
+          (a, b) => new Date(a.date) - new Date(b.date)
+        );
+
+      } catch (error) {
+        console.error("Ошибка при получении плана на день:", error);
+      }
+    },
+
     checkUserRole() {
       const user = JSON.parse(localStorage.getItem("user"));
-      if (user && user.role === "teacher") {
+      if (user?.role === "teacher") {
         this.isTeacher = true;
       }
     },
 
-    openLesson(lessonId) {
-      if (!lessonId) {
-        console.error("ID урока отсутствует");
-        return;
-      }
-      this.$router.push({ name: "lesson-details", params: { id: lessonId } });
-    },
+    openItem(item) {
+  if (item.type === "Домашнее задание") {
+    this.$router.push({ name: "homework-details", params: { id: item.lesson_id } });
+  } else {
+    this.$router.push({ name: "lesson-details", params: { id: item.id } });
+  }
+}
+
+,
 
     formatTime(dateString) {
       const date = new Date(dateString);
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${hours}:${minutes}`;
+      const h = String(date.getHours()).padStart(2, "0");
+      const m = String(date.getMinutes()).padStart(2, "0");
+      return `${h}:${m}`;
     },
 
-    // Переход на страницу добавления занятия
     goToAddLessonPage() {
       this.$router.push({ name: "add-lesson" });
     },
   },
 };
 </script>
+
 
 <style scoped>
 /* Основной контейнер */

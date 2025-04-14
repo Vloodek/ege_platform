@@ -196,6 +196,7 @@ export default {
   background-color: #F3F3F3;
   border-radius: 8px;
   min-height: 100%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 /* Стили для dropdown */
 .dropdown-menu {

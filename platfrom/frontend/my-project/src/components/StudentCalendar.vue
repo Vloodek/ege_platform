@@ -12,18 +12,25 @@
             <button @click="changeMonth(-1)" class="arrow-button">
               <img src="@/assets/svg/Calendar/arrow_left.svg" alt="Prev Month" />
             </button>
-            
+            <h2>{{ currentMonthName }} {{ currentYear }}</h2>
             <button @click="changeMonth(1)" class="arrow-button">
               <img src="@/assets/svg/Calendar/arrow_right.svg" alt="Next Month" />
             </button>
-            <h2>{{ currentMonthName }} {{ currentYear }}</h2>
           </div>
           <div class="toggle">
             <div class="toggle-container">
-              <button @click="toggleView" :class="{'active': isScheduleView}" class="toggle-button">
+              <button
+                @click="toggleView(true)"
+                :class="{ active: isScheduleView }"
+                class="toggle-button"
+              >
                 Занятия
               </button>
-              <button @click="toggleView" :class="{'active': !isScheduleView}" class="toggle-button">
+              <button
+                @click="toggleView(false)"
+                :class="{ active: !isScheduleView }"
+                class="toggle-button"
+              >
                 ДЗ
               </button>
             </div>
@@ -47,25 +54,41 @@
             <div
               v-for="(day, index) in daysInMonth"
               :key="index"
-              :class="['day', { 'current-day': isCurrentDay(day), 'has-lessons': lessonsByDate[day] }]"
-              @mouseover="showLessonMenu(index)"
-              @mouseleave="hideLessonMenu"
+              :class="[
+                'day',
+                { 'current-day': isCurrentDay(day), 'has-items': scheduleByDate[day] }
+              ]"
+              @mouseover="showItemMenu(index)"
+              @mouseleave="hideItemMenu"
             >
-              <div class="day-number">
-                <span>{{ day }}</span>
-              </div>
-              <div v-if="lessonsByDate[day]" class="lesson-indicator"></div>
+            <div class="day-number">
+  <span>{{ day }}</span>
+</div>
+<!-- Добавляем индикатор для занятий -->
+<div
+  v-if="isScheduleView && scheduleByDate[day]"
+  class="lesson-indicator"
+></div>
+<!-- Индикатор для ДЗ (если текущий режим – ДЗ) -->
+<div
+  v-if="!isScheduleView && scheduleByDate[day]"
+  class="homework-indicator"
+  :class="getHomeworkIndicatorClass(scheduleByDate[day])"
+></div>
+
+              <!-- Всплывающее меню для отображения списка уроков/ДЗ -->
               <div
-                v-if="isMenuVisible(index) && lessonsByDate[day]"
+                v-if="isMenuVisible(index) && scheduleByDate[day]"
                 class="lesson-context-menu"
               >
                 <ul>
                   <li
-                    v-for="(lesson, idx) in lessonsByDate[day]"
+                    v-for="(item, idx) in scheduleByDate[day]"
                     :key="idx"
-                    @click="openLesson(lesson.id)"
+                    @click="openItem(item.id)"
                   >
-                    {{ lesson.name }}
+                  {{ item.name }}
+
                   </li>
                 </ul>
               </div>
@@ -81,6 +104,7 @@
 import SideBar from "../components/SideBar.vue";
 
 export default {
+  name: "CalendarPage",
   components: {
     SideBar,
   },
@@ -89,26 +113,26 @@ export default {
       currentMonth: new Date().getMonth(),
       currentYear: new Date().getFullYear(),
       daysInMonth: [],
-      isScheduleView: true,
-      lessonsByDate: {}, // Содержит занятия по текущему месяцу
+      isScheduleView: true, // true: занятия, false: домашние задания
+      scheduleByDate: {}, // данные уроков/ДЗ, сгруппированные по числу месяца
       activeMenuIndex: null,
     };
   },
   computed: {
     currentMonthName() {
       const monthNames = [
-        'Январь',
-        'Февраль',
-        'Март',
-        'Апрель',
-        'Май',
-        'Июнь',
-        'Июль',
-        'Август',
-        'Сентябрь',
-        'Октябрь',
-        'Ноябрь',
-        'Декабрь',
+        "Январь",
+        "Февраль",
+        "Март",
+        "Апрель",
+        "Май",
+        "Июнь",
+        "Июль",
+        "Август",
+        "Сентябрь",
+        "Октябрь",
+        "Ноябрь",
+        "Декабрь",
       ];
       return monthNames[this.currentMonth];
     },
@@ -116,12 +140,14 @@ export default {
       const days = [];
       const firstDayOfMonth = new Date(this.currentYear, this.currentMonth, 1);
       const lastDayOfMonth = new Date(this.currentYear, this.currentMonth + 1, 0);
-      const startDay = firstDayOfMonth.getDay() || 7;
+      const startDay = firstDayOfMonth.getDay() || 7; // если 0, то понедельник
       const endDay = lastDayOfMonth.getDate();
 
+      // Заполняем пустые ячейки в начале месяца
       for (let i = 1; i < startDay; i++) {
-        days.push('');
+        days.push("");
       }
+      // Заполняем числа месяца
       for (let i = 1; i <= endDay; i++) {
         days.push(i);
       }
@@ -132,42 +158,36 @@ export default {
     this.loadCalendar();
   },
   methods: {
-    async fetchLessons() {
-    try {
-        const response = await this.$axios.get("/lessons", {
-            params: {
-                month: this.currentMonth + 1,
-                year: this.currentYear,
-            },
+    async fetchSchedule() {
+      const type = this.isScheduleView ? "lessons" : "homeworks";
+      try {
+        const response = await this.$axios.get("/schedule", {
+          params: {
+            month: this.currentMonth + 1, // месяцы с 1
+            year: this.currentYear,
+            type: type,
+          },
         });
-        this.lessonsByDate = this.groupLessonsByDate(response.data);
-        console.log("Занятия загружены:", response.data);
-    } catch (error) {
-        console.error("Ошибка при загрузке занятий:", error);
-    }
-}
-,
-    groupLessonsByDate(lessons) {
+        this.scheduleByDate = this.groupScheduleByDate(response.data);
+        console.log("Расписание загружено:", response.data);
+      } catch (error) {
+        console.error("Ошибка при загрузке расписания:", error);
+      }
+    },
+    groupScheduleByDate(schedule) {
       const grouped = {};
-      lessons.forEach((lesson) => {
-        const lessonDate = new Date(lesson.date);
-        const lessonMonth = lessonDate.getMonth();
-        const lessonYear = lessonDate.getFullYear();
-        const lessonDay = lessonDate.getDate();
-
-        // Учитываем только занятия для текущего месяца и года
-        if (lessonMonth === this.currentMonth && lessonYear === this.currentYear) {
-          if (!grouped[lessonDay]) {
-            grouped[lessonDay] = [];
-          }
-          grouped[lessonDay].push(lesson);
+      schedule.forEach((item) => {
+        const day = new Date(item.date).getDate();
+        if (!grouped[day]) {
+          grouped[day] = [];
         }
+        grouped[day].push(item);
       });
       return grouped;
     },
     loadCalendar() {
       this.daysInMonth = this.daysInCurrentMonth;
-      this.fetchLessons();
+      this.fetchSchedule();
     },
     changeMonth(direction) {
       this.currentMonth += direction;
@@ -180,8 +200,9 @@ export default {
       }
       this.loadCalendar();
     },
-    toggleView() {
-      this.isScheduleView = !this.isScheduleView;
+    toggleView(isLessons) {
+      this.isScheduleView = isLessons;
+      this.fetchSchedule();
     },
     isCurrentDay(day) {
       const today = new Date();
@@ -191,24 +212,39 @@ export default {
         today.getFullYear() === this.currentYear
       );
     },
-    showLessonMenu(index) {
+    showItemMenu(index) {
       this.activeMenuIndex = index;
     },
-    hideLessonMenu() {
+    hideItemMenu() {
       this.activeMenuIndex = null;
     },
     isMenuVisible(index) {
       return this.activeMenuIndex === index;
     },
-    openLesson(lessonId) {
-      this.$router.push({ name: 'lesson-details', params: { id: lessonId } });
+    openItem(itemId) {
+      // Перенаправление в зависимости от типа расписания
+      if (this.isScheduleView) {
+        this.$router.push({ name: "lesson-details", params: { id: itemId } });
+      } else {
+        this.$router.push({ name: "homework-details", params: { id: itemId } });
+      }
     },
+    // Дополнительная функция для определения CSS-класса по статусу выполнения ДЗ
+    getHomeworkIndicatorClass(items) {
+  const status = items[0].submission_status;
+  return {
+    red: status === "red",
+    green: status === "green",
+    gray: status === "gray",
+    orange: status === "orange",
+  };
+}
+,
   },
 };
 </script>
 
 <style scoped>
-/* Основной контейнер */
 .main-container {
   display: flex;
   min-height: 100vh;
@@ -216,7 +252,6 @@ export default {
   justify-content: center;
 }
 
-/* Контент */
 .content {
   display: flex;
   width: 100%;
@@ -225,7 +260,6 @@ export default {
   gap: 20px;
 }
 
-/* Основной контент */
 .main-content {
   flex: 1;
   background-color: #ffffff;
@@ -234,7 +268,6 @@ export default {
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-/* Календарь */
 .calendar-header {
   display: flex;
   justify-content: space-between;
@@ -264,7 +297,6 @@ export default {
 
 .toggle-container {
   display: flex;
-  justify-content: space-between;
   gap: 10px;
 }
 
@@ -283,7 +315,6 @@ export default {
   color: white;
 }
 
-/* Дни недели */
 .weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -306,7 +337,6 @@ export default {
   justify-items: center;
 }
 
-/* Календарь */
 .day {
   position: relative;
   width: 81px;
@@ -316,41 +346,61 @@ export default {
   border: 2px solid #115544;
   background-color: transparent;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  flex-direction: column; /* Обеспечивает вертикальное расположение */
 }
 
-/* Для текущего дня */
 .day.current-day {
-  background-color: #115544; /* Зеленая заливка */
-  color: white;
+  background-color: #d1f2d1;
+  color: #115544;
+  font-weight: bold;
 }
+
 
 .day-number {
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* Размещает цифру в верхней части */
-  margin-bottom: auto; /* Отодвигает цифру вверх */
-  padding-top: 10px; /* Дополнительное пространство сверху */
+  align-items: flex-start;
+  margin-bottom: auto;
+  padding-top: 10px;
 }
 
 .day-number span {
   font-size: 16px;
 }
 
-/* Индикатор занятия */
+/* Индикатор ДЗ (отображается на календаре) */
+.homework-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.homework-indicator.red {
+  background-color: red;
+}
+.homework-indicator.green {
+  background-color: green;
+}
+.homework-indicator.gray {
+  background-color: gray;
+}
 .lesson-indicator {
   width: 12px;
   height: 12px;
   background-color: green;
   border-radius: 50%;
   position: absolute;
-  bottom: 8px; /* Центрируем внизу */
+  bottom: 8px;
   left: 50%;
   transform: translateX(-50%);
 }
 
+/* Всплывающее меню */
 .lesson-context-menu {
   position: absolute;
   top: 100%;
@@ -360,6 +410,8 @@ export default {
   border-radius: 8px;
   padding: 10px;
   z-index: 10;
+  min-width: 180px;
+  word-wrap: break-word;
 }
 
 .lesson-context-menu ul {
@@ -376,8 +428,12 @@ export default {
 .lesson-context-menu li:hover {
   background-color: #f0f0f0;
 }
-h2{
+
+h2 {
   color: #115544;
   font-weight: 500;
+}
+.homework-indicator.orange {
+  background-color: orange;
 }
 </style>

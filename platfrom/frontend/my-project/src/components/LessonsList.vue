@@ -4,28 +4,55 @@
       <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
 
-      <!-- Основной контент с уроками -->
+      <!-- Основной контент с занятиями -->
       <main class="main-content">
         <h2>Занятия</h2>
 
-        <!-- Контейнер для блоков с уроками -->
+        <!-- Фильтр для уроков -->
+        <div class="filter-container">
+          <label for="lesson-filter">Фильтр:</label>
+          <select id="lesson-filter" v-model="selectedStatus">
+            <option value="">Все</option>
+            <option value="upcoming">Предстоящие</option>
+            <option value="past">Прошедшие</option>
+          </select>
+        </div>
+
+        <!-- Контейнер для карточек занятий -->
         <div class="task-container">
-          <!-- Блоки с уроками -->
           <div
             class="task-block"
-            v-for="(lesson, index) in lessons"
+            v-for="(lesson, index) in filteredLessons"
             :key="index"
-            @click="openLesson(lesson.id)"
           >
-            <div class="task-left">
-              <div class="task-type">{{ lesson.type }}</div>
-              <div class="task-name">{{ lesson.name }}</div>
+            <!-- Контейнер заголовка, который растягивается под длину названия -->
+            <div class="task-header-container">
+              <div class="task-header" :class="lessonHeaderClass(lesson)">
+                {{ lesson.name }}
+              </div>
             </div>
-            <div class="task-time">{{ formatTime(lesson.date) }}</div>
+            <!-- Нижняя часть карточки -->
+            <div class="task-bottom">
+              <!-- Левая часть: время занятия (с датой и иконкой календаря) -->
+              <div class="task-info">
+                <div class="task-time">
+                  <img
+                    src="@/assets/svg/sidebar/calendar.svg"
+                    alt="calendar"
+                    class="calendar-icon"
+                  />
+                  <span class="calendar-text">{{ formatTime(lesson.date) }}</span>
+                </div>
+              </div>
+              <!-- Правая часть: кнопка для перехода на занятие -->
+              <BaseButton :color="buttonColor" @click="openLesson(lesson.id)">
+                {{ buttonText }}
+              </BaseButton>
+            </div>
           </div>
         </div>
 
-        <!-- Кнопка Плюс (видна только для учителя) -->
+        <!-- Кнопка добавления занятия (видна только для преподавателя) -->
         <div v-if="isTeacher" class="add-task-btn-container">
           <div class="add-task-btn" @click="goToAddLessonPage">
             <span class="plus-icon">+</span>
@@ -38,40 +65,64 @@
 
 <script>
 import SideBar from "../components/SideBar.vue";
+import BaseButton from "@/components/UI/BaseButton.vue";
 
 export default {
-  components: { SideBar },
+  components: { SideBar, BaseButton },
   data() {
     return {
       lessons: [],
-      isTeacher: false, // По умолчанию считаем, что это не учитель
+      isTeacher: false,
+      role: null,
+      selectedStatus: "", // Значение фильтра: "" - все, "upcoming" - предстоящие, "past" - прошедшие
     };
+  },
+  computed: {
+    buttonText() {
+      // Если пользователь-преподаватель — выводим "Перейти", иначе "Посмотреть"
+      return this.role === "teacher" ? "Перейти" : "Посмотреть";
+    },
+    buttonColor() {
+      // Можно задать разный цвет кнопки, здесь для примера всегда зеленый
+      return "green";
+    },
+    filteredLessons() {
+      if (!this.selectedStatus) return this.lessons;
+      const now = new Date();
+      if (this.selectedStatus === "upcoming") {
+        return this.lessons.filter(lesson => new Date(lesson.date) >= now);
+      } else if (this.selectedStatus === "past") {
+        return this.lessons.filter(lesson => new Date(lesson.date) < now);
+      }
+      return this.lessons;
+    },
   },
   created() {
     this.fetchLessons();
-    this.checkUserRole(); // Проверяем роль пользователя при создании компонента
+    this.checkUserRole();
   },
   methods: {
-    // Метод для получения списка уроков
     async fetchLessons() {
-        try {
-            const response = await this.$axios.get("/lessons");
-            this.lessons = response.data;
-            console.log("Уроки получены:", this.lessons);
-        } catch (error) {
-            console.error("Ошибка при загрузке уроков:", error);
-        }
-    },
-
-    // Метод для проверки роли пользователя
-    checkUserRole() {
-      const user = JSON.parse(localStorage.getItem("user"));
-      if (user && user.role === "teacher") {
-        this.isTeacher = true;
+      try {
+        const response = await this.$axios.get("/lessons");
+        this.lessons = response.data;
+        console.log("Занятия получены:", this.lessons);
+      } catch (error) {
+        console.error("Ошибка при загрузке занятий:", error);
       }
     },
-
-    // Метод для перехода на страницу подробностей урока
+    checkUserRole() {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        try {
+          const user = JSON.parse(userData);
+          this.role = user.role;
+          this.isTeacher = user.role === "teacher";
+        } catch (e) {
+          console.error("Ошибка парсинга user из localStorage:", e);
+        }
+      }
+    },
     openLesson(lessonId) {
       if (!lessonId) {
         console.error("ID урока отсутствует");
@@ -79,32 +130,38 @@ export default {
       }
       this.$router.push({ name: "lesson-details", params: { id: lessonId } });
     },
-
-    // Метод для форматирования времени
-    formatTime(dateString) {
-      const date = new Date(dateString);
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${hours}:${minutes}`;
+    formatTime(dateStr) {
+      const date = new Date(dateStr);
+      const d = String(date.getDate()).padStart(2, "0");
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const y = date.getFullYear();
+      const h = String(date.getHours()).padStart(2, "0");
+      const min = String(date.getMinutes()).padStart(2, "0");
+      return `${d}.${m}.${y} ${h}:${min}`;
     },
-
-    // Метод для перехода на страницу добавления занятия
     goToAddLessonPage() {
       this.$router.push({ name: "add-lesson" });
+    },
+    lessonHeaderClass(lesson) {
+      // Если дата занятия больше или равна текущей – считается предстоящим (зеленый),
+      // иначе прошло (красный)
+      const now = new Date();
+      const lessonDate = new Date(lesson.date);
+      return lessonDate >= now ? "header-upcoming" : "header-past";
     },
   },
 };
 </script>
 
 <style scoped>
-/* Основной контейнер */
+/* Основной контейнер страницы */
 #day-plan {
   display: flex;
   min-height: 100vh;
   background-color: #f5f5f5;
 }
 
-/* Контейнер для основного контента и бокового меню */
+/* Контейнер для бокового меню и основного контента */
 .container {
   display: flex;
   width: 100%;
@@ -113,105 +170,108 @@ export default {
   padding: 20px;
 }
 
-/* Стили для основного контента */
+/* Основной контент */
 .main-content {
   flex: 1;
   background-color: #fff;
   padding: 20px;
   border-radius: 20px;
   margin-left: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-
-/* Заголовок */
 h2 {
-  font-size: 24px;
-  margin-bottom: 20px;
-  color: #333;
   text-align: center;
+  font-weight: 450;
 }
 
-/* Контейнер для блоков с уроками */
+/* Фильтр */
+.filter-container {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.filter-container label {
+  font-weight: 500;
+}
+.filter-container select {
+  padding: 5px 12px;
+  border: 2px solid #115544;
+  border-radius: 8px;
+  background-color: #fff;
+  font-size: 16px;
+  outline: none;
+}
+
+/* Карточки занятий */
 .task-container {
   margin-bottom: 30px;
 }
-
-/* Блоки с уроками */
 .task-block {
-  display: flex;
-  flex-direction: row;
-  padding: 20px;
+  padding: 15px;
   margin-bottom: 15px;
+  border: 2px solid #115544;
+  border-radius: 20px;
+  background-color: #fff;
+}
+
+/* Контейнер заголовка — подстраивается под содержимое */
+.task-header-container {
+  margin-bottom: 10px;
+}
+.task-header {
+  display: inline-block;
+  padding: 8px 12px;
+  font-size: 18px;
+  font-weight: 350;
+  border-radius: 8px;
+  margin-left: 12px;
+}
+
+/* Классы окраски заголовка */
+.header-upcoming {
+  background-color: #D2FFF4; /* зеленый оттенок для предстоящих занятий */
+}
+.header-past {
+  background-color: #FFD2D2; /* красный оттенок для прошедших занятий */
+}
+
+/* Нижняя часть карточки */
+.task-bottom {
+  display: flex;
   justify-content: space-between;
-  height: 105px;
-  cursor: pointer;
-}
-
-/* Блок с текстом задания */
-.task-left {
-  flex: 0 1 60%;
-  display: flex;
-  flex-direction: column;
-  border: 2px solid #115544;
-  padding: 20px;
-  border-radius: 20px;
-  transition: border 0.3s ease;
-  max-width: 450px;
-}
-
-.task-left:hover {
-  border: 2px solid #1e9275;
-}
-
-/* Тип задания */
-.task-type {
-  background-color: transparent;
-  color: #115544;
-  padding: 5px 0;
-  text-align: left;
-  font-size: 14px;
-}
-
-/* Название задания */
-.task-name {
-  font-size: 20px;
-  color: #333;
-  font-weight: light;
-  margin-bottom: 12px;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-/* Время задания */
-.task-time {
-  flex: 0 1 15%;
-  background-color: transparent;
-  color: #000000;
-  padding: 20px;
-  font-size: 20px;
-  font-weight: light;
-  border-radius: 20px;
-  text-align: center;
-  display: flex;
-  justify-content: center;
   align-items: center;
-  margin-left: 20px;
-  border: 2px solid #115544;
-  transition: border 0.3s ease;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 15px;
 }
 
-.task-time:hover {
-  border: 2px solid #1e9275;
+/* Левая часть: иконка календаря и время */
+.task-info {
+  display: flex;
+  align-items: center;
+}
+.task-time {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+}
+.calendar-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  filter: brightness(0);
+  padding-left: 1px;
+}
+.calendar-text {
+  padding-top: 6px;
 }
 
-/* Контейнер для кнопки Плюс */
+/* Кнопка добавления занятия */
 .add-task-btn-container {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  justify-content: flex-end;
 }
-
-/* Кнопка Плюс */
 .add-task-btn {
   width: 50px;
   height: 50px;
@@ -224,11 +284,9 @@ h2 {
   margin-top: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-
 .add-task-btn:hover {
   background-color: #1e9275;
 }
-
 .plus-icon {
   font-size: 28px;
   font-weight: bold;

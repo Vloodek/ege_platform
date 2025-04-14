@@ -417,6 +417,48 @@ async def get_homeworks(db: Session = Depends(get_db)):
         homework.images = []  # Можно просто очистить список или убрать строку
     return homeworks
 
+@app.get("/homeworks/with-status")
+def get_homeworks_with_status(
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    user_email = getattr(request.state, "user", None)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    user = db.query(database.User).filter(database.User.email == user_email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    homeworks = db.query(database.Homework).all()
+    result = []
+
+    for hw in homeworks:
+        submission = db.query(database.HomeworkSubmission).filter_by(
+            homework_id=hw.id,
+            user_id=user.id
+        ).order_by(database.HomeworkSubmission.id.desc()).first()
+
+        if submission is None:
+            status = "not_submitted"
+        elif submission.status == "graded":
+            status = "graded"
+        elif submission.status == "response_received":
+            status = "response_received"
+        elif submission.status in ["submitted", "waiting"]:
+            status = "submitted"
+        else:
+            status = "not_submitted"
+
+        result.append({
+            "id": hw.id,
+            "lesson_id": hw.lesson_id,
+            "description": hw.description,
+            "date": hw.date.isoformat(),
+            "status": status
+        })
+
+    return result
 
 # Получение конкретного домашнего задания (homework)
 @app.get("/homeworks/{lesson_id}", response_model=List[schemas.HomeworkResponse])
@@ -1285,10 +1327,12 @@ def get_exam_task(id: int, db: Session = Depends(get_db)):
         "description": task.description,
         "answer_format": task.answer_format,
         "correct_answer": task.correct_answer,
+        "solution_text": task.solution_text,  # ⬅️ вот это
         "created_at": task.created_at,
         "updated_at": task.updated_at,
         "attachments": attachments,
     }
+    print(task_data)
 
     # Специальная логика для задания 25
     if task.task_number == 25:
@@ -1531,3 +1575,107 @@ def get_test_solutions(session_id: int, db: Session = Depends(get_db)):
             solutions[task_id] = task.solution_text or "Решение отсутствует"
     
     return {"solutions": solutions}
+
+
+
+@app.delete("/exam_tasks/{id}", response_model=dict)
+def delete_exam_task(id: int, db: Session = Depends(get_db)):
+    task = db.query(database.ExamTask).filter(database.ExamTask.id == id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Задание не найдено")
+    
+    # Формируем путь к папке с данными задания
+    base_path = f"./uploads/tasks_bank/{task.task_number}/{task.id}"
+    if os.path.exists(base_path):
+        try:
+            shutil.rmtree(base_path)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Ошибка удаления файлов: {str(e)}")
+    
+    # Если attachments связаны через каскадное удаление, то удаление задания удалит их,
+    # иначе вручную можно удалить записи attachments (здесь мы просто удаляем само задание)
+    db.delete(task)
+    db.commit()
+    return {"message": "Задание удалено"}
+
+
+
+@app.get("/schedule")
+def get_schedule(
+    month: int,
+    year: int,
+    type: str = Query("lessons", enum=["lessons", "homeworks"]),
+    db: Session = Depends(get_db),
+    request: Request = None
+):
+    try:
+        start_date = datetime(year, month, 1)
+        end_date = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Неверная дата")
+
+    # Получаем пользователя из токена
+    user_email = getattr(request.state, "user", None)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    user = db.query(database.User).filter(database.User.email == user_email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    current_user_id = user.id
+
+    if type == "lessons":
+        lessons = db.query(database.Lesson).filter(
+            database.Lesson.date >= start_date,
+            database.Lesson.date < end_date
+        ).all()
+        return [
+            {
+                "id": lesson.id,
+                "name": lesson.name,
+                "date": lesson.date.isoformat()
+            }
+            for lesson in lessons
+        ]
+
+    elif type == "homeworks":
+        homeworks = db.query(database.Homework).filter(
+            database.Homework.date >= start_date,
+            database.Homework.date < end_date
+        ).all()
+        result = []
+
+        for hw in homeworks:
+            submission = db.query(database.HomeworkSubmission).filter_by(
+                homework_id=hw.id, user_id=current_user_id
+            ).order_by(database.HomeworkSubmission.id.desc()).first()
+
+            if submission is None:
+                dot = "red"
+                raw_status = "not submitted"
+            elif submission.status == "graded":
+                dot = "green"
+                raw_status = submission.status
+            elif submission.status == "response_received":
+                dot = "orange"
+                raw_status = submission.status
+            elif submission.status in ["submitted", "waiting"]:
+                dot = "gray"
+                raw_status = submission.status
+            else:
+                dot = "red"
+                raw_status = submission.status
+
+
+            hw_name = hw.description.strip() if hw.description and hw.description.strip() else "Домашнее задание"
+
+            result.append({
+                "id": hw.lesson_id,
+                "name": hw_name,
+                "date": hw.date.isoformat(),
+                "submission_status": dot,
+                "raw_status": raw_status
+            })
+
+        return result

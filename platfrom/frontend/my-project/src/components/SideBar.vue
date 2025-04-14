@@ -26,31 +26,34 @@
         <p>Всего вопросов: {{ totalQuestions }}</p>
       </div>
       <!-- Кнопка завершения теста (если тест ещё идёт) -->
-
-<button 
-  v-if="!testFinished" 
-  class="exit-btn-sidebar" 
-  @click="$emit('finishTest')">
-  Завершить тест
-</button>
-<!-- Новая кнопка "Выйти" после завершения теста -->
-<button 
-  v-if="testFinished" 
-  class="exit-btn-sidebar" 
-  @click="$emit('exitTest')">
-  Выйти
-</button>
-
+      <button 
+        v-if="!testFinished" 
+        class="exit-btn-sidebar" 
+        @click="$emit('finishTest')"
+      >
+        Завершить тест
+      </button>
+      <!-- Кнопка "Выйти" после завершения теста -->
+      <button 
+        v-if="testFinished" 
+        class="exit-btn-sidebar" 
+        @click="$emit('exitTest')"
+      >
+        Выйти
+      </button>
     </div>
     <!-- Стандартное меню -->
     <div v-else class="default-menu">
       <ul class="menu">
-        <li v-for="item in menuItems" :key="item.label" class="menu-item">
-          <router-link :to="item.link" class="menu-link">
-            <img :src="item.icon" alt="icon" class="menu-icon" />
-            <span class="menu-label">{{ item.label }}</span>
-          </router-link>
-        </li>
+        <router-link
+          v-for="item in menuItems"
+          :key="item.label"
+          :to="item.link"
+          class="menu-item"
+        >
+          <img :src="item.icon" alt="icon" class="menu-icon" />
+          <span class="menu-label">{{ item.label }}</span>
+        </router-link>
       </ul>
       <div v-if="internalTestActive" class="test-sidebar-info">
         <p>Тест активен</p>
@@ -144,18 +147,18 @@ export default {
       if (!this.testFinished) {
         return {
           active: this.currentTaskIndex === index,
-          answered: Boolean(this.answers[String(taskId)])
+          answered: Boolean(this.answers[String(taskId)]),
         };
       } else {
         const res = this.results[String(taskId)];
         return {
           active: this.currentTaskIndex === index,
           answered: res === true, // зеленый – правильный
-          wrong: res === false    // красный – неправильный
+          wrong: res === false,   // красный – неправильный
         };
       }
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -168,6 +171,8 @@ export default {
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* Меню */
 .menu {
   list-style: none;
   padding: 0;
@@ -180,8 +185,8 @@ export default {
   border-radius: 10px;
   margin-bottom: 10px;
   transition: background-color 0.2s;
-  cursor: pointer;
-  color: #000000;
+  text-decoration: none;
+  color: inherit;
 }
 .menu-item:hover {
   background-color: #e0e0e0;
@@ -191,18 +196,13 @@ export default {
   height: 40px;
   margin-right: 15px;
 }
-.menu-link {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  text-decoration: none;
-  color: inherit;
-}
 .menu-label {
   font-size: 18px;
   font-weight: 350;
   flex-grow: 1;
 }
+
+/* Тестовая навигация */
 .test-sidebar-navigation {
   display: flex;
   flex-direction: column;
@@ -265,4 +265,6 @@ export default {
   border-radius: 5px;
   cursor: pointer;
 }
+
+/* Прочие стили */
 </style>

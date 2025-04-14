@@ -196,6 +196,8 @@ export default {
   padding: 20px;
   border-radius: 8px;
   margin-left: 20px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
 }
 
 .back-arrow {
