@@ -45,7 +45,6 @@
   </template>
   
   <script>
-  import axios from "axios";
   export default {
     name: "TrainTaskDetail",
     props: ['id'], // ID задания передаётся из родительского компонента
@@ -62,7 +61,7 @@
     methods: {
       async loadTask() {
         try {
-          const res = await axios.get(`/exam_tasks/${this.id}`);
+          const res = await this.$axios.get(`/exam_tasks/${this.id}`);
           console.log("Ответ API:", res.data);
           const taskFromApi = res.data;
           if (!taskFromApi) {
@@ -102,7 +101,7 @@
             task_id: this.id,
             answer: this.userAnswer
           });
-          const res = await axios.post("/testing/submit_answer", formData, {
+          const res = await this.$axios.post("/testing/submit_answer", formData, {
             headers: {
               "Content-Type": "application/x-www-form-urlencoded"
             }

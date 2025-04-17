@@ -8,12 +8,17 @@
       <div class="modal-body">
         <!-- Блок с данными отклика студента -->
         <div class="student-section">
-          <p><span class="green-text">Статус:</span> {{ submission.status === 'submitted' ? 'Отправлено' : 'Не отправлено' }}</p>
+          <p>
+            <span class="green-text">Статус:</span>
+            {{ submission.status === 'submitted' ? 'Отправлено' : 'Не отправлено' }}
+          </p>
           <p v-if="submission.submission_date">
-            <span class="green-text">Время отправки:</span> {{ formatDate(submission.submission_date) }}
+            <span class="green-text">Время отправки:</span>
+            {{ formatDate(submission.submission_date) }}
           </p>
           <p v-if="submission.client_submission_time">
-            <span class="green-text">Время изменения:</span> {{ formatDate(submission.client_submission_time) }}
+            <span class="green-text">Время изменения:</span>
+            {{ formatDate(submission.client_submission_time) }}
           </p>
           <p><span class="green-text">Комментарий студента:</span></p>
           <p>{{ submission.comment || 'Нет комментария' }}</p>
@@ -22,7 +27,10 @@
             <p><span class="green-text">Прикреплённые файлы:</span></p>
             <ul>
               <li v-for="(file, index) in submission.files" :key="index">
-                📄 <a :href="getFileUrl(file)" target="_blank">{{ getFileName(file) }}</a>
+                📄
+                <a :href="getFileUrl(file)" target="_blank">
+                  {{ getFileName(file) }}
+                </a>
               </li>
             </ul>
           </div>
@@ -35,11 +43,21 @@
           <h4>Оценка преподавателя</h4>
           <div class="evaluation-fields">
             <label for="grade">Оценка:</label>
-            <!-- Поле больше не блокируется даже если оценка уже установлена -->
-            <input id="grade" v-model="grade" type="number" min="0" max="100" placeholder="Введите оценку" />
+            <input
+              id="grade"
+              v-model="grade"
+              type="number"
+              min="0"
+              max="100"
+              placeholder="Введите оценку"
+            />
 
             <label for="teacherResponse">Комментарий преподавателя:</label>
-            <textarea id="teacherResponse" v-model="teacherResponse" placeholder="Введите комментарий"></textarea>
+            <textarea
+              id="teacherResponse"
+              v-model="teacherResponse"
+              placeholder="Введите комментарий"
+            ></textarea>
 
             <label for="fileInput">Прикрепить файлы:</label>
             <input type="file" multiple @change="handleFileUpload" ref="fileInput" />
@@ -58,7 +76,10 @@
               <p><span class="green-text">Файлы преподавателя:</span></p>
               <ul>
                 <li v-for="(file, index) in teacherResponseFiles" :key="index">
-                  📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
+                  📄
+                  <a :href="getFileUrl(file.file_path)" target="_blank">
+                    {{ file.file_name }}
+                  </a>
                   <button class="delete-btn" @click="deleteFile(file)">❌</button>
                 </li>
               </ul>
@@ -77,8 +98,6 @@
 </template>
 
 <script>
-import axios from "axios";
-
 export default {
   name: "SubmissionDetailsModal",
   props: {
@@ -120,8 +139,10 @@ export default {
     },
     getFileUrl(file) {
       if (!file) return "#";
-      const filePath = typeof file === "string" ? file : file.file_path;
-      return `http://localhost:8000/${filePath.replace(/\\/g, "/")}`;
+      const path = typeof file === "string" ? file : file.file_path;
+      const clean = path.replace(/\\/g, "/").replace(/^\//, "");
+      const base = this.$axios.defaults.baseURL.replace(/\/$/, "");
+      return `${base}/${clean}`;
     },
     getFileName(file) {
       if (!file) return "Файл";
@@ -135,21 +156,18 @@ export default {
     },
     async loadTeacherResponse() {
       try {
-        const response = await axios.get(
-          `http://localhost:8000/teacher_response/${this.submission.id}`,
-          {
-            headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
-          }
+        const { data } = await this.$axios.get(
+          `/teacher_response/${this.submission.id}`
         );
-        this.teacherResponse = response.data.teacher_comment;
-        // Если значение teacher_grade не равно null, преобразуем его в строку для корректного отображения
-        this.grade = response.data.teacher_grade !== null ? response.data.teacher_grade.toString() : "";
-        this.teacherResponseFiles = response.data.files || [];
+        this.teacherResponse = data.teacher_comment;
+        this.grade =
+          data.teacher_grade != null ? String(data.teacher_grade) : "";
+        this.teacherResponseFiles = data.files || [];
       } catch (error) {
         console.error("Ошибка загрузки отклика преподавателя:", error);
       }
     },
-    async deleteFile(file) {
+    deleteFile(file) {
       this.filesToDelete.push(file.file_path);
       this.teacherResponseFiles = this.teacherResponseFiles.filter(
         (f) => f.file_path !== file.file_path
@@ -159,27 +177,18 @@ export default {
       this.isLoading = true;
       const formData = new FormData();
       formData.append("teacher_comment", this.teacherResponse);
-      
-      // Добавляем оценку, только если поле не пустое
       if (this.grade !== "") {
         formData.append("teacher_grade", this.grade);
       }
-      
       formData.append("files_to_delete", JSON.stringify(this.filesToDelete));
-      this.uploadedFiles.forEach((file) => formData.append("files", file));
+      this.uploadedFiles.forEach((f) => formData.append("files", f));
 
       try {
-        const response = await axios.put(
-          `http://localhost:8000/update_teacher_response/${this.submission.id}`,
+        const response = await this.$axios.put(
+          `/update_teacher_response/${this.submission.id}`,
           formData,
-          {
-            headers: {
-              "Content-Type": "multipart/form-data",
-              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-            },
-          }
+          { headers: { "Content-Type": "multipart/form-data" } }
         );
-
         if (response.status === 200) {
           this.$emit("success", "Оценка успешно сохранена!");
           this.close();
@@ -226,10 +235,12 @@ export default {
   border-bottom: 1px solid #ddd;
   margin-bottom: 10px;
 }
+.modal-body {
+  margin-bottom: 15px;
+}
 .modal-footer {
   display: flex;
   justify-content: space-between;
-  margin-top: 15px;
 }
 .save-btn {
   background-color: #28a745;

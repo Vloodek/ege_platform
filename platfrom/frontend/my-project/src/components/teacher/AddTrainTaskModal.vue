@@ -24,7 +24,7 @@
           </select>
         </section>
 
-        <!-- Описание задания с использованием Quill -->
+        <!-- Описание задания с использованием Quill (без выбора шрифта) -->
         <section class="section-input">
           <label for="description">Описание задания:</label>
           <div ref="descriptionEditor" class="quill-editor"></div>
@@ -41,25 +41,15 @@
           </ul>
         </section>
 
-        <!-- Прикрепить картинки задания -->
-        <section class="section-input">
-          <label>Прикрепить картинки:</label>
-          <input type="file" multiple accept="image/*" @change="handleTaskImageUpload" ref="taskImageInput" />
-          <ul v-if="form.taskImages.length">
-            <li v-for="(file, index) in form.taskImages" :key="index">
-              {{ file.name }} <button @click="removeTaskImage(index)">Удалить</button>
-            </li>
-          </ul>
-        </section>
+        
 
         <hr />
 
-        <!-- Текст решения с использованием Quill -->
+        <!-- Текст решения с использованием Quill (без смены шрифта) -->
         <section class="section-input">
           <label for="solutionText">Текст решения:</label>
           <div ref="solutionEditor" class="quill-editor"></div>
         </section>
-
         <!-- Прикрепить файлы решения -->
         <section class="section-input">
           <label>Прикрепить файлы решения:</label>
@@ -70,18 +60,6 @@
             </li>
           </ul>
         </section>
-
-        <!-- Прикрепить картинки решения -->
-        <section class="section-input">
-          <label>Прикрепить картинки решения:</label>
-          <input type="file" multiple accept="image/*" @change="handleSolutionImageUpload" ref="solutionImageInput" />
-          <ul v-if="form.solution_images.length">
-            <li v-for="(file, index) in form.solution_images" :key="index">
-              {{ file.name }} <button @click="removeSolutionImage(index)">Удалить</button>
-            </li>
-          </ul>
-        </section>
-
         <!-- Блок для ввода ответа -->
         <section class="section-input">
           <label>Ответ:</label>
@@ -99,19 +77,19 @@
             <div 
               v-for="(row, rowIndex) in form.answerTable" 
               :key="rowIndex" 
-              style="display: flex; gap: 10px; margin-bottom: 5px;">
+              class="table-row">
               <input v-model="form.answerTable[rowIndex][0]" 
                      type="text" 
                      :placeholder="form.tableMode === 'list' ? 'Ответ' : 'Найденное число'" 
-                     style="width: 120px;" />
+                     class="table-input" />
               <input v-if="form.tableMode === 'table'" 
                      v-model="form.answerTable[rowIndex][1]" 
                      type="text" 
                      placeholder="Результат деления" 
-                     style="width: 120px;" />
-              <button @click="removeRow(rowIndex)">Удалить</button>
+                     class="table-input" />
+              <button class="remove-row-btn" @click="removeRow(rowIndex)">Удалить</button>
             </div>
-            <button v-if="form.answerTable.length < 20" @click="addRow">Добавить строку</button>
+            <button v-if="form.answerTable.length < 20" class="add-row-btn" @click="addRow">Добавить строку</button>
           </div>
         </section>
       </div>
@@ -127,7 +105,6 @@
 </template>
 
 <script>
-import axios from "axios";
 import Quill from "quill";
 import "quill/dist/quill.snow.css";
 
@@ -142,16 +119,12 @@ export default {
         taskNumber: 1,
         description: "",
         taskFiles: [],
-        taskImages: [],
         solution_text: "",
         solution_files: [],
-        solution_images: [],
         answerText: "",
-        // Для заданий 17,26,27 – простая таблица из 2 ячеек:
         answerTableSimple: ["", ""],
-        // Для задания 25 – динамическая таблица (каждая строка — массив из 2 элементов)
         answerTable: [],
-        tableMode: "list", // "list" (один столбец) или "table" (два столбца)
+        tableMode: "list",
       },
       isLoading: false,
       descriptionEditor: null,
@@ -159,89 +132,48 @@ export default {
     };
   },
   computed: {
-    // Текстовый ответ для заданий: 1–16 и 18–24
     isTextInput() {
       return (
         (this.form.taskNumber >= 1 && this.form.taskNumber <= 16) ||
         (this.form.taskNumber >= 18 && this.form.taskNumber <= 24)
       );
     },
-    // Таблица с 2 ячейками для заданий 17,26,27
     isTableTwo() {
       return [17, 26, 27].includes(this.form.taskNumber);
     },
-    // Динамическая таблица для задания 25
     isTableDynamic25() {
       return this.form.taskNumber === 25;
     },
   },
   watch: {
     "form.taskNumber"() {
-      if (this.isTableTwo) {
-        this.form.answerText = "";
-        this.form.answerTableSimple = ["", ""];
-        this.form.answerTable = [];
-      } else if (this.isTableDynamic25) {
-        this.form.answerText = "";
-        this.form.answerTable = [];
-      } else {
-        this.form.answerText = "";
-        this.form.answerTable = [];
-        this.form.answerTableSimple = ["", ""];
-      }
+      // Сброс ответных полей при смене типа задания
+      this.form.answerText = "";
+      this.form.answerTable = [];
+      this.form.answerTableSimple = ["", ""];
     },
   },
   methods: {
     onClose() {
       this.$emit("close");
     },
-    handleTaskFileUpload(event) {
-      this.form.taskFiles.push(...event.target.files);
+    handleTaskFileUpload(e) {
+      this.form.taskFiles.push(...e.target.files);
     },
-    removeTaskFile(index) {
-      this.form.taskFiles.splice(index, 1);
+    removeTaskFile(i) {
+      this.form.taskFiles.splice(i, 1);
     },
-    handleTaskImageUpload(event) {
-      const files = event.target.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const imageUrl = URL.createObjectURL(file);
-        const range = this.descriptionEditor.getSelection();
-        if (range) {
-          this.descriptionEditor.insertEmbed(range.index, "image", imageUrl);
-        }
-        this.form.taskImages.push(file);
-      }
+    handleSolutionFileUpload(e) {
+      this.form.solution_files.push(...e.target.files);
     },
-    removeTaskImage(index) {
-      this.form.taskImages.splice(index, 1);
-    },
-    handleSolutionFileUpload(event) {
-      this.form.solution_files.push(...event.target.files);
-    },
-    removeSolutionFile(index) {
-      this.form.solution_files.splice(index, 1);
-    },
-    handleSolutionImageUpload(event) {
-      const files = event.target.files;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const imageUrl = URL.createObjectURL(file);
-        const range = this.solutionEditor.getSelection();
-        if (range) {
-          this.solutionEditor.insertEmbed(range.index, "image", imageUrl);
-        }
-        this.form.solution_images.push(file);
-      }
-    },
-    removeSolutionImage(index) {
-      this.form.solution_images.splice(index, 1);
+    removeSolutionFile(i) {
+      this.form.solution_files.splice(i, 1);
     },
     addRow() {
       this.form.answerTable.push(["", ""]);
     },
-    removeRow(rowIndex) {
-      this.form.answerTable.splice(rowIndex, 1);
+    removeRow(i) {
+      this.form.answerTable.splice(i, 1);
     },
     async submitTask() {
       this.isLoading = true;
@@ -250,19 +182,18 @@ export default {
       formData.append("description", this.form.description);
       formData.append("solution_text", this.form.solution_text);
 
-      let answer_format = "text";
-      if (this.isTableTwo) {
-        answer_format = "table2";
-      } else if (this.isTableDynamic25) {
-        answer_format = this.form.tableMode === "table" ? "tableDyn2Col" : "tableDyn1Col";
+      let format = "text";
+      if (this.isTableTwo) format = "table2";
+      if (this.isTableDynamic25) {
+        format = this.form.tableMode === "table" ? "tableDyn2Col" : "tableDyn1Col";
       }
-      formData.append("answer_format", answer_format);
+      formData.append("answer_format", format);
 
       if (this.isTextInput) {
         formData.append("answer", this.form.answerText);
       } else if (this.isTableTwo) {
         formData.append("answer", JSON.stringify(this.form.answerTableSimple));
-      } else if (this.isTableDynamic25) {
+      } else {
         formData.append("answer", JSON.stringify(this.form.answerTable));
       }
       formData.append(
@@ -272,22 +203,19 @@ export default {
           : JSON.stringify(this.isTableTwo ? this.form.answerTableSimple : this.form.answerTable)
       );
 
-      this.form.taskFiles.forEach((file) => formData.append("taskFiles", file));
-      this.form.taskImages.forEach((file) => formData.append("taskImages", file));
-      this.form.solution_files.forEach((file) => formData.append("solution_files", file));
-      this.form.solution_images.forEach((file) => formData.append("solution_images", file));
+      this.form.taskFiles.forEach((f) => formData.append("taskFiles", f));
+      this.form.solution_files.forEach((f) => formData.append("solution_files", f));
 
       try {
-        const response = await axios.post("http://localhost:8000/exam_tasks/", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-        });
+        const response = await this.$axios.post(
+          "/exam_tasks/",
+          formData,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
         if (response.status === 200) {
           this.$emit("success", "Задание успешно добавлено");
           this.resetForm();
-          this.$emit("close");
+          this.onClose();
         }
       } catch (error) {
         console.error("Ошибка при сохранении задания:", error);
@@ -301,109 +229,94 @@ export default {
         taskNumber: 1,
         description: "",
         taskFiles: [],
-        taskImages: [],
         solution_text: "",
         solution_files: [],
-        solution_images: [],
         answerText: "",
         answerTableSimple: ["", ""],
         answerTable: [],
         tableMode: "list",
       };
+      if (this.descriptionEditor) this.descriptionEditor.setContents([]);
+      if (this.solutionEditor) this.solutionEditor.setContents([]);
     },
     async uploadAndInsertImage(quill, file) {
-      const formData = new FormData();
-      formData.append("image", file);
+      const fd = new FormData();
+      fd.append("image", file);
       try {
-        const response = await axios.post("http://localhost:8000/upload_temp_image", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-            Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          },
-        });
-        const imageUrl = response.data.image_url;
+        const { data } = await this.$axios.post(
+          "/upload_temp_image",
+          fd,
+          { headers: { "Content-Type": "multipart/form-data" } }
+        );
         const range = quill.getSelection();
         if (range) {
-          const imgHtml = `<img src="${imageUrl}" alt="${file.name}" />`;
-          quill.clipboard.dangerouslyPasteHTML(range.index, imgHtml);
+          quill.insertEmbed(range.index, 'image', data.image_url);
         }
-      } catch (error) {
-        console.error("Ошибка загрузки изображения:", error);
+      } catch (e) {
+        console.error("Ошибка загрузки изображения:", e);
         alert("Ошибка загрузки изображения");
       }
     },
     handlePaste(e, quill) {
-      const clipboardData = e.clipboardData || window.clipboardData;
-      if (!clipboardData) return;
-      const items = clipboardData.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.indexOf("image") !== -1) {
+      const items = (e.clipboardData || window.clipboardData).items;
+      for (const item of items) {
+        if (item.type.startsWith("image")) {
           e.preventDefault();
           const file = item.getAsFile();
-          if (file) {
-            this.uploadAndInsertImage(quill, file);
-          }
+          this.uploadAndInsertImage(quill, file);
         }
       }
     },
     initEditors() {
       this.$nextTick(() => {
-        const descriptionEditorElement = this.$refs.descriptionEditor;
-        const solutionEditorElement = this.$refs.solutionEditor;
-        if (!descriptionEditorElement || !solutionEditorElement) {
-          console.error("Ошибка: не найдены элементы для Quill.");
-          return;
-        }
-        const toolbarOptions = [
-          [{ header: "1" }, { header: "2" }, { font: [] }],
+        const toolbar = [
+          [{ header: [1, 2] }],
           [{ list: "ordered" }, { list: "bullet" }],
           ["bold", "italic", "underline"],
           [{ align: [] }],
-          ["link", "image"]
+          ["link", "image"],
         ];
-
         const vm = this;
-        const customImageHandler = async function () {
-          const quill = this.quill;
-          const input = document.createElement("input");
-          input.setAttribute("type", "file");
-          input.setAttribute("accept", "image/*");
-          input.click();
-          input.onchange = async () => {
-            const file = input.files[0];
-            if (file) {
-              vm.uploadAndInsertImage(quill, file);
-            }
-          };
-        };
 
-        this.descriptionEditor = new Quill(descriptionEditorElement, {
+        this.descriptionEditor = new Quill(this.$refs.descriptionEditor, {
           theme: "snow",
           modules: {
             toolbar: {
-              container: toolbarOptions,
-              handlers: { image: function () { customImageHandler.call(this); } }
-            }
-          }
+              container: toolbar,
+              handlers: {
+                image() {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.click();
+                  input.onchange = () => {
+                    const file = input.files[0];
+                    vm.uploadAndInsertImage(this.quill, file);
+                  };
+                },
+              },
+            },
+          },
         });
-
-        this.solutionEditor = new Quill(solutionEditorElement, {
+        this.solutionEditor = new Quill(this.$refs.solutionEditor, {
           theme: "snow",
           modules: {
             toolbar: {
-              container: toolbarOptions,
-              handlers: { image: function () { customImageHandler.call(this); } }
-            }
-          }
-        });
-
-        this.descriptionEditor.root.addEventListener("paste", (e) => {
-          this.handlePaste(e, this.descriptionEditor);
-        });
-        this.solutionEditor.root.addEventListener("paste", (e) => {
-          this.handlePaste(e, this.solutionEditor);
+              container: toolbar,
+              handlers: {
+                image() {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = "image/*";
+                  input.click();
+                  input.onchange = () => {
+                    const file = input.files[0];
+                    vm.uploadAndInsertImage(this.quill, file);
+                  };
+                },
+              },
+            },
+          },
         });
 
         this.descriptionEditor.on("text-change", () => {
@@ -412,6 +325,13 @@ export default {
         this.solutionEditor.on("text-change", () => {
           this.form.solution_text = this.solutionEditor.root.innerHTML;
         });
+
+        this.descriptionEditor.root.addEventListener("paste", (e) =>
+          this.handlePaste(e, this.descriptionEditor)
+        );
+        this.solutionEditor.root.addEventListener("paste", (e) =>
+          this.handlePaste(e, this.solutionEditor)
+        );
       });
     },
   },
@@ -444,6 +364,7 @@ export default {
   padding: 20px;
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
 }
+/* Заголовок модального окна */
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -451,40 +372,113 @@ export default {
   border-bottom: 1px solid #ddd;
   margin-bottom: 10px;
 }
-.modal-body {
-  padding: 10px 0;
+.modal-header h3 {
+  margin: 0;
+  color: #115544;
 }
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 15px;
-}
-.section-input {
-  margin-bottom: 15px;
-}
-.quill-editor {
-  height: 200px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-}
+/* Кнопка закрытия */
 .close-btn {
   background: none;
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
+  color: #115544;
+}
+
+/* Основное тело */
+.modal-body {
+  padding: 10px 0;
+}
+.section-input {
+  margin-bottom: 15px;
+}
+.section-input label {
+  display: block;
+  margin-bottom: 5px;
+  color: #115544;
+}
+/* Quill-редактор */
+.quill-editor {
+  height: 200px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #fafafa;
+}
+
+/* Файловый инпут (оставляем только для файлов, картинки убраны) */
+input[type="file"] {
+  display: block;
+  margin-top: 5px;
+}
+
+/* Стили для ссылок на файлы с иконкой */
+.file-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #115544;
+  font-size: 16px;
+}
+.file-link::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-image: url("@/assets/svg/files.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin-right: 5px;
+}
+
+/* Ввод ответа */
+.answer-input {
+  margin-top: 20px;
+}
+.answer-input label {
+  display: block;
+  margin-bottom: 5px;
+  color: #115544;
+}
+.answer-input input[type="text"] {
+  max-width: 300px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #115544;
+  border-radius: 5px;
+}
+
+/* Стили таблицы для динамического ввода */
+.dynamic-table {
+  overflow-x: auto;
+}
+.dynamic-table table {
+  border-collapse: collapse;
+  margin: 0 auto;
+}
+.dynamic-table td {
+  padding: 5px;
+  border: none;
+}
+.dynamic-table input[type="text"] {
+  width: 80px;
+  max-width: 80px;
+  padding: 4px;
+  text-align: center;
+  border: 1px solid #115544;
+  border-radius: 3px;
+}
+
+/* Кнопки */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  margin-top: 15px;
 }
 .save-btn {
   padding: 8px 16px;
-  background: #4caf50;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.cancel-btn {
-  padding: 8px 16px;
-  background: #f44336;
-  color: white;
+  background: #115544;
+  color: #fff;
   border: none;
   border-radius: 5px;
   cursor: pointer;
@@ -492,5 +486,22 @@ export default {
 .save-btn:disabled {
   background: #aaa;
   cursor: not-allowed;
+}
+.cancel-btn {
+  padding: 8px 16px;
+  background: #f44336;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Дополнительные стили для Quill-кода, если необходимо */
+.ql-editor pre,
+.ql-editor code {
+  max-width: 100%;
+  overflow-x: auto !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
 }
 </style>

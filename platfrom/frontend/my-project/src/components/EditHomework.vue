@@ -5,69 +5,55 @@
 
       <div class="main-content">
         <div class="header">
-          <button @click="cancelEdit" class="back-button">Вернуться</button>
+          <div class="back-arrow" @click="confirmExit"></div>
           <h1 class="edit-title">Редактирование домашнего задания</h1>
         </div>
 
-        <form @submit.prevent="handleSubmit">
-          <!-- Название задания -->
+        <form @submit.prevent="handleSubmit" class="homework-form">
           <div class="form-group">
             <label for="homeworkTitle">Название задания</label>
-            <input type="text" id="homeworkTitle" v-model="homework.description" required />
+            <input
+              type="text"
+              id="homeworkTitle"
+              v-model="homework.title"
+              placeholder="Введите название задания"
+              required
+            />
           </div>
 
-          <!-- Текст задания -->
           <div class="form-group">
-            <label for="homeworkDescription">Текст задания</label>
-            <textarea id="homeworkDescription" v-model="homework.text"></textarea>
+            <label for="homeworkText">Текст задания</label>
+            <div ref="homeworkEditor" class="quill-editor"></div>
           </div>
 
-          <!-- Картинки -->
-          <div class="form-group">
-            <label for="homeworkImages">Картинки</label>
-            <input type="file" id="homeworkImages" @change="handleImageUpload" multiple accept="image/*" />
-
-            <div v-if="homework.images.length">
-              <p>Предпросмотр изображений:</p>
-              <div class="preview-container">
-                <div
-                  v-for="(image, index) in homework.images"
-                  :key="index"
-                  class="image-preview"
-                >
-                  <a :href="image.url || image.preview" target="_blank">
-                    <img :src="image.url || image.preview" alt="Изображение" />
-                  </a>
-                  <button @click="removeImage(index)" type="button" class="remove-btn">❌</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Файлы -->
           <div class="form-group">
             <label for="homeworkFiles">Файлы</label>
-            <input type="file" id="homeworkFiles" @change="handleFileUpload" multiple accept="application/pdf" />
-
+            <input
+              type="file"
+              id="homeworkFiles"
+              @change="handleFileUpload"
+              multiple
+              accept="application/pdf"
+            />
             <div v-if="homework.files.length">
               <p>Прикрепленные файлы:</p>
               <ul>
                 <li v-for="(file, index) in homework.files" :key="index">
-                  <a :href="file.url || file.preview" target="_blank">
-                    {{ file.url ? file.url.split('/').pop() : file.file.name }}
-                  </a>
-                  <button @click="removeFile(index)" type="button" class="remove-btn">
-                    ❌
-                  </button>
+                  {{ file.name || file }}
+                  <button type="button" @click="removeFile(index)">Удалить</button>
                 </li>
               </ul>
             </div>
           </div>
 
-          <!-- Дедлайн -->
           <div class="form-group">
             <label for="homeworkDate">Дедлайн</label>
-            <input type="datetime-local" id="homeworkDate" v-model="homework.date" required />
+            <input
+              type="datetime-local"
+              id="homeworkDate"
+              v-model="homework.date"
+              required
+            />
           </div>
 
           <button type="submit" class="submit-btn">Сохранить изменения</button>
@@ -79,167 +65,150 @@
 
 <script>
 import SideBar from "./SideBar.vue";
-import axios from "axios";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
 
 export default {
+  name: "EditHomeworkPage",
   components: { SideBar },
   data() {
     return {
       homework: {
         id: "",
-        lesson_id: "",
-        description: "",
+        lessonId: "",
+        title: "",
         text: "",
-        images: [],
-        files: [],
         date: "",
+        files: [],
       },
       existingFiles: [],
-      existingImages: [],
+      homeworkEditor: null,
     };
   },
   async created() {
-    const homeworkId = this.$route.params.id;
-    if (homeworkId) {
-      try {
-        await this.fetchHomeworkDetails(homeworkId);
-      } catch (error) {
-        console.error("Ошибка загрузки домашнего задания:", error);
-      }
+  const homeworkId = this.$route.params.id;
+  try {
+    const { data } = await this.$axios.get(`/homework/${homeworkId}`);
+
+    this.homework.id = data.id;
+    this.homework.lessonId = data.lesson_id;
+    this.homework.title = data.description;
+    this.homework.text = data.text;
+    this.homework.date = data.date;
+    this.existingFiles = data.files || [];
+    this.homework.files = [...this.existingFiles];
+
+    // Инициализируем редактор только после загрузки данных
+    if (!this.homeworkEditor) {
+      this.initEditor();
     }
-  },
+  } catch (err) {
+    console.error("Ошибка загрузки ДЗ:", err);
+  }
+},
   methods: {
-    // Функция для получения домашнего задания
-    async fetchHomeworkDetails(homeworkId) {
-      try {
-        const response = await axios.get(`/homework/${homeworkId}`);
-        this.homework = response.data;
-        this.existingFiles = [...this.homework.files];
-        this.existingImages = [...this.homework.images];
-
-        // Преобразуем пути для отображения
-        this.homework.images = this.existingImages.map(image => ({
-          url: `${axios.defaults.baseURL}${image.replace("./", "/").replace(/\\/g, "/")}`,
-          original: image,
-          isLocal: false,
-        }));
-
-        this.homework.files = this.existingFiles.map(file => ({
-          url: `${axios.defaults.baseURL}${file.replace("./", "/").replace(/\\/g, "/")}`,
-          original: file,
-          isLocal: false,
-        }));
-      } catch (error) {
-        console.error("Ошибка получения данных с сервера:", error);
-      }
-    },
-
-    // Обработчик для загрузки изображений
-    handleImageUpload(event) {
-      const files = Array.from(event.target.files);
-      files.forEach(file => {
-        if (file.type.startsWith("image/")) {
-          const reader = new FileReader();
-          reader.onload = e => {
-            this.homework.images.push({
-              file,
-              preview: e.target.result,
-              isLocal: true,
-            });
-          };
-          reader.readAsDataURL(file);
-        } else {
-          alert("Можно загружать только изображения.");
-        }
+    initEditor() {
+      this.$nextTick(() => {
+        const toolbarOptions = [
+          [{ header: "1" }, { header: "2" }],
+          [{ list: "ordered" }, { list: "bullet" }],
+          ["bold", "italic", "underline"],
+          [{ align: [] }],
+          ["link", "image"],
+        ];
+        const editor = new Quill(this.$refs.homeworkEditor, {
+          theme: "snow",
+          modules: {
+            toolbar: {
+              container: toolbarOptions,
+              handlers: {
+                image: this.imageUploadHandler,
+              },
+            },
+          },
+        });
+        editor.root.innerHTML = this.homework.text || "";
+        editor.on("text-change", () => {
+          this.homework.text = editor.root.innerHTML;
+        });
+        this.homeworkEditor = editor;
       });
     },
+    async imageUploadHandler() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.click();
+      input.onchange = async () => {
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append("image", file);
+        try {
+          const res = await this.$axios.post("/upload_temp_image", formData);
 
-    // Обработчик для удаления изображений
-    removeImage(index) {
-      const image = this.homework.images[index];
-      if (!image.isLocal) {
-        this.existingImages = this.existingImages.filter(img => img !== image.original);
-      }
-      this.homework.images.splice(index, 1);
-      console.log("Изображение удалено локально (отложенное удаление).");
+          const imageUrl = res.data.image_url;
+          const range = this.homeworkEditor.getSelection();
+          this.homeworkEditor.clipboard.dangerouslyPasteHTML(
+            range.index,
+            `<img src="${imageUrl}" alt="img"/>`
+          );
+        } catch (err) {
+          alert("Ошибка загрузки изображения");
+        }
+      };
     },
-
-    // Обработчик для загрузки файлов
     handleFileUpload(event) {
       const files = Array.from(event.target.files);
       files.forEach(file => {
         if (file.type === "application/pdf") {
-          this.homework.files.push({
-            file,
-            preview: URL.createObjectURL(file),
-            isLocal: true,
-          });
+          this.homework.files.push(file);
         } else {
-          alert("Можно загружать только PDF.");
+          alert("Только PDF файлы.");
         }
       });
     },
-
-    // Обработчик для удаления файлов
     removeFile(index) {
-      const file = this.homework.files[index];
-      if (!file.isLocal) {
-        this.existingFiles = this.existingFiles.filter(f => f !== file.original);
-      }
       this.homework.files.splice(index, 1);
-      console.log("Файл удален локально (отложенное удаление).");
     },
-
-    // Отправка данных на сервер
+    confirmExit() {
+      if (confirm("Вы уверены, что хотите выйти без сохранения?")) {
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+      }
+    },
     async handleSubmit() {
       const formData = new FormData();
-      formData.append("lesson_id", this.homework.lesson_id);
-      formData.append("description", this.homework.description);
+      formData.append("lesson_id", this.homework.lessonId);
+      formData.append("description", this.homework.title);
       formData.append("text", this.homework.text);
       formData.append("date", this.homework.date);
-
-      // Передача существующих файлов и изображений
       formData.append("existing_files", JSON.stringify(this.existingFiles));
-      formData.append("existing_images", JSON.stringify(this.existingImages));
 
-      // Добавление новых изображений и файлов
       this.homework.files.forEach(file => {
-        if (file.isLocal) {
-          formData.append("files", file.file);
-        }
-      });
-
-      this.homework.images.forEach(image => {
-        if (image.isLocal) {
-          formData.append("images", image.file);
+        if (typeof file !== "string") {
+          formData.append("files", file);
         }
       });
 
       try {
-        await axios.put(`/homeworks/${this.homework.id}`, formData, {
+        await this.$axios.put(`/homeworks/${this.homework.id}`, formData, {
+
           headers: { "Content-Type": "multipart/form-data" },
         });
-        this.$router.push(`/lesson/${this.homework.lesson_id}/details`);
-      } catch (error) {
-        console.error("Ошибка при сохранении домашнего задания:", error);
+        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+      } catch (err) {
+        console.error("Ошибка при сохранении ДЗ:", err);
+        alert("Ошибка при сохранении");
       }
-    },
-
-    cancelEdit() {
-      this.$router.push(`/lesson/${this.homework.lesson_id}/details`);
     },
   },
 };
 </script>
 
-
 <style scoped>
-/* Стили остаются без изменений */
 .edit-homework-page {
   display: flex;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
   background-color: #f3f3f3;
   width: 100%;
 }
@@ -256,39 +225,32 @@ export default {
   background-color: #ffffff;
   border-radius: 8px;
   padding: 20px;
-  max-width: 100%;
   box-sizing: border-box;
   position: relative;
 }
-/* Кнопка удаления для изображений – позиционируется поверх, без фонового цвета */
-.remove-btn {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  background: transparent; /* без заливки */
-  color: red;             /* красный символ крестика */
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 0;
-  line-height: 1;
-}
 .header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  position: relative;
 }
-.back-button {
-  background-color: #ff4444;
-  color: white;
-  padding: 8px 12px;
-  border-radius: 4px;
+.back-arrow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background-color: #115544;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
 .edit-title {
-  color: #4CAF50;
+  flex: 1;
+  text-align: center;
   font-size: 24px;
+  color: #115544;
+  font-weight: 500;
   margin: 0;
 }
 .form-group {
@@ -301,7 +263,7 @@ export default {
   color: #333;
 }
 .form-group input,
-.form-group textarea {
+.quill-editor {
   width: 100%;
   padding: 10px;
   font-size: 14px;
@@ -309,27 +271,8 @@ export default {
   border-radius: 5px;
   box-sizing: border-box;
 }
-.form-group textarea {
-  resize: vertical;
-  min-height: 120px;
-}
-.preview-container {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.image-preview {
-  position: relative; /* Чтобы позиционировать кнопку относительно картинки */
-  width: 100px;
-  height: 100px;
-  overflow: hidden;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-}
-.image-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.quill-editor {
+  min-height: 200px;
 }
 .submit-btn {
   padding: 10px 20px;
@@ -338,7 +281,6 @@ export default {
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  position: absolute;
   right: 20px;
   bottom: 20px;
 }

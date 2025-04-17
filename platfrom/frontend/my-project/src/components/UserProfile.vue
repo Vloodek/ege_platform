@@ -42,7 +42,6 @@
 </template>
 
 <script>
-import axios from "axios";
 import SideBar from "@/components/SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
 
@@ -77,7 +76,7 @@ export default {
           name: userData.name || "",
           email: userData.email || "",
           role: userData.role || "student",
-          group_name: userData.group_name || "Нет группы",  // Группа всегда берется из localStorage
+          group_name: userData.group_name || "Нет группы",
           group_id: userData.group_id || null,
         };
       } catch (error) {
@@ -99,7 +98,7 @@ export default {
       }
 
       try {
-        const response = await axios.post(
+        const response = await this.$axios.post(
           `/groups/join/${this.joinGroupCode}`,
           { user_id: this.user.userId }
         );

@@ -47,7 +47,7 @@
 
 <script>
 import BaseButton from "@/components/UI/BaseButton.vue";
-import axios from "axios";
+
 
 export default {
   components: { BaseButton },
@@ -68,8 +68,8 @@ export default {
   mounted() {
     // Получаем homeworkId по lesson_id из URL
     const lessonId = this.$route.params.id;
-    axios
-      .get(`http://localhost:8000/homeworks/by_lesson/${lessonId}/id`)
+    this.$axios.get(`/homeworks/by_lesson/${lessonId}/id`)
+
       .then((response) => {
         this.homeworkId = response.data.id;
       })
@@ -144,11 +144,13 @@ export default {
       try {
         let response;
         if (this.submission) {
-          response = await axios.put(`http://localhost:8000/update_submission/${this.submission.id}`, formData, {
+          response = await this.$axios.put(`/update_submission/${this.submission.id}`, formData, {
+
             headers: { "Content-Type": "multipart/form-data" },
           });
         } else {
-          response = await axios.post("http://localhost:8000/submit_homework", formData, {
+          response = await this.$axios.post("/submit_homework", formData, {
+
             headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` },
           });
         }
@@ -176,7 +178,8 @@ export default {
       this.uploadedFiles.splice(index, 1);
     },
     getFileUrl(file) {
-      return file ? `http://localhost:8000/${file.replace(/\\/g, "/")}` : "";
+      return file ? `${file.replace(/\\/g, "/")}` : "";
+
     },
     getFileName(file) {
       return file ? file.split("/").pop() : "";
@@ -197,17 +200,20 @@ export default {
   justify-content: center;
   align-items: center;
 }
+
 .modal-content {
   background: white;
   padding: 20px;
   border-radius: 10px;
   width: 500px;
 }
+
 .modal-actions {
   display: flex;
   justify-content: space-between;
   margin-top: 20px;
 }
+
 .file-drop-zone {
   border: 2px dashed #1e9275;
   padding: 20px;
@@ -215,19 +221,25 @@ export default {
   cursor: pointer;
   border-radius: 5px;
 }
+
 .file-drop-zone:hover {
   background: rgba(30, 146, 117, 0.1);
 }
-h2, h3 {
+
+h2,
+h3 {
   color: #1e9275;
   font-weight: normal;
 }
+
 textarea {
-  width: 100%;
+  width: 95%;
   min-height: 100px;
   margin-top: 10px;
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 5px;
+  resize: vertical;
+
 }
 </style>

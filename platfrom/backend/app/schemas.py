@@ -156,6 +156,7 @@ class ExamTaskResponse(BaseModel):
     task_number: int
     description: str
     answer_format: str
+    solution_text: Optional[str] 
     correct_answer: Optional[str]
     created_at: datetime
     updated_at: datetime
@@ -170,4 +171,5 @@ class ExamTaskCountByTypeResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
 

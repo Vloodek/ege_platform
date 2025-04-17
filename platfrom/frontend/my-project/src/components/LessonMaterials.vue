@@ -13,15 +13,19 @@
             <h1 class="lesson-title centered">{{ lesson.name }}</h1>
           </div>
 
-          <!-- Описание занятия -->
-          <div v-if="lesson.text" class="lesson-description">
-            <p>{{ lesson.text }}</p>
-          </div>
+          <!-- Отображение отформатированного текста занятия -->
+          <div v-if="lesson.text" class="lesson-description ql-editor" v-html="lesson.text"></div>
 
           <!-- Отображение изображений -->
           <div v-if="images.length" class="images-container">
             <div class="images">
-              <img v-for="image in images" :src="image" :alt="lesson.name" :key="image" @click="openImage(image)" />
+              <img
+                v-for="image in images"
+                :src="image"
+                :alt="lesson.name"
+                :key="image"
+                @click="openImage(image)"
+              />
             </div>
           </div>
 
@@ -45,11 +49,7 @@
   </div>
 </template>
 
-
-
-
 <script>
-import axios from "axios";
 import SideBar from "./SideBar.vue";
 
 export default {
@@ -66,6 +66,12 @@ export default {
   created() {
     this.fetchLesson();
   },
+  updated() {
+    // После обновления DOM применяем стили к изображениям внутри Quill-редактора
+    this.$nextTick(() => {
+      this.applyImageStyles();
+    });
+  },
   methods: {
     goBack() {
       this.$router.go(-1);
@@ -73,32 +79,25 @@ export default {
     async fetchLesson() {
       const lessonId = this.$route.params.id;
       try {
-        const response = await axios.get(`/lessons/${lessonId}`);
-        this.lesson = response.data;
+        const { data } = await this.$axios.get(`/lessons/${lessonId}`);
+        this.lesson = data;
         console.log("Ответ от сервера:", this.lesson);
-        console.log("Изображения из ответа:", this.lesson.image_links);
-        console.log("Файлы из ответа:", this.lesson.files);
-
         this.processMaterials();
       } catch (error) {
         console.error("Ошибка загрузки материалов", error);
       }
     },
-
     processMaterials() {
-      const baseUrl = "http://localhost:8000"; // Базовый URL сервера
-
-      console.log("Обработка изображений и файлов:", this.lesson);
+      const baseUrl = this.$axios.defaults.baseURL.replace(/\/$/, "");
 
       // Обработка изображений
       if (this.lesson.image_links && this.lesson.image_links.length > 0) {
         const allImages = Array.isArray(this.lesson.image_links)
           ? this.lesson.image_links
           : this.lesson.image_links.split(",");
-        console.log("Обработанные пути изображений:", allImages);
         this.images = allImages.map((image) => {
-          image = image.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
-          return `${baseUrl}/${image}`; // Формируем полный URL
+          image = image.replace(/\\/g, "/");
+          return `${baseUrl}/${image}`;
         });
       } else {
         console.log("Изображения отсутствуют.");
@@ -109,45 +108,45 @@ export default {
         const allFiles = Array.isArray(this.lesson.files)
           ? this.lesson.files
           : this.lesson.files.split(",");
-        console.log("Обработанные пути файлов:", allFiles);
         this.files = allFiles.map((file) => {
-          file = file.replace(/\\/g, "/"); // Заменяем обратные слэши на прямые
-          return `${baseUrl}/${file}`; // Формируем полный URL
+          file = file.replace(/\\/g, "/");
+          return `${baseUrl}/${file}`;
         });
       } else {
         console.log("Файлы отсутствуют.");
       }
     },
-
     getFileName(file) {
       const lastIndex = file.lastIndexOf("/");
       return file.slice(lastIndex + 1);
     },
-
     openImage(imageUrl) {
       window.open(imageUrl, "_blank");
     },
-
     downloadFile(fileUrl) {
       const link = document.createElement("a");
       link.href = fileUrl;
       link.download = this.getFileName(fileUrl);
       link.click();
     },
-
-    completeHomework() {
-      this.$router.push(`/homework/${this.lesson.id}`);
+    applyImageStyles() {
+      // Применяем стили к изображениям внутри контейнера Quill (например, для lesson.text)
+      document.querySelectorAll('.ql-editor img').forEach(img => {
+        // Задаём фиксированную максимальную ширину, чтобы огромные изображения не растягивали блок
+        img.style.maxWidth = '300px';
+        // Если необходимо, можно задать и width: auto;
+        img.style.width = 'auto';
+        img.style.height = 'auto';
+        img.style.objectFit = 'contain';
+        img.style.display = 'block';
+        img.style.margin = '10px auto';
+      });
     },
   },
 };
 </script>
 
-
 <style scoped>
-#materials-page {
-  padding: 20px;
-}
-
 .container {
   display: flex;
   width: 100%;
@@ -155,12 +154,7 @@ export default {
   margin: 0 auto;
   padding: 20px;
 }
-.lesson-description {
-  margin: 20px 0;
-  font-size: 16px;
-  line-height: 1.6;
-  color: #333;
-}
+
 .main-content {
   flex: 1;
   background-color: #fff;
@@ -193,10 +187,18 @@ export default {
   font-size: 24px;
   color: #115544;
   font-weight: 500;
-  text-align: center; /* Центрируем заголовок */
+  text-align: center;
   margin: 0;
 }
 
+.lesson-description {
+  margin: 20px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
+}
+
+/* Стили для изображений */
 .images-container {
   margin-top: 20px;
   text-align: center;
@@ -213,61 +215,44 @@ export default {
 .images img:hover {
   transform: scale(1.5);
 }
+
+/* Стили для файлов */
 .files-section ul {
-  list-style: none; /* Убираем маркеры списка */
+  list-style: none;
   padding: 0;
   margin: 20px 0 0;
 }
+
 .files-section ul li {
-  display: flex; /* Включаем Flexbox */
-  align-items: center; /* Центрируем содержимое по вертикали */
+  display: flex;
+  align-items: center;
   margin-bottom: 10px;
 }
 
 .files-section ul li a {
-  display: flex; /* Включаем Flexbox для ссылки */
-  align-items: center; /* Центрируем содержимое по вертикали */
-  text-decoration: none; /* Убираем подчеркивание ссылки */
-  color: inherit; /* Используем цвет по умолчанию */
-  font-size: 16px; /* Настраиваем размер текста */
-}
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-
-ul li {
-  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+  font-size: 16px;
 }
 
 .file-icon {
   width: 42px;
   height: 42px;
-  margin-right: 10px; /* Расстояние между иконкой и текстом */
-  flex-shrink: 0; /* Иконка не сжимается */
-}
-.right-column {
-  margin-top: 20px;
-  text-align: right;
+  margin-right: 10px;
+  flex-shrink: 0;
 }
 
-.lesson-button {
-  padding: 10px;
-  font-size: 16px;
-  border: 2px solid #115544;
-  border-radius: 20px;
-  cursor: pointer;
-  text-align: center;
-  height: 54px;
-  font-weight: 300;
-}
-
-.lesson-button.green {
-  background-color: #115544;
-  color: #fff;
-}
-
-.lesson-button:hover {
-  opacity: 0.8;
+/* Стили Quill для изображений внутри отформатированного текста */
+.ql-editor img {
+  /* Эти стили могут быть изменены через JS (см. applyImageStyles) или прописаны здесь */
+  /* Мы убираем фиксированный процент и задаём максимальную ширину */
+  max-width: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 10px auto !important;
 }
 </style>

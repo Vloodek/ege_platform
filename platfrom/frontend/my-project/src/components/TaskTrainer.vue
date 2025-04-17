@@ -14,52 +14,53 @@
 
         <!-- Пронумерованный список типов заданий -->
         <ol class="task-list">
-  <li
-    v-for="(task, index) in examTasks"
-    :key="task.id"
-    @click="openTaskDetail(task)"
-    :class="{ active: selectedTask && selectedTask.id === task.id }"
-  >
-    <span class="task-info">
-      {{ index + 1 }}. {{ task.name }}
-    </span>
-    <span class="task-count">
-      <!-- Проверка, существует ли в объекте taskCounts значение для task.id -->
-      {{ taskCounts && taskCounts[task.id] !== undefined ? taskCounts[task.id] : 0 }} шт.
-    </span> 
-  </li>
-</ol>
+          <li
+            v-for="(task, index) in examTasks"
+            :key="task.id"
+            @click="openTaskDetail(task)"
+            :class="{ active: selectedTask?.id === task.id }"
+          >
+            <span class="task-info">
+              {{ index + 1 }}. {{ task.name }}
+            </span>
+            <span class="task-count">
+              {{ taskCounts[task.id] ?? 0 }} шт.
+            </span>
+          </li>
+        </ol>
 
         <!-- Панель действий внизу -->
         <div class="action-buttons">
-          <!-- Кнопка для случайного варианта -->
+          <!-- Всегда видна -->
           <button class="random-btn" @click="randomVariant">
             Случайный вариант
           </button>
-          <!-- Кнопка плюс для добавления нового задания -->
-          <div class="add-task-btn" @click="openAddTaskModal">
+
+          <!-- Только для учителя -->
+          <div
+            v-if="isTeacher"
+            class="add-task-btn"
+            @click="openAddTaskModal"
+          >
             <span class="plus-icon">+</span>
           </div>
         </div>
       </main>
     </div>
 
-    <!-- Модальное окно для добавления нового задания -->
-     
+    <!-- Модальное окно для добавления нового задания — только для учителя -->
     <AddTrainTaskModal
-  v-if="showAddTaskModal"
-  :visible="showAddTaskModal"
-  @close="closeAddTaskModal"
-  @success="handleAddTaskSuccess"
-/>
-
+      v-if="showAddTaskModal && isTeacher"
+      :visible="showAddTaskModal"
+      @close="closeAddTaskModal"
+      @success="handleAddTaskSuccess"
+    />
   </div>
 </template>
 
 <script>
-import SideBar from "../components/SideBar.vue";
-import AddTrainTaskModal from "../components/teacher/AddTrainTaskModal.vue";
-import axios from "axios";
+import SideBar from "@/components/SideBar.vue";
+import AddTrainTaskModal from "@/components/teacher/AddTrainTaskModal.vue";
 
 export default {
   name: "TaskBank",
@@ -67,18 +68,19 @@ export default {
     SideBar,
     AddTrainTaskModal,
   },
+
   data() {
     return {
       examTasks: [
-        { id: 1, name: "Анализ информационных моделей" },
-        { id: 2, name: "Построение таблиц истинности логических выражений" },
-        { id: 3, name: "Поиск информации в реляционных базах данных" },
-        { id: 4, name: "Кодирование и декодирование информации" },
-        { id: 5, name: "Анализ и построение алгоритмов для исполнителей" },
-        { id: 6, name: "Определение результатов работы простейших алгоритмов" },
-        { id: 7, name: "Кодирование и декодирование информации. Передача информации" },
-        { id: 8, name: "Перебор слов и системы счисления" },
-        { id: 9, name: "Работа с таблицами" },
+        { id: 1,  name: "Анализ информационных моделей" },
+        { id: 2,  name: "Построение таблиц истинности логических выражений" },
+        { id: 3,  name: "Поиск информации в реляционных базах данных" },
+        { id: 4,  name: "Кодирование и декодирование информации" },
+        { id: 5,  name: "Анализ и построение алгоритмов для исполнителей" },
+        { id: 6,  name: "Определение результатов работы простейших алгоритмов" },
+        { id: 7,  name: "Кодирование и декодирование информации. Передача информации" },
+        { id: 8,  name: "Перебор слов и системы счисления" },
+        { id: 9,  name: "Работа с таблицами" },
         { id: 10, name: "Поиск символов в текстовом редакторе" },
         { id: 11, name: "Вычисление количества информации" },
         { id: 12, name: "Выполнение алгоритмов для исполнителей" },
@@ -100,31 +102,42 @@ export default {
       ],
       selectedTask: null,
       showAddTaskModal: false,
-      taskCounts: {}, // объект вида { task_id: count }
+      taskCounts: {},
     };
   },
+
+  computed: {
+    isTeacher() {
+      try {
+        const user = JSON.parse(localStorage.getItem("user"));
+        return user?.role === "teacher";
+      } catch {
+        return false;
+      }
+    },
+  },
+
   async created() {
     await this.fetchExamTaskCounts();
   },
+
   methods: {
     async fetchExamTaskCounts() {
       try {
-        const response = await axios.get("/exam_tasks/count_by_type");
-        const taskCounts = response.data.counts || {};
-        this.taskCounts = taskCounts;
-
-        this.examTasks = this.examTasks.map(task => {
-          const count = taskCounts[task.id];
-          return { ...task, count: count !== undefined ? count : 0 };
-        });
+        const { data } = await this.$axios.get("/exam_tasks/count_by_type");
+        this.taskCounts = data.counts || {};
       } catch (error) {
         console.error("Ошибка загрузки количества заданий:", error);
-        this.examTasks = this.examTasks.map(task => ({ ...task, count: 0 }));
+        // Инициализируем нулями
+        this.taskCounts = this.examTasks.reduce((acc, t) => {
+          acc[t.id] = 0;
+          return acc;
+        }, {});
       }
     },
 
     openTaskDetail(task) {
-      if (!task.count || task.count === 0) return;
+      if (!this.taskCounts[task.id]) return;
       this.selectedTask = task;
       this.$router.push({
         name: "task-detail",
@@ -133,68 +146,49 @@ export default {
       });
     },
 
-    async openAddTaskModal() {
+    openAddTaskModal() {
       this.showAddTaskModal = true;
-      await this.$nextTick();  // Убедитесь, что весь DOM обновился перед открытием
     },
-
     closeAddTaskModal() {
       this.showAddTaskModal = false;
     },
-
     handleAddTaskSuccess(message) {
       alert(message);
       this.closeAddTaskModal();
+      this.fetchExamTaskCounts();
     },
 
     async randomVariant() {
-  try {
-    const user = JSON.parse(localStorage.getItem("user"));
-    if (!user || !user.userId) {
-      throw new Error("Пользователь не авторизован");
-    }
+      try {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        if (!user.userId) throw new Error("Неавторизованный пользователь");
 
-    const formData = new FormData();
-formData.append("test_type", "train"); // ← Должно быть до запроса
-formData.append("user_id", user.userId);
+        const formData = new FormData();
+        formData.append("test_type", "train");
+        formData.append("user_id", user.userId);
 
-// Проверка перед отправкой
-for (let pair of formData.entries()) {
-  console.log(pair[0]+ ': ' + pair[1]);
-}
-
-const response = await axios.post("/testing/start", formData);
-
-    const sessionId = response.data.session_id;
-
-    this.$router.push({
-  name: "test-session",
-  params: { id: sessionId },
-  query: { test_type: "train" }  // Теперь имя соответствует
-});
-
-
-  } catch (error) {
-    console.error("Ошибка при запуске теста:", error.response?.data || error);
-    alert("Не удалось запустить случайный вариант.");
-  }
-}
-
-,
+        const { data } = await this.$axios.post("/testing/start", formData);
+        this.$router.push({
+          name: "test-session",
+          params: { id: data.session_id },
+          query: { test_type: "train" },
+        });
+      } catch (error) {
+        console.error("Ошибка при запуске теста:", error);
+        alert("Не удалось запустить случайный вариант.");
+      }
+    },
   },
 };
 </script>
 
-
 <style scoped>
-/* Общий контейнер, аналогично исходному примеру */
 #day-plan {
   display: flex;
   min-height: 100vh;
   background-color: #f5f5f5;
 }
 
-/* Контейнер для сайдбара и основного контента */
 .container {
   display: flex;
   width: 100%;
@@ -203,7 +197,6 @@ const response = await axios.post("/testing/start", formData);
   padding: 20px;
 }
 
-/* Основной контент */
 .main-content {
   flex: 1;
   background-color: #fff;
@@ -214,7 +207,6 @@ const response = await axios.post("/testing/start", formData);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-/* Заголовок страницы */
 h2 {
   font-size: 28px;
   text-align: center;
@@ -222,7 +214,6 @@ h2 {
   margin-bottom: 20px;
 }
 
-/* Подзаголовок "Банк заданий", выровненный слева */
 .subheader {
   font-size: 20px;
   color: #115544;
@@ -231,7 +222,6 @@ h2 {
   border-left: 3px solid #115544;
 }
 
-/* Стили для нумерованного списка заданий */
 .task-list {
   list-style-type: decimal;
   padding-left: 40px;
@@ -255,7 +245,6 @@ h2 {
   border: 2px solid #1e9275;
 }
 
-/* Подсветка выбранного элемента */
 .task-list li.active {
   background-color: #d0f0e8;
 }
@@ -275,14 +264,12 @@ h2 {
   margin-left: 10px;
 }
 
-/* Контейнер для кнопок внизу страницы */
 .action-buttons {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-/* Стили для кнопки "Случайный вариант" */
 .random-btn {
   padding: 10px 20px;
   background-color: #115544;
@@ -297,7 +284,6 @@ h2 {
   background-color: #1e9275;
 }
 
-/* Кнопка для добавления нового задания (иконка плюс) */
 .add-task-btn {
   width: 50px;
   height: 50px;

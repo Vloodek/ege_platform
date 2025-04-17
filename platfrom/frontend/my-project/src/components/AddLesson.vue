@@ -7,7 +7,9 @@
         <h2 class="page-title">Добавление урока</h2>
 
         <form @submit.prevent="handleSubmit" class="lesson-form">
+          <!-- Информация об уроке -->
           <div class="lesson-info">
+            <!-- Название урока -->
             <div class="form-group">
               <label for="lessonTitle">Название урока</label>
               <input
@@ -19,6 +21,7 @@
               />
             </div>
 
+            <!-- Описание урока обычным текстовым полем -->
             <div class="form-group">
               <label for="lessonDescription">Описание урока</label>
               <textarea
@@ -29,18 +32,22 @@
               ></textarea>
             </div>
 
-            <!-- Выбор типа видео -->
-            <div class="form-group">
+            <!-- Переключатель типа видео -->
+            <div class="form-group toggle-group">
               <label>Тип видео</label>
-              <div>
-                <label>
-                  <input type="radio" value="video" v-model="lesson.videoType" />
+              <div class="toggle-container" @click="toggleVideoType">
+                <div
+                  class="toggle-option"
+                  :class="{ active: lesson.videoType === 'video' }"
+                >
                   Видео
-                </label>
-                <label>
-                  <input type="radio" value="stream" v-model="lesson.videoType" />
+                </div>
+                <div
+                  class="toggle-option"
+                  :class="{ active: lesson.videoType === 'stream' }"
+                >
                   Стрим
-                </label>
+                </div>
               </div>
             </div>
 
@@ -54,7 +61,9 @@
                 placeholder="Введите ссылку на видео"
                 @blur="validateVideoLink"
               />
-              <p v-if="videoLinkError" class="error-text">Пожалуйста, введите корректную ссылку на видео.</p>
+              <p v-if="videoLinkError" class="error-text">
+                Пожалуйста, введите корректную ссылку на видео.
+              </p>
             </div>
 
             <!-- Если выбран тип Стрим -->
@@ -64,22 +73,21 @@
                 id="iframeEmbed"
                 v-model="lesson.iframeEmbed"
                 placeholder="Вставьте HTML-код iframe стрима"
-                required
+
               ></textarea>
             </div>
           </div>
 
+          <!-- Материалы к занятию -->
           <div class="lesson-materials">
             <h3>Материалы к занятию</h3>
+            <!-- Текст занятия через Quill -->
             <div class="form-group">
               <label for="lessonText">Текст занятия</label>
-              <textarea
-                id="lessonText"
-                v-model="lesson.text"
-                placeholder="Введите текст занятия"
-              ></textarea>
+              <div ref="textEditor" class="quill-editor"></div>
             </div>
 
+            <!-- Загрузка файлов (с drag’n’drop) -->
             <div class="form-group">
               <label for="lessonFiles">Загрузить файлы</label>
               <div
@@ -87,42 +95,39 @@
                 @drop.prevent="handleDrop"
                 @dragover.prevent
                 @dragenter.prevent
+                @click="$refs.lessonFileInput.click()"
               >
                 <input
                   type="file"
                   id="lessonFiles"
                   @change="handleFileUpload"
                   multiple
-                  style="display: none;"
+                  ref="lessonFileInput"
+                  class="hidden-input"
                 />
-                <p>Перетащите файлы сюда или выберите</p>
+                <p>Перетащите файлы сюда или нажмите для выбора</p>
               </div>
             </div>
-            <small class="helper-text">Поддерживаемые форматы: любые файлы</small>
+            <small class="helper-text">
+              Поддерживаемые форматы: любые файлы
+            </small>
 
-            <div class="uploaded-images">
-              <h4>Загруженные изображения</h4>
-              <div v-if="lesson.images.length > 0" class="images-preview">
-                <div v-for="(image, index) in lesson.images" :key="index" class="image-preview">
-                  <img :src="image.preview" alt="Загруженное изображение" @click="openImage(image.preview)" />
-                  <button type="button" class="delete-btn" @click="removeImage(index)">&times;</button>
-                </div>
-              </div>
-              <p v-else>Нет загруженных изображений.</p>
-            </div>
-
+            <!-- Превью прикрепленных файлов -->
             <div class="uploaded-files">
               <h4>Загруженные файлы</h4>
               <ul>
                 <li v-for="(file, index) in lesson.files" :key="index">
                   {{ file.name }}
-                  <button type="button" @click="removeFile(index)">Удалить</button>
+                  <button type="button" @click="removeFile(index)">
+                    Удалить
+                  </button>
                 </li>
               </ul>
               <p v-if="lesson.files.length === 0">Нет загруженных файлов.</p>
             </div>
           </div>
 
+          <!-- Дата занятия и группа -->
           <div class="form-group">
             <label for="lessonDate">Дата занятия</label>
             <input
@@ -134,9 +139,18 @@
           </div>
           <div class="form-group">
             <label for="groupSelect">Выберите группу</label>
-            <select id="groupSelect" v-model="lesson.group_id" required @focus="fetchGroups">
+            <select
+              id="groupSelect"
+              v-model="lesson.group_id"
+              required
+              @focus="fetchGroups"
+            >
               <option v-if="!groupsLoaded" disabled>Загрузка...</option>
-              <option v-for="group in groups" :key="group.id" :value="group.id">
+              <option
+                v-for="group in groups"
+                :key="group.id"
+                :value="group.id"
+              >
                 {{ group.name }}
               </option>
             </select>
@@ -145,6 +159,7 @@
           <button type="submit" class="submit-btn">Добавить урок</button>
         </form>
 
+        <!-- Полноразмерное изображение -->
         <div v-if="fullImage" class="full-image-modal" @click="closeImage">
           <img :src="fullImage" alt="Полноразмерное изображение" />
         </div>
@@ -155,20 +170,18 @@
 
 <script>
 import SideBar from "../components/SideBar.vue";
-import axios from "axios";
+import Quill from "quill";
+import "quill/dist/quill.snow.css";
 
 export default {
-  components: {
-    SideBar,
-  },
+  name: "AddLessonPage",
+  components: { SideBar },
   data() {
     return {
       lesson: {
         name: "",
         description: "",
-        // Для обычного видео – ссылка; для стрима – iframe-код
         videoLink: "",
-        // Дополнительное поле для iframe-кода стрима
         iframeEmbed: "",
         videoType: "video", // "video" или "stream"
         text: "",
@@ -181,12 +194,16 @@ export default {
       groupsLoaded: false,
       videoLinkError: false,
       fullImage: null,
+      // Ссылки на Quill-редакторы для текста занятия (описание урока остаётся обычным полем)
+      textEditor: null,
     };
   },
   methods: {
+    // Файловые операции
     handleFileUpload(event) {
       const files = Array.from(event.target.files);
       files.forEach((file) => {
+        // Если изображение, сохраняем его для возможного предпросмотра (вы можете убрать, если не нужно)
         if (file.type.startsWith("image/")) {
           const reader = new FileReader();
           reader.onload = (e) => {
@@ -218,24 +235,29 @@ export default {
         }
       });
     },
+    removeFile(index) {
+      this.lesson.files.splice(index, 1);
+    },
+    removeImage(index) {
+      this.lesson.images.splice(index, 1);
+    },
+    openImage(preview) {
+      this.fullImage = preview;
+    },
+    closeImage() {
+      this.fullImage = null;
+    },
     async fetchGroups() {
       if (this.groupsLoaded) return;
       try {
-        const response = await axios.get("http://localhost:8000/groups/");
+        const response = await this.$axios.get("/groups/");
         this.groups = response.data;
         this.groupsLoaded = true;
       } catch (error) {
         console.error("Ошибка при загрузке групп", error);
       }
     },
-    removeImage(index) {
-      this.lesson.images.splice(index, 1);
-    },
-    removeFile(index) {
-      this.lesson.files.splice(index, 1);
-    },
     validateVideoLink() {
-      // Простейшая валидация ссылки (будет применяться для типа "video")
       if (this.lesson.videoType === "video") {
         const regex = /https?:\/\/.*/;
         this.videoLinkError = !regex.test(this.lesson.videoLink);
@@ -243,12 +265,15 @@ export default {
         this.videoLinkError = false;
       }
     },
+    // Красивый тоггл для типа видео
+    toggleVideoType() {
+      this.lesson.videoType =
+        this.lesson.videoType === "video" ? "stream" : "video";
+    },
     handleSubmit() {
-      // Если выбран тип "stream", отправляем iframe-код вместо обычной ссылки
       if (this.lesson.videoType === "stream") {
         this.lesson.videoLink = this.lesson.iframeEmbed;
       }
-      
       const formData = new FormData();
       formData.append("name", this.lesson.name);
       formData.append("description", this.lesson.description);
@@ -257,19 +282,20 @@ export default {
       formData.append("date", this.lesson.date);
       formData.append("group_id", this.lesson.group_id);
 
-      this.lesson.images.forEach((imageObj) => {
-        formData.append("images", imageObj.file);
+      this.lesson.images.forEach((imgObj) => {
+        formData.append("images", imgObj.file);
       });
       this.lesson.files.forEach((file) => {
         formData.append("files", file);
       });
 
-      axios
-        .post("http://localhost:8000/lessons/", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        })
+      this.$axios
+  .post("/lessons/", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  })
+
         .then((response) => {
           console.log("Урок успешно добавлен", response.data);
           this.$router.push("/day-plan");
@@ -278,20 +304,104 @@ export default {
           console.error("Ошибка при добавлении урока", error);
         });
     },
-    openImage(preview) {
-      this.fullImage = preview;
+
+    // Инициализация Quill-редактора для текста занятия
+    initEditors() {
+      this.$nextTick(() => {
+        const textEl = this.$refs.textEditor;
+        if (!textEl) {
+          console.error("Не найден элемент для Quill-редактора");
+          return;
+        }
+        // Опции тулбара без смены шрифта
+        const toolbarOptions = [
+          [{ header: "1" }, { header: "2" }],
+          [{ list: "ordered" }, { list: "bullet" }],
+          ["bold", "italic", "underline"],
+          [{ align: [] }],
+          ["link", "image"]
+        ];
+        const self = this;
+        const customImageHandler = async function () {
+          const quill = this.quill;
+          if (!quill) return;
+          const input = document.createElement("input");
+          input.setAttribute("type", "file");
+          input.setAttribute("accept", "image/*");
+          input.click();
+          input.onchange = async () => {
+            const file = input.files[0];
+            if (file) {
+              await self.uploadAndInsertImage(quill, file);
+            }
+          };
+        };
+
+        this.textEditor = new Quill(textEl, {
+          theme: "snow",
+          modules: {
+            toolbar: {
+              container: toolbarOptions,
+              handlers: { image: customImageHandler }
+            }
+          }
+        });
+
+        this.textEditor.root.addEventListener("paste", (e) => {
+          this.handlePaste(e, this.textEditor);
+        });
+
+        this.textEditor.on("text-change", () => {
+          this.lesson.text = this.textEditor.root.innerHTML;
+        });
+      });
     },
-    closeImage() {
-      this.fullImage = null;
+    async uploadAndInsertImage(quill, file) {
+      const formData = new FormData();
+      formData.append("image", file);
+      try {
+        const response =  await this.$axios.post("/upload_temp_image", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        const imageUrl = response.data.image_url;
+        const range = quill.getSelection();
+        if (range) {
+          const imgHtml = `<img src="${imageUrl}" alt="${file.name}" />`;
+          quill.clipboard.dangerouslyPasteHTML(range.index, imgHtml);
+        }
+      } catch (error) {
+        console.error("Ошибка загрузки изображения:", error);
+        alert("Ошибка загрузки изображения");
+      }
     },
+    handlePaste(e, quill) {
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+      const items = clipboardData.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf("image") !== -1) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) {
+            this.uploadAndInsertImage(quill, file);
+          }
+        }
+      }
+    }
   },
   mounted() {
+    this.initEditors();
     this.fetchGroups();
-  },
+  }
 };
 </script>
 
 <style scoped>
+/* Общий стиль страницы */
 .add-lesson-page {
   display: flex;
   max-width: 1200px;
@@ -370,7 +480,7 @@ export default {
 
 .submit-btn {
   padding: 10px 20px;
-  background-color: #4caf50;
+  background-color: #115544;
   color: white;
   border: none;
   border-radius: 5px;
@@ -379,75 +489,27 @@ export default {
 }
 
 .submit-btn:hover {
-  background-color: #45a049;
+  background-color: #0f3f3b;
 }
 
-.images-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+.uploaded-files {
+  margin-top: 20px;
 }
 
-.image-preview {
-  position: relative;
-  cursor: pointer;
+.uploaded-files ul {
+  list-style: none;
+  padding-left: 0;
 }
 
-.image-preview img {
-  max-width: 100px;
-  max-height: 100px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  object-fit: cover;
+.uploaded-files li {
+  margin-bottom: 5px;
 }
 
-.image-preview .delete-btn {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: rgba(255, 255, 255, 0.8);
-  color: #ff0000;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  line-height: 16px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.image-preview .delete-btn:hover {
-  background: rgba(255, 0, 0, 0.8);
-  color: #fff;
-}
-
-.full-image-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.full-image-modal img {
-  max-width: 90%;
-  max-height: 90%;
-  border-radius: 10px;
-}
-
+/* Стили для drag-n-drop, перекрашенные в зеленые тона */
 .drag-drop-area {
-  border: 2px dashed #4caf50;
+  border: 2px dashed #115544;
   padding: 20px;
-  background-color: #e8f5e9;
+  background-color: #ffffff;
   text-align: center;
   border-radius: 5px;
   cursor: pointer;
@@ -455,16 +517,59 @@ export default {
 
 .drag-drop-area p {
   font-size: 16px;
-  color: #4caf50;
+  color: #115544;
 }
 
 .hidden-input {
   display: none;
 }
 
+.helper-text {
+  font-size: 12px;
+  color: #115544;
+}
+
 .page-title,
 h3,
 h4 {
   font-weight: 500;
+}
+
+/* Стили Quill */
+.quill-editor {
+  height: 200px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #fafafa;
+}
+.ql-editor img {
+  max-width: 70% !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 10px auto !important;
+}
+  
+/* Переключатель типа видео */
+.toggle-group {
+  margin-bottom: 15px;
+}
+.toggle-container {
+  display: flex;
+  border: 1px solid #115544;
+  border-radius: 25px;
+  overflow: hidden;
+  cursor: pointer;
+  width: fit-content;
+}
+.toggle-option {
+  padding: 8px 16px;
+  background-color: #ffffff;
+  color: #115544;
+  transition: background 0.3s, color 0.3s;
+}
+.toggle-option.active {
+  background-color: #115544;
+  color: #fff;
 }
 </style>

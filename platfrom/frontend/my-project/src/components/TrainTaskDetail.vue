@@ -98,17 +98,19 @@ export default {
         console.log("Решение:", task.solution_text);
 
         this.task = {
-          ...task,
-          task_images: task.attachments
-            .filter(a => a.attachment_type === "task_image")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
-          task_files: task.attachments
-            .filter(a => a.attachment_type === "task_file")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
-          solution_images: task.attachments
-            .filter(a => a.attachment_type === "solution_image")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
-        };
+  ...task,
+  solution_text: task.solution_text, // 🔥 ДОБАВЬ ЭТУ СТРОКУ
+  task_images: task.attachments
+    .filter(a => a.attachment_type === "task_image")
+    .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+  task_files: task.attachments
+    .filter(a => a.attachment_type === "task_file")
+    .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+  solution_images: task.attachments
+    .filter(a => a.attachment_type === "solution_image")
+    .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+};
+
       } catch (err) {
         console.error("Ошибка при загрузке задания:", err);
       } finally {

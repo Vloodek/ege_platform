@@ -42,9 +42,9 @@
                 </tr>
               </thead>
               <tbody>
-                <tr 
-                  v-for="submission in submissions" 
-                  :key="submission.id" 
+                <tr
+                  v-for="submission in submissions"
+                  :key="submission.id"
                   @click="viewDetails(submission)"
                   class="table-row"
                 >
@@ -70,18 +70,17 @@
     </div>
 
     <!-- Модальное окно для деталей отклика -->
-    <SubmissionDetailsModal 
-      v-if="modalVisible" 
-      :submission="selectedSubmission" 
-      @close="modalVisible = false" 
+    <SubmissionDetailsModal
+      v-if="modalVisible"
+      :submission="selectedSubmission"
+      @close="modalVisible = false"
     />
   </div>
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, getCurrentInstance } from 'vue';
 import { useRoute } from 'vue-router';
-import axios from 'axios';
 import SideBar from '@/components/SideBar.vue';
 import SubmissionDetailsModal from '@/components/teacher/SubmissionDetailsModal.vue';
 
@@ -89,9 +88,12 @@ export default {
   name: 'ShowSubmissions',
   components: { SideBar, SubmissionDetailsModal },
   setup() {
+    const { proxy } = getCurrentInstance();
+    const $axios = proxy.$axios;
+
     const route = useRoute();
-    // route.params.id здесь является, скорее всего, идентификатором урока
     const lessonId = route.params.id;
+
     const homework = ref(null);
     const selectedGroup = ref(null);
     const groups = ref([]);
@@ -101,11 +103,7 @@ export default {
 
     const fetchHomeworkDetails = async () => {
       try {
-        // Получаем домашнее задание по id урока
-        const { data } = await axios.get(`http://localhost:8000/homeworks/${lessonId}`, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` },
-        });
-        // Если API возвращает массив, берем первый элемент
+        const { data } = await $axios.get(`/homeworks/${lessonId}`);
         homework.value = data[0];
       } catch (error) {
         console.error('Ошибка загрузки домашнего задания:', error);
@@ -114,11 +112,10 @@ export default {
 
     const fetchGroups = async () => {
       try {
-        const { data } = await axios.get('http://localhost:8000/groups/');
+        const { data } = await $axios.get('/groups/');
         groups.value = data;
         if (groups.value.length > 0) {
           selectedGroup.value = groups.value[0].id;
-          // Если домашнее задание уже загружено – сразу получаем отклики
           if (homework.value) {
             fetchSubmissions();
           }
@@ -131,10 +128,9 @@ export default {
     const fetchSubmissions = async () => {
       if (!selectedGroup.value || !homework.value) return;
       try {
-        // Используем homework.value.id, который является id домашнего задания
-        const { data } = await axios.get(
-          `http://localhost:8000/api/homework/${homework.value.id}/submissions?group=${selectedGroup.value}`,
-          { headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}` } }
+        const { data } = await $axios.get(
+          `/api/homework/${homework.value.id}/submissions`,
+          { params: { group: selectedGroup.value } }
         );
         submissions.value = data;
       } catch (error) {
@@ -145,15 +141,14 @@ export default {
     const viewDetails = async (submissionData) => {
       try {
         const userId = submissionData.user_id || submissionData.id;
-        // Используем homework.value.id вместо lessonId
-        const { data } = await axios.get(`http://localhost:8000/homeworks/${homework.value.id}/submission`, {
-          params: { user_id: userId },
-          headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
-        });
+        const { data } = await $axios.get(
+          `/homeworks/${homework.value.id}/submission`,
+          { params: { user_id: userId } }
+        );
         selectedSubmission.value = data;
         modalVisible.value = true;
       } catch (error) {
-        console.error("Ошибка получения деталей отклика:", error);
+        console.error('Ошибка получения деталей отклика:', error);
       }
     };
 
@@ -175,13 +170,13 @@ export default {
     const getStatusClass = (status) => {
       switch (status) {
         case 'submitted':
-          return 'status-received'; // Желтый
+          return 'status-received';
         case 'graded':
-          return 'status-graded'; // Зеленый
+          return 'status-graded';
         case 'response_received':
-          return 'status-rework'; // Серый
+          return 'status-rework';
         case 'waiting':
-          return 'status-waiting'; // Красный
+          return 'status-waiting';
         default:
           return '';
       }
@@ -199,9 +194,8 @@ export default {
       });
     };
 
-    // Когда загрузится домашнее задание, вызываем fetchSubmissions, если выбрана группа
-    watch(homework, (newHomework) => {
-      if (newHomework && selectedGroup.value) {
+    watch(homework, (newHw) => {
+      if (newHw && selectedGroup.value) {
         fetchSubmissions();
       }
     });
@@ -229,7 +223,6 @@ export default {
 </script>
 
 <style scoped>
-/* Общий контейнер страницы */
 .container {
   display: flex;
   width: 100%;
@@ -239,7 +232,6 @@ export default {
   background-color: #f3f3f3;
 }
 
-/* Основной контент */
 .main-content {
   flex: 1;
   background-color: #fff;
@@ -248,7 +240,6 @@ export default {
   margin-left: 20px;
 }
 
-/* Заголовок и стрелка назад */
 .header-section {
   display: flex;
   align-items: center;
@@ -277,7 +268,6 @@ export default {
   margin: 0;
 }
 
-/* Фильтры */
 .filters {
   display: flex;
   justify-content: flex-end;
@@ -297,7 +287,6 @@ select {
   border: 1px solid #ddd;
 }
 
-/* Таблица */
 .table-container {
   margin-top: 20px;
   overflow-x: auto;
@@ -309,7 +298,8 @@ table {
   border: 1px solid #ddd;
 }
 
-th, td {
+th,
+td {
   padding: 12px 15px;
   text-align: left;
 }
@@ -323,13 +313,11 @@ td {
   border-bottom: 1px solid #ddd;
 }
 
-/* Hover эффект для строк */
 tbody tr:hover {
   background-color: #f1f1f1;
   cursor: pointer;
 }
 
-/* Статусы */
 .status-received {
   color: rgb(255, 149, 0);
   font-weight: bold;
@@ -350,7 +338,6 @@ tbody tr:hover {
   font-weight: bold;
 }
 
-/* Сообщение, если данных нет */
 .no-data {
   text-align: center;
   padding: 20px;

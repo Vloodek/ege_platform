@@ -740,6 +740,35 @@ import string
 def generate_group_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
+@app.delete("/groups/{group_id}/members/{user_id}")
+async def remove_user_from_group(group_id: int, user_id: int, db: Session = Depends(get_db)):
+    user = db.query(database.User).filter(
+        database.User.id == user_id,
+        database.User.group_id == group_id
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден в этой группе")
+
+    user.group_id = None
+    db.commit()
+
+    return {"message": f"Пользователь {user.name} удален из группы"}
+
+@app.delete("/groups/{group_id}")
+async def delete_group(group_id: int, db: Session = Depends(get_db)):
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
+
+    if not group:
+        raise HTTPException(status_code=404, detail="Группа не найдена")
+
+    # Обнуляем group_id у всех пользователей в этой группе
+    db.query(database.User).filter(database.User.group_id == group_id).update({database.User.group_id: None})
+    db.delete(group)
+    db.commit()
+
+    return {"message": f"Группа '{group.name}' удалена"}
+
 @app.post("/groups/", response_model=schemas.GroupResponse)
 async def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
     group_code = generate_group_code()
@@ -1577,6 +1606,19 @@ def get_test_solutions(session_id: int, db: Session = Depends(get_db)):
     return {"solutions": solutions}
 
 
+import stat
+def force_rmtree(path):
+    for root, dirs, files in os.walk(path, topdown=False):
+        for name in files:
+            file_path = os.path.join(root, name)
+            try:
+                os.chmod(file_path, stat.S_IWRITE)
+                os.remove(file_path)
+            except Exception as e:
+                os.remove(file_path)
+        for name in dirs:
+            os.rmdir(os.path.join(root, name))
+    os.rmdir(path)
 
 @app.delete("/exam_tasks/{id}", response_model=dict)
 def delete_exam_task(id: int, db: Session = Depends(get_db)):
@@ -1588,7 +1630,7 @@ def delete_exam_task(id: int, db: Session = Depends(get_db)):
     base_path = f"./uploads/tasks_bank/{task.task_number}/{task.id}"
     if os.path.exists(base_path):
         try:
-            shutil.rmtree(base_path)
+            force_rmtree(base_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Ошибка удаления файлов: {str(e)}")
     
@@ -1679,3 +1721,4 @@ def get_schedule(
             })
 
         return result
+    

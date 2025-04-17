@@ -13,22 +13,16 @@
           </div>
 
           <div class="homework-deadline">
-            <strong>Дедлайн: </strong>{{ formatDate(homework.date) }}
+            <strong>Дедлайн:</strong><br />
+            {{ formatDate(homework.date) }}
           </div>
 
-          <div v-if="homework.text" class="homework-description">
-            <p>{{ homework.text }}</p>
-          </div>
+          <div v-if="homework.text" class="homework-description ql-editor" v-html="homework.text"></div>
 
           <div v-if="homeworkImages.length" class="images-container">
             <div class="images">
-              <img
-                v-for="(image, index) in homeworkImages"
-                :key="index"
-                :src="getFileUrl(image)"
-                alt="Homework Image"
-                @click="openImage(getFileUrl(image))"
-              />
+              <img v-for="(image, index) in homeworkImages" :key="index" :src="getFileUrl(image)" alt="Homework Image"
+                @click="openImage(getFileUrl(image))" />
             </div>
           </div>
 
@@ -43,60 +37,76 @@
             </ul>
           </div>
 
-          <!-- Если преподаватель -->
           <div v-if="isTeacher" class="teacher-buttons">
-            <BaseButton color="green" @click="goToEditHomework">Изменить ДЗ</BaseButton>
-            <BaseButton color="white" @click="goToResponses">Отклики студентов</BaseButton>
-          </div>
-
-          <!-- Если студент -->
-          <div v-if="!isTeacher && submission" class="submission-section">
-            <h2>Ваш ответ:</h2>
-            <p>{{ submission.comment }}</p>
-
-            <div class="uploaded-files">
-              <div v-for="(file, index) in submission.files" :key="index" class="uploaded-file">
-                📄 <a :href="getFileUrl(file)" target="_blank">{{ getFileName(file) }}</a>
-              </div>
-            </div>
-
-            <!-- Отклик преподавателя -->
-            <div v-if="teacherResponse" class="teacher-response">
-              <h3>Оценка преподавателя: {{ teacherResponse.teacher_grade || "Не выставлена" }}</h3>
-              <p><strong>Комментарий:</strong> {{ teacherResponse.teacher_comment || "Нет комментария" }}</p>
-
-              <div v-if="teacherResponse.files.length" class="teacher-files">
-                <p><strong>Файлы преподавателя:</strong></p>
-                <ul>
-                  <li v-for="(file, index) in teacherResponse.files" :key="index">
-                    📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
-                  </li>
-                </ul>
-              </div>
-            </div>
-
-            <BaseButton
-              :color="teacherResponse?.teacher_grade ? 'gray' : 'green'"
-              :disabled="!!teacherResponse?.teacher_grade"
-              @click="openModal"
-            >
-              Редактировать ответ
+            <BaseButton color="green" @click="goToEditHomework">
+              Изменить ДЗ
+            </BaseButton>
+            <BaseButton color="white" @click="goToResponses">
+              Отклики студентов
             </BaseButton>
           </div>
 
+          <div v-if="!isTeacher && submission" class="student-section">
+  <div class="section-divider">
+    <h2>Ваш ответ:</h2>
+    <p>{{ submission.comment }}</p>
+
+    <div class="uploaded-files">
+      <div
+        v-for="(file, index) in submission.files"
+        :key="index"
+        class="uploaded-file"
+      >
+        📄
+        <a :href="getFileUrl(file)" target="_blank">
+          {{ getFileName(file) }}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div
+    v-if="teacherResponse"
+    class="section-divider"
+  >
+    <h3>Оценка преподавателя: {{ teacherResponse.teacher_grade || "Не выставлена" }}</h3>
+    <p><strong>Комментарий:</strong> {{ teacherResponse.teacher_comment || "Нет комментария" }}</p>
+
+    <div v-if="teacherResponse.files.length" class="teacher-files">
+      <p><strong>Файлы преподавателя:</strong></p>
+      <ul>
+        <li
+          v-for="(file, index) in teacherResponse.files"
+          :key="index"
+        >
+          📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-divider">
+    <BaseButton
+      :color="teacherResponse?.teacher_grade ? 'gray' : 'green'"
+      :disabled="!!teacherResponse?.teacher_grade"
+      @click="openModal"
+    >
+      Редактировать ответ
+    </BaseButton>
+  </div>
+</div>
+
+
+
           <div v-if="!isTeacher && !submission" class="no-submission">
-            <BaseButton color="green" @click="openModal">Добавить ответ</BaseButton>
+            <BaseButton color="green" @click="openModal">
+              Добавить ответ
+            </BaseButton>
           </div>
 
-          <StudentSubmissionModal
-            v-if="isModalOpen"
-            :isOpen="isModalOpen"
-            :submission="submission"
-            @close="closeModal"
-            @responseSubmitted="fetchSubmission"
-          />
+          <StudentSubmissionModal v-if="isModalOpen" :isOpen="isModalOpen" :submission="submission" @close="closeModal"
+            @responseSubmitted="fetchSubmission" />
         </div>
-
         <div v-else>
           <p>Загрузка задания...</p>
         </div>
@@ -106,10 +116,10 @@
 </template>
 
 <script>
-import SideBar from "../components/SideBar.vue";
+
+import SideBar from "./SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
 import StudentSubmissionModal from "@/components/student/StudentSubmissionModal.vue";
-import axios from "axios";
 
 export default {
   components: { SideBar, BaseButton, StudentSubmissionModal },
@@ -117,7 +127,7 @@ export default {
     return {
       homework: null,
       submission: null,
-      teacherResponse: null, // Данные отклика преподавателя
+      teacherResponse: null,
       isTeacher: false,
       isModalOpen: false,
     };
@@ -128,14 +138,15 @@ export default {
     },
     otherFiles() {
       return Array.isArray(this.homework?.files)
-        ? this.homework.files.filter(file => !/\.(jpg|jpeg|png|gif)$/i.test(file))
+        ? this.homework.files.filter(
+          (file) => !/\.(jpg|jpeg|png|gif)$/i.test(file)
+        )
         : [];
     },
   },
   async created() {
     await this.fetchHomeworkDetails();
     const userData = JSON.parse(localStorage.getItem("user"));
-
     if (userData?.role === "teacher") {
       this.isTeacher = true;
     } else {
@@ -143,12 +154,18 @@ export default {
       await this.fetchSubmission();
     }
   },
+  updated() {
+    this.$nextTick(() => {
+      this.applyEditorStyles();
+    });
+  },
   methods: {
     async fetchHomeworkDetails() {
       try {
-        const response = await axios.get(`/homeworks/${this.$route.params.id}`);
+        const response = await this.$axios.get(
+          `/homeworks/${this.$route.params.id}`
+        );
         if (response.status === 200) {
-          // Если API возвращает массив, берем первый элемент
           this.homework = response.data[0];
         }
       } catch (error) {
@@ -159,9 +176,8 @@ export default {
       try {
         const userData = JSON.parse(localStorage.getItem("user"));
         if (!userData?.userId || !this.homework) return;
-        // Используем id домашнего задания, полученный в fetchHomeworkDetails
         const homeworkId = this.homework.id;
-        const response = await axios.get(
+        const response = await this.$axios.get(
           `/homeworks/${homeworkId}/submission?user_id=${userData.userId}`
         );
         if (response.data) {
@@ -174,7 +190,7 @@ export default {
     },
     async fetchTeacherResponse(submissionId) {
       try {
-        const response = await axios.get(`/teacher_response/${submissionId}`);
+        const response = await this.$axios.get(`/teacher_response/${submissionId}`);
         this.teacherResponse = response.data;
       } catch (error) {
         console.error("Ошибка загрузки отклика преподавателя", error);
@@ -190,7 +206,9 @@ export default {
       return file ? `http://localhost:8000/${file.replace(/\\/g, "/")}` : "";
     },
     getFileName(file) {
-      return file ? file.split("/").pop() : "";
+      if (!file) return "";
+      const parts = file.split(/[\\/]/);
+      return parts[parts.length - 1];
     },
     openImage(imageUrl) {
       window.open(imageUrl, "_blank");
@@ -205,38 +223,32 @@ export default {
       });
     },
     goToEditHomework() {
-      this.$router.push({ name: "EditHomework", params: { id: this.homework.id } });
+      this.$router.push({
+        name: "EditHomework",
+        params: { id: this.homework.id },
+      });
     },
     goToResponses() {
-      this.$router.push({ name: "homework-submissions", params: { id: this.$route.params.id } });
+      this.$router.push({
+        name: "homework-submissions",
+        params: { id: this.$route.params.id },
+      });
+    },
+    applyEditorStyles() {
+      document.querySelectorAll(".ql-editor img").forEach((img) => {
+        img.style.maxWidth = "300px";
+        img.style.width = "auto";
+        img.style.height = "auto";
+        img.style.objectFit = "contain";
+        img.style.display = "block";
+        img.style.margin = "10px auto";
+      });
     },
   },
 };
 </script>
 
-
-
-
-
 <style scoped>
-/* Основные стили */
-#homework-details {
-  padding: 20px;
-}
-.images-container {
-  margin-top: 20px;
-  text-align: center;
-}
-.images img {
-  max-width: 150px;
-  margin: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-}
-.images img:hover {
-  transform: scale(1.5);
-}
 .container {
   display: flex;
   width: 100%;
@@ -244,6 +256,7 @@ export default {
   margin: 0 auto;
   padding: 20px;
 }
+
 .main-content {
   flex: 1;
   background-color: #fff;
@@ -252,12 +265,14 @@ export default {
   margin-left: 20px;
   position: relative;
 }
+
 .header-section {
   display: flex;
   align-items: center;
   margin-bottom: 20px;
   position: relative;
 }
+
 .back-arrow {
   position: absolute;
   left: 0;
@@ -269,6 +284,7 @@ export default {
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
+
 .homework-title {
   flex: 1;
   font-size: 24px;
@@ -277,31 +293,57 @@ export default {
   text-align: center;
   margin: 0;
 }
+
 .homework-deadline {
-  margin: 10px 0;
+  display: inline-block;
+  background-color: #f1fdf5;
+  border: 1px solid #b8e0c2;
+  padding: 10px 14px;
+  border-radius: 6px;
+  color: #115544;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 20px 0;
+  white-space: nowrap;
 }
+
 .homework-description {
   margin: 20px 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333;
 }
-.uploaded-files {
-  margin: 10px 0;
+
+.images-container {
+  margin-top: 20px;
+  text-align: center;
 }
-.uploaded-file {
-  background: #eee;
-  padding: 5px;
-  border-radius: 5px;
-  margin: 5px 0;
+
+.images img {
+  max-width: 150px;
+  margin: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
 }
+
+.images img:hover {
+  transform: scale(1.5);
+}
+
 .files-section ul {
   list-style: none;
   padding: 0;
   margin: 20px 0 0;
 }
+
 .files-section ul li {
   display: flex;
   align-items: center;
   margin-bottom: 10px;
 }
+
 .files-section ul li a {
   display: flex;
   align-items: center;
@@ -309,64 +351,122 @@ export default {
   color: inherit;
   font-size: 16px;
 }
+
 .file-icon {
   width: 42px;
   height: 42px;
   margin-right: 10px;
   flex-shrink: 0;
 }
-.homework-files a:hover {
-  text-decoration: underline;
+
+.teacher-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
-/* Кнопки */
-.remove-btn {
-  background: transparent;
-  color: red;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  margin-left: 5px;
-}
-.submit-btn, .add-btn {
-  padding: 10px 20px;
-  background-color: #115544;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
-}
-.submit-btn:hover, .add-btn:hover {
-  background-color: #1e9275;
-}
-@media (max-width: 768px) {
-  .container {
-    flex-direction: column;
-  }
-  .main-content {
-    margin-left: 0;
-    width: 100%;
-  }
-}
-.page-title, h3, h4 {
-  font-weight: 500;
-}
-.file-drop-zone {
-  border: 2px dashed #115544;
-  padding: 20px;
+
+.no-submission {
+  margin-top: 20px;
   text-align: center;
-  cursor: pointer;
-  margin: 10px 0;
-  border-radius: 10px;
 }
-.file-drop-zone p {
-  margin: 0;
-}
-.file-drop-zone span {
+
+.student-block,
+.teacher-block {
+  border: 1px solid #b8e0c2;
+  background-color: #f1fdf5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
   color: #115544;
-  text-decoration: underline;
-  cursor: pointer;
 }
+
+.teacher-block {
+  margin-top: 30px;
+  background-color: #e6f8ec;
+}
+
+.block-title {
+  font-size: 18px;
+  font-weight: normal;
+  color: #115544;
+  margin-bottom: 10px;
+}
+
+.sub-label {
+  font-weight: normal;
+  color: #115544;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.ql-editor img {
+  max-width: 300px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: block !important;
+  margin: 10px auto !important;
+}
+
+.section-divider {
+  padding: 20px 0;
+  border-top: 1px solid #ddd;
+}
+
+.section-divider:first-of-type {
+  border-top: none;
+}
+
+.section-divider h2,
+.section-divider h3 {
+  font-size: 18px;
+  font-weight: normal;
+  color: #222;
+  margin-bottom: 10px;
+}
+
+.uploaded-files,
+.teacher-files {
+  margin-top: 10px;
+}
+.student-section {
+  margin-top: 20px;
+}
+
+.section-divider {
+  padding: 20px 0;
+  border-top: 2px solid #b8e0c2; /* Линия сверху */
+}
+
+.section-divider:first-of-type {
+  border-top: none;
+}
+
+.section-divider h2 {
+  font-size: 18px;
+  font-weight: 500;
+  color: #115544;
+  margin-bottom: 10px;
+}
+
+.uploaded-files,
+.teacher-files {
+  margin-top: 10px;
+}
+
+.uploaded-file {
+  margin-bottom: 5px;
+}
+
+.uploaded-file a {
+  color: #115544;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.uploaded-file a:hover {
+  text-decoration: underline;
+}
+
 </style>

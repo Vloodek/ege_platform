@@ -30,7 +30,6 @@
 </template>
 
 <script>
-import axios from 'axios';
 
 export default {
   data() {
@@ -63,7 +62,8 @@ export default {
 
   try {
     // Отправляем запрос на сервер
-    const response = await axios.post(url, data, { withCredentials: true });
+    const response = await this.$axios.post(url, data, { withCredentials: true });
+
 
     console.log("Response received:", response.data);
 
@@ -86,6 +86,7 @@ export default {
 
     // Перенаправление на главную страницу
     this.$router.push('/');
+    window.location.reload();
   } catch (err) {
     console.error('Request failed:', err);
     this.error = 'Ошибка: ' + (err.response ? err.response.data.detail : 'Неизвестная ошибка');

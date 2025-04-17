@@ -2,7 +2,6 @@
   <div id="exam-task-list">
     <div class="container">
       <SideBar :isTestActive="false" />
-
       <main class="main-content">
         <!-- Header Section -->
         <div class="header-section">
@@ -10,29 +9,37 @@
             <div class="back-arrow" @click="goBack"></div>
             <h2 class="main-title">Тренажер</h2>
           </div>
-          <!-- Информация о типе заданий под заголовком, выровненная по левому краю -->
           <div class="task-type">
             Тип {{ taskName }} ({{ taskId }})
           </div>
         </div>
 
-        <!-- Отображение карточек заданий -->
         <div v-if="tasks.length === 0">Нет заданий для этого типа.</div>
 
-        <div v-for="(task, index) in tasks" :key="task.id" class="task-card">
+        <div
+          v-for="(task, index) in tasks"
+          :key="task.id"
+          class="task-card"
+        >
           <div class="task-header">
-            <router-link :to="{ name: 'TrainTaskDetail', params: { id: task.id } }" class="task-link">
+            <router-link
+              :to="{ name: 'TrainTaskDetail', params: { id: task.id } }"
+              class="task-link"
+            >
               {{ index + 1 }}. Задание №{{ task.id }}
             </router-link>
             <span v-if="!noPoints(task.task_number)">
               — {{ getPoints(task.task_number) }} балла
             </span>
-            <!-- Кнопка удаления -->
-            <button class="delete-task-btn" @click="confirmDelete(task.id)">&times;</button>
+            <!-- крестик удаления только для учителя -->
+            <button
+              v-if="isTeacher"
+              class="delete-task-btn"
+              @click="confirmDelete(task.id)"
+            >&times;</button>
           </div>
 
           <div class="task-description ql-editor" v-html="task.description"></div>
-
           <div class="task-images">
             <img
               v-for="img in task.task_images"
@@ -42,19 +49,27 @@
               class="task-image"
             />
           </div>
-
-          <div class="task-files" v-if="task.task_files.length">
+          <div
+            class="task-files"
+            v-if="task.task_files && task.task_files.length"
+          >
             <div v-for="file in task.task_files" :key="file">
               <a :href="file" target="_blank">{{ getFileName(file) }}</a>
             </div>
           </div>
 
-          <!-- Кнопка показа/скрытия решения с использованием переиспользуемого компонента -->
-          <BaseButton class="solution-toggle" color="green" @click="toggleSolution(task.id)">
+          <BaseButton
+            class="solution-toggle"
+            color="green"
+            @click="toggleSolution(task.id)"
+          >
             {{ showSolution[task.id] ? 'Скрыть' : 'Показать' }} решение
           </BaseButton>
 
-          <div v-if="showSolution[task.id]" class="solution-section">
+          <div
+            v-if="showSolution[task.id]"
+            class="solution-section"
+          >
             <div class="solution-text" v-html="task.solution_text"></div>
             <div class="solution-images">
               <img
@@ -65,6 +80,14 @@
                 class="task-image"
               />
             </div>
+            <div
+              class="solution-files"
+              v-if="task.solution_files && task.solution_files.length"
+            >
+              <div v-for="file in task.solution_files" :key="file">
+                <a :href="file" target="_blank">{{ getFileName(file) }}</a>
+              </div>
+            </div>
             <div class="solution-answer">
               Ответ: <strong>{{ task.correct_answer }}</strong>
             </div>
@@ -73,14 +96,23 @@
       </main>
     </div>
 
-    <!-- Модальное окно подтверждения удаления -->
-    <div v-if="showDeleteModal" class="modal-overlay">
+    <!-- Модальное окно подтверждения удаления — только для учителя -->
+    <div
+      v-if="showDeleteModal && isTeacher"
+      class="modal-overlay"
+    >
       <div class="modal-content">
         <h3>Подтверждение удаления</h3>
         <p>Вы точно хотите удалить задание №{{ taskToDelete }}?</p>
         <div class="modal-buttons">
-          <button class="modal-btn confirm" @click="deleteTask">Удалить</button>
-          <button class="modal-btn cancel" @click="cancelDelete">Отмена</button>
+          <button
+            class="modal-btn confirm"
+            @click="deleteTask"
+          >Удалить</button>
+          <button
+            class="modal-btn cancel"
+            @click="cancelDelete"
+          >Отмена</button>
         </div>
       </div>
     </div>
@@ -90,14 +122,10 @@
 <script>
 import SideBar from "@/components/SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
-import axios from "axios";
 
 export default {
   name: "ExamTaskList",
-  components: { 
-    SideBar,
-    BaseButton
-  },
+  components: { SideBar, BaseButton },
   data() {
     return {
       taskId: this.$route.params.id,
@@ -105,8 +133,18 @@ export default {
       tasks: [],
       showSolution: {},
       showDeleteModal: false,
-      taskToDelete: null
+      taskToDelete: null,
     };
+  },
+  computed: {
+    isTeacher() {
+      try {
+        const user = JSON.parse(localStorage.getItem("user"));
+        return user?.role === "teacher";
+      } catch {
+        return false;
+      }
+    },
   },
   async created() {
     await this.loadTasks();
@@ -115,32 +153,30 @@ export default {
     this.applyImageStyles();
   },
   updated() {
-    this.$nextTick(() => {
-      this.applyImageStyles();
-    });
+    this.$nextTick(this.applyImageStyles);
   },
   methods: {
     async loadTasks() {
       try {
-        const res = await axios.get(`/exam_tasks/by_type/${this.taskId}`);
-        const rawTasks = res.data.tasks;
+        const res = await this.$axios.get(`/exam_tasks/by_type/${this.taskId}`);
+
         const base = window.location.origin;
-        this.tasks = rawTasks.map(task => {
-          const task_images = task.attachments
-            .filter(a => a.attachment_type === "task_image")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-          const task_files = task.attachments
-            .filter(a => a.attachment_type === "task_file")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-          const solution_images = task.attachments
-            .filter(a => a.attachment_type === "solution_image")
-            .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-    
+        this.tasks = res.data.tasks.map(task => {
+          const attachments = task.attachments || [];
           return {
             ...task,
-            task_images,
-            task_files,
-            solution_images,
+            task_images: attachments
+              .filter(a => a.attachment_type === "task_image")
+              .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+            task_files: attachments
+              .filter(a => a.attachment_type === "task_file")
+              .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+            solution_images: attachments
+              .filter(a => a.attachment_type === "solution_image")
+              .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
+            solution_files: attachments
+              .filter(a => a.attachment_type === "solution_file")
+              .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`),
           };
         });
       } catch (err) {
@@ -148,47 +184,57 @@ export default {
       }
     },
     applyImageStyles() {
-      document.querySelectorAll('.task-description img, .solution-section img, .solution-text img')
+      document
+        .querySelectorAll(
+          ".task-description img, .solution-section img, .solution-text img"
+        )
         .forEach(img => {
-          img.style.maxWidth = '70%';
-          img.style.width = 'auto';
-          img.style.height = 'auto';
-          img.style.objectFit = 'contain';
-          img.style.display = 'block';
-          img.style.margin = '10px auto';
+          Object.assign(img.style, {
+            maxWidth: "70%",
+            width: "auto",
+            height: "auto",
+            objectFit: "contain",
+            display: "block",
+            margin: "10px auto",
+          });
         });
     },
     toggleSolution(id) {
-      this.showSolution[id] = !this.showSolution[id];
-      this.$nextTick(() => {
-        this.applyImageStyles();
-        setTimeout(() => this.applyImageStyles(), 100);
-      });
-    },
-    getPoints(taskNumber) {
-      if ([26, 27].includes(taskNumber)) return null;
-      if ([19, 20, 21].includes(taskNumber)) return 2;
-      if ([16].includes(taskNumber)) return 3;
+  this.showSolution = {
+    ...this.showSolution,
+    [id]: !this.showSolution[id]
+  };
+  this.$nextTick(() => {
+    this.applyImageStyles();
+    setTimeout(this.applyImageStyles, 100);
+  });
+},
+
+    getPoints(n) {
+      if ([26, 27].includes(n)) return null;
+      if ([19, 20, 21].includes(n)) return 2;
+      if (n === 16) return 3;
       return 1;
     },
-    noPoints(taskNumber) {
-      return [26, 27].includes(taskNumber);
+    noPoints(n) {
+      return [26, 27].includes(n);
     },
     getFileName(path) {
       return path.split("/").pop();
     },
-    confirmDelete(taskId) {
-      this.taskToDelete = taskId;
+    confirmDelete(id) {
+      this.taskToDelete = id;
       this.showDeleteModal = true;
     },
     async deleteTask() {
       try {
-        await axios.delete(`/exam_tasks/${this.taskToDelete}`);
-        this.tasks = this.tasks.filter(task => task.id !== this.taskToDelete);
+        await this.$axios.delete(`/exam_tasks/${this.taskToDelete}`);
+
+        this.tasks = this.tasks.filter(t => t.id !== this.taskToDelete);
         this.cancelDelete();
-      } catch (error) {
-        console.error("Ошибка при удалении задания:", error);
-        alert("Ошибка при удалении задания");
+      } catch (err) {
+        console.error("Ошибка при удалении задания:", err);
+        alert("Не удалось удалить задание");
       }
     },
     cancelDelete() {
@@ -197,8 +243,8 @@ export default {
     },
     goBack() {
       this.$router.back();
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -224,7 +270,9 @@ export default {
   padding: 20px;
   border-radius: 20px;
   margin-left: 20px;
-  position: relative;
+  /* Ограничиваем максимальную ширину, чтобы не расползался при длинном содержимом */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Header Section */
@@ -267,27 +315,33 @@ export default {
   border-radius: 10px;
   padding: 15px;
   margin-bottom: 20px;
-  /* Изменён фон карточек на белый */
   background: #fff;
   position: relative;
+  box-sizing: border-box;
+  /* Чтобы блок не расползался, ограничиваем его ширину */
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
+
 .task-header {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
   color: #222;
   position: relative;
-  
 }
 .task-link {
   color: inherit;
   text-decoration: none;
-  text-decoration:underline #115544;
+  text-decoration: underline #115544;
 }
 .task-description {
   margin-bottom: 10px;
   line-height: 1.5;
+  word-break: break-word;
 }
+
+/* Изображения */
 .task-images,
 .solution-images {
   display: flex;
@@ -301,6 +355,8 @@ export default {
   border-radius: 5px;
   border: 1px solid #ccc;
 }
+
+/* Файлы */
 .task-files {
   margin-bottom: 10px;
 }
@@ -317,15 +373,31 @@ export default {
 .delete-task-btn:hover {
   color: #a71d2a;
 }
+
+/* Кнопка показа/скрытия решения */
 .solution-toggle {
   margin-top: 10px;
 }
+
+/* Блок решения */
 .solution-section {
   margin-top: 10px;
   background-color: #eefaf7;
   padding: 10px;
   border-radius: 8px;
+  /* Ограничиваем максимальную ширину блока решения */
+  max-width: 100%;
+  box-sizing: border-box;
+  /* Перенос слов и перенос строк */
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
+.solution-text {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Ответ решения */
 .solution-answer {
   margin-top: 10px;
   font-weight: bold;

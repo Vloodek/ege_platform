@@ -1,23 +1,10 @@
 <template>
   <div id="test-session">
     <div class="container">
-      <SideBar 
-        :isTestActive="true"
-        :taskIds="taskIds"
-        :currentTaskIndex="currentTaskIndex"
-        :answers="answers"
-        :results="results"
-        :score="score"
-        :testFinished="testFinished"
-        :timerDisplay="remainingTime"
-        :totalQuestions="taskIds.length"
-        @selectTask="goToTask"
-        @prevTask="prevTask"
-        @nextTask="nextTask"
-        @finishTest="finishTest"
-        @exitTest="exitTest"
-        @goBack="goBack"
-      />
+      <SideBar :isTestActive="true" :taskIds="taskIds" :currentTaskIndex="currentTaskIndex" :answers="answers"
+        :results="results" :score="score" :testFinished="testFinished" :timerDisplay="remainingTime"
+        :totalQuestions="taskIds.length" @selectTask="goToTask" @prevTask="prevTask" @nextTask="nextTask"
+        @finishTest="finishTest" @exitTest="exitTest" @goBack="goBack" />
 
       <main class="main-content">
         <div class="train-task-detail">
@@ -34,38 +21,33 @@
               <img v-for="img in task.task_images" :key="img" :src="img" class="task-image" />
             </div>
 
-            <!-- Файлы задания -->
+            <!-- Файлы задания с иконкой -->
             <div class="task-files" v-if="task.task_files?.length">
               <div v-for="file in task.task_files" :key="file">
-                <a :href="file" target="_blank">📎 {{ getFileName(file) }}</a>
+                <a :href="file" target="_blank" class="file-link">
+                  {{ getFileName(file) }}
+                </a>
               </div>
             </div>
 
             <!-- Ввод ответа -->
             <div class="answer-input">
               <label for="userAnswer">Ваш ответ:</label>
-              <!-- Если задание динамическое (table10, tableDyn1Col или tableDyn2Col) -->
-              <div v-if="isDynamicTable && dynamicTableConfig">
+              <!-- Если задание динамическое (табличка) -->
+              <div v-if="isDynamicTable && dynamicTableConfig" class="dynamic-table">
                 <table>
                   <tr v-for="(row, rIndex) in dynamicTableAnswers" :key="rIndex">
                     <td v-for="(cell, cIndex) in row" :key="cIndex">
-                      <input type="text"
-                             v-model="dynamicTableAnswers[rIndex][cIndex]"
-                             :disabled="testFinished"
-                             placeholder="Введите ответ" />
+                      <input type="text" v-model="dynamicTableAnswers[rIndex][cIndex]" :disabled="testFinished"
+                        placeholder="Ответ" />
                     </td>
                   </tr>
                 </table>
               </div>
               <!-- Иначе обычный ввод -->
               <div v-else>
-                <input
-                  type="text"
-                  id="userAnswer"
-                  v-model="userAnswer"
-                  :disabled="testFinished"
-                  placeholder="Введите ваш ответ"
-                />
+                <input type="text" id="userAnswer" v-model="userAnswer" :disabled="testFinished"
+                  placeholder="Введите ваш ответ" />
               </div>
             </div>
 
@@ -94,7 +76,6 @@
 </template>
 
 <script>
-import axios from "axios";
 import SideBar from "../SideBar.vue";
 
 export default {
@@ -120,55 +101,52 @@ export default {
     };
   },
   computed: {
-  currentTaskId() {
-    return this.taskIds[this.currentTaskIndex];
-  },
-  testType() {
-    return this.$route.query.test_type || "regular";
-  },
-  // Если в объекте задания установлен флаг is_table_1x2 или формат совпадает с динамическим – вернуть true
-  isDynamicTable() {
-    return this.task && (
-      Boolean(this.task.is_table_1x2) ||
-      ["table2","table10", "tableDyn1Col", "tableDyn2Col"].includes(this.task.answer_format)
-    );
-  },
-  // Если задание имеет номер 26 или 27 (приводим к числу), возвращаем конфигурацию 1×2
-  dynamicTableConfig() {
-    if (!this.task) return null;
-    
-    if (["table2"].includes(this.task.answer_format) || [26, 27].includes(Number(this.task.task_number))) {
-    return { rowsCount: 1, colCount: 2 };
-  }
-    
-    if (["table10", "tableDyn1Col", "tableDyn2Col"].includes(this.task.answer_format)) {
-      try {
-        const parsed = JSON.parse(this.task.correct_answer || "[]");
-        let colCount = 1;
-        if (this.task.answer_format === "table10" || this.task.answer_format === "tableDyn2Col") {
-          colCount = 2;
-        } else if (this.task.answer_format === "tableDyn1Col") {
-          for (let row of parsed) {
-            if (row.length >= 2 && row[1].trim() !== "") {
-              colCount = 2;
-              break;
+    currentTaskId() {
+      return this.taskIds[this.currentTaskIndex];
+    },
+    testType() {
+      return this.$route.query.test_type || "regular";
+    },
+    isDynamicTable() {
+      return this.task && (
+        Boolean(this.task.is_table_1x2) ||
+        ["table2", "table10", "tableDyn1Col", "tableDyn2Col"].includes(this.task.answer_format)
+      );
+    },
+    dynamicTableConfig() {
+      if (!this.task) return null;
+
+      if (["table2"].includes(this.task.answer_format) || [26, 27].includes(Number(this.task.task_number))) {
+        return { rowsCount: 1, colCount: 2 };
+      }
+
+      if (["table10", "tableDyn1Col", "tableDyn2Col"].includes(this.task.answer_format)) {
+        try {
+          const parsed = JSON.parse(this.task.correct_answer || "[]");
+          let colCount = 1;
+          if (this.task.answer_format === "table10" || this.task.answer_format === "tableDyn2Col") {
+            colCount = 2;
+          } else if (this.task.answer_format === "tableDyn1Col") {
+            for (let row of parsed) {
+              if (row.length >= 2 && row[1].trim() !== "") {
+                colCount = 2;
+                break;
+              }
             }
           }
+          const expectedRows = parsed.length;
+          const extraRows = Math.floor(Math.random() * 5) + 3;
+          const totalRows = expectedRows + extraRows;
+          return { colCount, rowsCount: totalRows };
+        } catch (error) {
+          console.error("Ошибка парсинга корректного ответа для динамической таблицы", error);
+          return null;
         }
-        const expectedRows = parsed.length;
-        const extraRows = Math.floor(Math.random() * 5) + 3;
-        const totalRows = expectedRows + extraRows;
-        return { colCount, rowsCount: totalRows };
-      } catch (error) {
-        console.error("Ошибка парсинга корректного ответа для динамической таблицы", error);
-        return null;
       }
+
+      return null;
     }
-    
-    return null;
-  }
-}
-,
+  },
   watch: {
     currentTaskId: {
       immediate: true,
@@ -181,7 +159,8 @@ export default {
     const savedId = localStorage.getItem("testSessionId");
     if (savedId) {
       try {
-        const res = await axios.get(`http://localhost:8000/testing/session/${savedId}`);
+        const res = await this.$axios.get(`/testing/session/${savedId}`);
+
         const session = res.data;
         this.sessionId = session.session_id;
         this.taskIds = session.task_ids;
@@ -192,10 +171,10 @@ export default {
           this.startTimer();
         } else {
           this.testFinished = true;
-          const resResults = await axios.get(`http://localhost:8000/testing/results?session_id=${session.session_id}`);
+          const resResults = await this.$axios.get(`/testing/results?session_id=${session.session_id}`);
           this.results = resResults.data.results || {};
           this.score = resResults.data.score || 0;
-          const resSol = await axios.get(`http://localhost:8000/testing/solutions?session_id=${session.session_id}`);
+          const resSol = await this.$axios.get(`/testing/solutions?session_id=${session.session_id}`);
           this.solutions = resSol.data.solutions || {};
         }
         return;
@@ -208,7 +187,7 @@ export default {
     const formData = new FormData();
     formData.append("user_id", userId);
     formData.append("test_type", this.testType);
-    const res = await axios.post("http://localhost:8000/testing/start", formData);
+    const res = await this.$axios.post(`/testing/start`, formData);
     this.sessionId = res.data.session_id;
     this.taskIds = res.data.task_ids;
     localStorage.setItem("testSessionId", this.sessionId);
@@ -218,19 +197,41 @@ export default {
     goBack() {
       this.$router.back();
     },
-    startTimer() {
-      const source = new EventSource(`http://localhost:8000/sse/timer?session_id=${this.sessionId}`);
-      source.onmessage = async (event) => {
-        if (event.data === "Test finished") {
-          this.remainingTime = 0;
-          source.close();
-          await this.finishTest();
-        } else {
-          this.remainingTime = parseInt(event.data);
-        }
-      };
-      this.timerSource = source;
+    fixQuillCodeBlocks() {
+      // Находим все блоки кода в Quill-редакторе
+      const codeBlocks = document.querySelectorAll('.ql-editor pre, .ql-editor code');
+      codeBlocks.forEach(el => {
+        // Задаём необходимые стили, перезаписывая встроенные стили
+        el.style.overflowX = 'auto';
+        el.style.whiteSpace = 'pre-wrap';
+        el.style.wordBreak = 'break-all';
+      });
     },
+    startTimer() {
+  const apiBase = this.$axios.defaults.baseURL; 
+  // по-умолчанию 'http://localhost:8000'
+  const source = new EventSource(
+    `${apiBase}/sse/timer?session_id=${this.sessionId}`,
+    { withCredentials: true }
+  );
+
+  source.onopen    = () => console.log('[SSE] connection opened');
+  source.onerror   = err => console.error('[SSE] error', err);
+  source.onmessage = event => {
+    console.log('[SSE] message:', event.data);
+    if (event.data === 'Test finished') {
+      this.remainingTime = 0;
+      source.close();
+      this.finishTest();
+    } else {
+      this.remainingTime = parseInt(event.data, 10);
+    }
+  };
+
+  this.timerSource = source;
+},
+
+
     goToTask(index) {
       this.currentTaskIndex = index;
     },
@@ -241,115 +242,96 @@ export default {
       if (this.currentTaskIndex < this.taskIds.length - 1) this.currentTaskIndex++;
     },
     async loadTask() {
-  if (!this.currentTaskId) {
-    this.loading = false;
-    return;
-  }
-  this.loading = true;
-  try {
-    const res = await axios.get(`http://localhost:8000/exam_tasks/${this.currentTaskId}`);
-    const base = window.location.origin;
-    const task = res.data;
-    task.task_images = task.attachments
-      .filter(a => a.attachment_type === "task_image")
-      .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-    task.task_files = task.attachments
-      .filter(a => a.attachment_type === "task_file")
-      .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
-    this.task = task;
-    
-    // Если задание должно отображаться как динамическая таблица, инициализируем её
-    if (this.isDynamicTable && this.dynamicTableConfig) {
-      const { rowsCount, colCount } = this.dynamicTableConfig;
-      this.dynamicTableAnswers = [];
-
-      // Если сохранён ответ существует, пробуем его распарсить
-      const saved = this.answers[String(this.currentTaskId)];
-      let parsed = [];
-      if (saved) {
-        try {
-          parsed = JSON.parse(saved);
-        } catch (e) {
-          console.warn("Не удалось распарсить сохранённый ответ", e);
-        }
+      if (!this.currentTaskId) {
+        this.loading = false;
+        return;
       }
+      this.loading = true;
+      try {
+        const res = await this.$axios.get(`/exam_tasks/${this.currentTaskId}`);
 
-      for (let i = 0; i < rowsCount; i++) {
-        const row = [];
-        for (let j = 0; j < colCount; j++) {
-          row.push((parsed[i] && parsed[i][j]) || "");
+        const base = window.location.origin;
+        const task = res.data;
+        task.task_images = task.attachments
+          .filter(a => a.attachment_type === "task_image")
+          .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
+        task.task_files = task.attachments
+          .filter(a => a.attachment_type === "task_file")
+          .map(a => `${base}/${a.file_path.replace(/\\/g, "/")}`);
+        this.task = task;
+
+        // Если задание должно отображаться как динамическая таблица
+        if (this.isDynamicTable && this.dynamicTableConfig) {
+          const { rowsCount, colCount } = this.dynamicTableConfig;
+          this.dynamicTableAnswers = [];
+          const saved = this.answers[String(this.currentTaskId)];
+          let parsed = [];
+          if (saved) {
+            try {
+              parsed = JSON.parse(saved);
+            } catch (e) {
+              console.warn("Не удалось распарсить сохранённый ответ", e);
+            }
+          }
+          for (let i = 0; i < rowsCount; i++) {
+            const row = [];
+            for (let j = 0; j < colCount; j++) {
+              row.push((parsed[i] && parsed[i][j]) || "");
+            }
+            this.dynamicTableAnswers.push(row);
+          }
         }
-        this.dynamicTableAnswers.push(row);
+        // Если обычный ввод – используем его
+        this.userAnswer = this.answers[String(this.currentTaskId)] || "";
+      } catch (e) {
+        this.task = null;
+      } finally {
+        this.loading = false;
       }
-    }
-    
-    // Если обычный ввод – используем его
-    this.userAnswer = this.answers[String(this.currentTaskId)] || "";
-  } catch (e) {
-    this.task = null;
-  } finally {
-    this.loading = false;
-  }
-}
-
-,
+    },
     getFileName(path) {
       return path.split("/").pop();
     },
     async submitAnswer() {
-  if (this.testFinished) return;
-
-  let answerToSend = "";
-
-  if (this.isDynamicTable && this.dynamicTableConfig) {
-    const { rowsCount, colCount } = this.dynamicTableConfig;
-    
-    // Фильтруем строки: оставляем строки, где хотя бы одно поле не пустое
-    const filteredRows = this.dynamicTableAnswers
-      .filter(row => row.some(cell => cell.trim() !== ""))
-      .map(row => {
-        const filled = [...row];
-        while (filled.length < colCount) filled.push(""); // дополняем до нужного количества колонок
-        return filled;
+      if (this.testFinished) return;
+      let answerToSend = "";
+      if (this.isDynamicTable && this.dynamicTableConfig) {
+        const { rowsCount, colCount } = this.dynamicTableConfig;
+        const filteredRows = this.dynamicTableAnswers
+          .filter(row => row.some(cell => cell.trim() !== ""))
+          .map(row => {
+            const filled = [...row];
+            while (filled.length < colCount) filled.push("");
+            return filled;
+          });
+        if (rowsCount === 1) {
+          answerToSend = JSON.stringify(filteredRows[0] || []);
+        } else {
+          answerToSend = JSON.stringify(filteredRows);
+        }
+      } else {
+        answerToSend = this.userAnswer;
+      }
+      const payload = new URLSearchParams({
+        session_id: this.sessionId,
+        task_id: this.currentTaskId,
+        answer: answerToSend
+      });
+      await this.$axios.post(`/testing/submit_answer`, payload, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
       });
 
-    // Если конфигурация говорит, что строк всего 1, то отправляем не массив массивов, а просто один массив:
-    if (rowsCount === 1) {
-      // Если пользователь оставил пустой ответ – оставляем пустым
-      answerToSend = JSON.stringify(filteredRows[0] || []);
-    } else {
-      answerToSend = JSON.stringify(filteredRows);
-    }
-  } else {
-    answerToSend = this.userAnswer;
-  }
-
-  const payload = new URLSearchParams({
-    session_id: this.sessionId,
-    task_id: this.currentTaskId,
-    answer: answerToSend
-  });
-
-  await axios.post("http://localhost:8000/testing/submit_answer", payload, {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" }
-  });
-
-  this.answers[String(this.currentTaskId)] = answerToSend;
-  this.userAnswer = "";
-
-  if (this.currentTaskIndex < this.taskIds.length - 1) this.nextTask();
-}
-
-
-
-,
+      this.answers[String(this.currentTaskId)] = answerToSend;
+      this.userAnswer = "";
+      if (this.currentTaskIndex < this.taskIds.length - 1) this.nextTask();
+    },
     async finishTest() {
-      await axios.post("http://localhost:8000/testing/complete", new URLSearchParams({ session_id: this.sessionId }));
+      await this.$axios.post(`/testing/complete`, new URLSearchParams({ session_id: this.sessionId }));
       try {
-        const res = await axios.get(`http://localhost:8000/testing/results?session_id=${this.sessionId}`);
+        const res = await this.$axios.get(`/testing/results?session_id=${this.sessionId}`);
         this.results = res.data.results || {};
         this.score = res.data.score || 0;
-        const resSol = await axios.get(`http://localhost:8000/testing/solutions?session_id=${this.sessionId}`);
+        const resSol = await this.$axios.get(`/testing/solutions?session_id=${this.sessionId}`);
         this.solutions = resSol.data.solutions || {};
       } catch (err) {
         console.warn("Не удалось получить результаты", err);
@@ -363,16 +345,29 @@ export default {
   },
   beforeUnmount() {
     if (this.timerSource) this.timerSource.close();
+  },
+  mounted() {
+    // После монтирования компонента фиксируем стили блоков кода
+    this.fixQuillCodeBlocks();
+  },
+
+  updated() {
+    // После обновления компонента (например, при смене задания) вызываем этот метод, чтобы гарантировать обновление стилей
+    this.$nextTick(() => {
+      this.fixQuillCodeBlocks();
+    });
   }
 };
 </script>
 
 <style scoped>
+/* Основная верстка */
 #test-session {
   display: flex;
   min-height: 100vh;
   background-color: #f5f5f5;
 }
+
 .container {
   display: flex;
   width: 100%;
@@ -380,6 +375,7 @@ export default {
   margin: 0 auto;
   padding: 20px;
 }
+
 .main-content {
   flex: 1;
   background-color: #ffffff;
@@ -388,62 +384,110 @@ export default {
   margin-left: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
-.train-task-detail {
-  padding: 20px;
-}
+
+/* Заголовки и тип задания */
 .task-title {
   font-size: 24px;
   color: #115544;
   margin-bottom: 15px;
   text-align: center;
 }
+
 .loading,
 .not-found {
   text-align: center;
   font-size: 18px;
   color: #888;
 }
+
+/* Описание задания, изображения и файлы */
 .task-description {
   margin-bottom: 10px;
   line-height: 1.5;
+  word-break: break-word;
 }
+
 .task-images {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 10px;
 }
+
 .task-image {
   max-width: 100%;
   max-height: 200px;
   border-radius: 5px;
   border: 1px solid #ccc;
 }
+
 .task-files {
   margin-bottom: 10px;
 }
+
+.file-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: #115544;
+  font-size: 16px;
+}
+
+.file-link::before {
+  content: "";
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-image: url("@/assets/svg/files.svg");
+  background-size: contain;
+  background-repeat: no-repeat;
+  margin-right: 5px;
+}
+
+/* Ввод ответа */
 .answer-input {
   margin-top: 20px;
 }
+
 .answer-input label {
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
 }
+
 .answer-input input[type="text"] {
+  max-width: 300px;
   width: 100%;
   padding: 8px;
   border: 1px solid #ccc;
   border-radius: 5px;
 }
-table {
-  width: 100%;
+
+/* Стили таблицы для динамического ввода */
+.dynamic-table {
+  overflow-x: auto;
+}
+
+.dynamic-table table {
   border-collapse: collapse;
+  margin: 0 auto;
 }
-table td {
-  border: 1px solid #ccc;
+
+.dynamic-table td {
   padding: 5px;
+  border: none;
 }
+
+.dynamic-table input[type="text"] {
+  width: 80px;
+  max-width: 80px;
+  padding: 4px;
+  text-align: center;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+/* Кнопки */
 .submit-answer-btn {
   background-color: #115544;
   color: #fff;
@@ -453,9 +497,11 @@ table td {
   cursor: pointer;
   margin-top: 15px;
 }
+
 .submit-answer-btn:hover {
   background-color: #1e9275;
 }
+
 .solution-toggle-btn {
   background-color: #337ab7;
   color: #fff;
@@ -465,11 +511,35 @@ table td {
   margin-top: 15px;
   cursor: pointer;
 }
+
+/* Блок решения */
 .solution-text {
   margin-top: 20px;
   background-color: #f0f9ff;
   padding: 15px;
   border: 1px solid #ccc;
   border-radius: 8px;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
+
+.solution-text .ql-editor {
+  white-space: normal !important;
+  overflow-x: auto !important;
+  max-width: 100% !important;
+  word-break: break-all !important;
+}
+
+/* Таблица кода внутри Quill */
+.ql-editor pre,
+.ql-editor code {
+  max-width: 100%;
+  overflow-x: auto !important;
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+}
+
+/* Прочие элементы */
 </style>
