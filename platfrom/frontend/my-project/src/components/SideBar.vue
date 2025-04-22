@@ -219,7 +219,7 @@ export default {
   width: 20px;
   height: 20px;
   background-color: #cccccc;
-  border: 1px solid #115544;
+  border: 1px solid #56AEF6;
   border-radius: 3px;
   display: flex;
   align-items: center;
@@ -228,7 +228,7 @@ export default {
   cursor: pointer;
 }
 .task-square-sidebar.active {
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
 }
 .task-square-sidebar.answered {
   background-color: #66bb6a; /* зеленый */
@@ -242,7 +242,7 @@ export default {
   margin-bottom: 10px;
 }
 .nav-arrow {
-  background-color: #115544;
+  background-color: #56AEF6;
   color: #fff;
   padding: 5px 8px;
   border: none;

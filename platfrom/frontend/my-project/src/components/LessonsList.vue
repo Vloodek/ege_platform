@@ -176,7 +176,7 @@ h2 {
 
 .filter-container select {
   padding: 5px 12px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 8px;
   outline: none;
 }
@@ -189,7 +189,7 @@ h2 {
   position: relative;
   padding: 15px;
   margin-bottom: 15px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 20px;
   background: #fff;
 }
@@ -264,7 +264,7 @@ h2 {
 .add-task-btn {
   width: 50px;
   height: 50px;
-  background: #115544;
+  background: #56AEF6;
   border-radius: 50%;
   display: flex;
   align-items: center;

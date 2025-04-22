@@ -11,8 +11,8 @@ export default {
   props: {
     color: {
       type: String,
-      default: "green",
-      validator: (value) => ["green", "white", "gray"].includes(value),
+      default: "blue",
+      validator: (value) => ["blue", "white", "gray"].includes(value),
     },
   },
   computed: {
@@ -27,7 +27,7 @@ export default {
 .lesson-button {
   padding: 10px;
   font-size: 16px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 20px;
   cursor: pointer;
   text-align: center;
@@ -39,7 +39,7 @@ export default {
   cursor: pointer;
 }
 .lesson-button.green {
-  background-color: #115544;
+  background-color: #56AEF6;
   color: #fff;
 }
 .lesson-button.white {
