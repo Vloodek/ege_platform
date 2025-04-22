@@ -17,6 +17,7 @@ import UserProfile from './components/UserProfile.vue';
 import ExamTaskList from './components/ExamTaskList.vue';
 import TrainTaskDetail from './components/TrainTaskDetail.vue';
 import TestSession from './components/testing/TestSession.vue';
+import CreateHomeworkTest from './components/testing/CreateHomeworkTest.vue'
 const routes = [
   {
     path: '/',
@@ -111,6 +112,19 @@ const routes = [
     name: 'homework-submissions',
     component: ShowSubmissions,
   },
+  {
+    path: '/homeworks/:id/create-test',
+    name: 'CreateHomeworkTest',
+    props: true,
+    component: CreateHomeworkTest,
+  },
+  {
+    path: "/homework_test/:id",
+    name: "HomeworkTestSession",
+    component: () => import("@/components/testing/HomeworkTestSession.vue"),
+    meta: { requiresAuth: true },
+  }
+,  
   {
     path: '/lesson/:id/edit',
     name: 'add-homework',

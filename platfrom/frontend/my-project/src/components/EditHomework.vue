@@ -28,6 +28,7 @@
 
           <div class="form-group">
             <label for="homeworkFiles">Файлы</label>
+            
             <input
               type="file"
               id="homeworkFiles"
@@ -39,9 +40,10 @@
               <p>Прикрепленные файлы:</p>
               <ul>
                 <li v-for="(file, index) in homework.files" :key="index">
-                  {{ file.name || file }}
-                  <button type="button" @click="removeFile(index)">Удалить</button>
-                </li>
+        <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
+        {{ file.name || file }}
+        <button type="button" @click="removeFile(index)">Удалить</button>
+      </li>
               </ul>
             </div>
           </div>
@@ -108,32 +110,40 @@ export default {
 },
   methods: {
     initEditor() {
-      this.$nextTick(() => {
-        const toolbarOptions = [
-          [{ header: "1" }, { header: "2" }],
-          [{ list: "ordered" }, { list: "bullet" }],
-          ["bold", "italic", "underline"],
-          [{ align: [] }],
-          ["link", "image"],
-        ];
-        const editor = new Quill(this.$refs.homeworkEditor, {
-          theme: "snow",
-          modules: {
-            toolbar: {
-              container: toolbarOptions,
-              handlers: {
-                image: this.imageUploadHandler,
-              },
-            },
+  this.$nextTick(() => {
+    const toolbarOptions = [
+      [{ header: "1" }, { header: "2" }],
+      [{ list: "ordered" }, { list: "bullet" }],
+      ["bold", "italic", "underline"],
+      [{ align: [] }],
+      ["link", "image"],
+    ];
+    const editor = new Quill(this.$refs.homeworkEditor, {
+      theme: "snow",
+      modules: {
+        toolbar: {
+          container: toolbarOptions,
+          handlers: {
+            image: this.imageUploadHandler,
           },
-        });
-        editor.root.innerHTML = this.homework.text || "";
-        editor.on("text-change", () => {
-          this.homework.text = editor.root.innerHTML;
-        });
-        this.homeworkEditor = editor;
-      });
-    },
+        },
+      },
+    });
+
+    this.homeworkEditor = editor;
+
+    // Вставка текста — с задержкой, чтобы редактор точно отрисовался
+    this.$nextTick(() => {
+      editor.root.innerHTML = this.homework.text || "";
+    });
+
+    // Слушатель событий
+    editor.on("text-change", () => {
+      this.homework.text = editor.root.innerHTML;
+    });
+  });
+}
+,
     async imageUploadHandler() {
       const input = document.createElement("input");
       input.type = "file";
@@ -168,38 +178,51 @@ export default {
       });
     },
     removeFile(index) {
-      this.homework.files.splice(index, 1);
-    },
+  const fileToRemove = this.homework.files[index];
+  
+  // Если файл был уже загружен, добавляем его в список для удаления
+  if (typeof fileToRemove === "string") {
+    this.existingFiles = this.existingFiles.filter(file => file !== fileToRemove);
+  }
+  
+  // Удаляем файл из текущего списка
+  this.homework.files.splice(index, 1);
+}
+,
     confirmExit() {
       if (confirm("Вы уверены, что хотите выйти без сохранения?")) {
         this.$router.push(`/lesson/${this.homework.lessonId}/details`);
       }
     },
     async handleSubmit() {
-      const formData = new FormData();
-      formData.append("lesson_id", this.homework.lessonId);
-      formData.append("description", this.homework.title);
-      formData.append("text", this.homework.text);
-      formData.append("date", this.homework.date);
-      formData.append("existing_files", JSON.stringify(this.existingFiles));
+  const formData = new FormData();
+  formData.append("lesson_id", this.homework.lessonId);
+  formData.append("description", this.homework.title);
+  formData.append("text", this.homework.text);
+  formData.append("date", this.homework.date);
 
-      this.homework.files.forEach(file => {
-        if (typeof file !== "string") {
-          formData.append("files", file);
-        }
-      });
+  // Передаем существующие файлы, кроме тех, которые были удалены
+  formData.append("existing_files", JSON.stringify(this.existingFiles));
 
-      try {
-        await this.$axios.put(`/homeworks/${this.homework.id}`, formData, {
+  // Передаем новые файлы
+  this.homework.files.forEach(file => {
+    if (typeof file !== "string") {
+      formData.append("files", file);
+    }
+  });
 
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        this.$router.push(`/lesson/${this.homework.lessonId}/details`);
-      } catch (err) {
-        console.error("Ошибка при сохранении ДЗ:", err);
-        alert("Ошибка при сохранении");
-      }
-    },
+  // Отправляем запрос на сервер
+  try {
+    await this.$axios.put(`/homeworks/${this.homework.id}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    this.$router.push(`/lesson/${this.homework.lessonId}/details`);
+  } catch (err) {
+    console.error("Ошибка при сохранении ДЗ:", err);
+    alert("Ошибка при сохранении");
+  }
+}
+,
   },
 };
 </script>
@@ -286,5 +309,15 @@ export default {
 }
 .submit-btn:hover {
   background-color: #1e9275;
+}
+.file-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+ul {
+  list-style-type: none; /* Убирает маркеры у списка */
+  padding-left: 0; /* Убирает отступ слева */
 }
 </style>

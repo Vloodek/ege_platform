@@ -173,3 +173,70 @@ class ExamTaskCountByTypeResponse(BaseModel):
         orm_mode = True
 
 
+
+
+class HomeworkTestAttachmentResponse(BaseModel):
+    id: int
+    test_id: int
+    file_path: str
+    attachment_type: str
+    uploaded_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class HomeworkTestResponse(BaseModel):
+    id: int
+    duration: int
+    created_at: datetime
+    updated_at: datetime
+    attachments: List[HomeworkTestAttachmentResponse] = []
+
+    class Config:
+        orm_mode = True
+
+# Схема для JSON‑части tasks_meta (если нужна валидация на уровне Pydantic)
+class TaskMeta(BaseModel):
+    title: str
+    description: str
+    files: List[str]
+    images: List[str]
+
+class HomeworkTestCreate(BaseModel):
+    homework_id: int
+    duration: int
+    tasks_meta: List[TaskMeta]
+
+class HomeworkTestTask(BaseModel):
+    id: int
+    title: str
+    description: str
+    correct_answer: str
+    files: list[str]
+    images: list[str]
+
+class HomeworkTestFullResponse(BaseModel):
+    id: int
+    homework_id: int
+    duration: int
+    tasks: list[HomeworkTestTask]
+
+
+class HomeworkTestStartRequest(BaseModel):
+    user_id: int
+
+class TaskInSession(BaseModel):
+    id: int
+    title: str
+    description: str
+    correct_answer: Optional[str] = ""
+    files: List[str] = []
+    images: List[str] = []
+
+class HomeworkTestSessionResponse(BaseModel):
+    attempt_id: int
+    duration: int
+    remaining_time: int
+    tasks: List[TaskInSession]
+    answers: Dict[int, str]
+    is_completed: bool

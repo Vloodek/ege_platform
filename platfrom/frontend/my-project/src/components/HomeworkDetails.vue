@@ -235,15 +235,30 @@ export default {
       });
     },
     applyEditorStyles() {
-      document.querySelectorAll(".ql-editor img").forEach((img) => {
-        img.style.maxWidth = "300px";
-        img.style.width = "auto";
-        img.style.height = "auto";
-        img.style.objectFit = "contain";
-        img.style.display = "block";
-        img.style.margin = "10px auto";
+  const editorImages = document.querySelectorAll(".ql-editor img");
+
+  editorImages.forEach((img) => {
+    if (img.dataset.listenerAttached === "true") return;
+
+    img.style.maxWidth = "300px";
+    img.style.width = "auto";
+    img.style.height = "auto";
+    img.style.objectFit = "contain";
+    img.style.display = "block";
+    img.style.margin = "10px auto";
+    img.style.cursor = "pointer";
+
+    const src = img.getAttribute("src");
+    if (src) {
+      img.addEventListener("click", () => {
+        window.open(src, "_blank");
       });
-    },
+      img.dataset.listenerAttached = "true";
+    }
+  });
+}
+
+,
   },
 };
 </script>
@@ -296,11 +311,11 @@ export default {
 
 .homework-deadline {
   display: inline-block;
-  background-color: #f1fdf5;
-  border: 1px solid #b8e0c2;
+  background-color: #ffffff;
+  border: 1px solid #606060;
   padding: 10px 14px;
   border-radius: 6px;
-  color: #115544;
+  color: #000000;
   font-size: 16px;
   font-weight: 500;
   line-height: 1.5;
@@ -469,4 +484,7 @@ export default {
   text-decoration: underline;
 }
 
+.images img {
+  display: none;
+}
 </style>

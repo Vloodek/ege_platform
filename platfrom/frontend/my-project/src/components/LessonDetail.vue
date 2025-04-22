@@ -10,7 +10,7 @@
           <h1 class="lesson-title">{{ lesson.name }}</h1>
         </div>
 
-        <!-- Video (embed / iframe) -->
+        <!-- Video -->
         <div v-if="lesson.videoLink" class="video-container">
           <div v-if="videoEmbedHtml" v-html="videoEmbedHtml" />
           <iframe
@@ -43,7 +43,7 @@
           </div>
 
           <div class="right-column">
-            <!-- Materials button always -->
+            <!-- Materials button -->
             <BaseButton color="white" @click="viewMaterials">
               Материалы занятия
             </BaseButton>
@@ -55,6 +55,23 @@
               @click="goToHomework"
             >
               ДЗ
+            </BaseButton>
+
+            <!-- Take Test button (всегда, если есть тест) -->
+            <BaseButton
+              v-if="testExists"
+              color="green"
+              @click="goToTest"
+            >
+              Пройти тест
+            </BaseButton>
+            <!-- Create Test button (только если нет теста и ты учитель) -->
+            <BaseButton
+              v-else-if="isTeacher"
+              color="green"
+              @click="goToCreateTest"
+            >
+              Создать тест
             </BaseButton>
           </div>
         </div>
@@ -79,16 +96,17 @@ export default {
       videoEmbedHtml: null,
       isTeacher: false,
       homeworkExists: false,
+      testExists: false,
+      testId: null,
     };
   },
   async created() {
-    // Determine user role
     const user = JSON.parse(localStorage.getItem("user")) || {};
     this.isTeacher = user.role === "teacher";
 
-    // Load lesson & check homework
     await this.fetchLesson();
     await this.checkHomework();
+    await this.checkTest();
   },
   methods: {
     goBack() {
@@ -98,7 +116,6 @@ export default {
       try {
         const lessonId = this.$route.params.id;
         const { data } = await this.$axios.get(`/lessons/${lessonId}`);
-
         this.lesson = data;
         this.processVideoLink(data.videoLink);
       } catch (err) {
@@ -108,14 +125,24 @@ export default {
     async checkHomework() {
       try {
         const lessonId = this.$route.params.id;
-        // your API should return 200 if exists, 404 otherwise
         await this.$axios.get(`/homeworks/by_lesson/${lessonId}/id`);
-
         this.homeworkExists = true;
       } catch {
         this.homeworkExists = false;
       }
     },
+    async checkTest() {
+  try {
+    const lessonId = this.$route.params.id;
+    // Проверяем наличие теста для урока
+    const { data } = await this.$axios.get(`/homework_tests/by_lesson/${lessonId}`);
+    this.testExists = true;
+    this.testId = data.id;
+  } catch (err) {
+    console.warn("Нет тестов домашки:", err);
+    this.testExists = false;
+  }
+},
     goToHomework() {
       const lessonId = this.$route.params.id;
       if (this.homeworkExists) {
@@ -124,6 +151,19 @@ export default {
         this.$router.push(`/lesson/${lessonId}/edit`);
       }
     },
+    goToCreateTest() {
+      this.$router.push({
+        name: "CreateHomeworkTest",
+        params: { id: this.lesson.id },
+      });
+    },
+    goToTest() {
+  this.$router.push({
+    name: "HomeworkTestSession", // 👈 название маршрута
+    params: { id: this.testId },
+  });
+}
+,
     viewMaterials() {
       this.$router.push(`/lesson/${this.lesson.id}/materials`);
     },

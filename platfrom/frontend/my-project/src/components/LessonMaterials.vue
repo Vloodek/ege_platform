@@ -13,28 +13,23 @@
             <h1 class="lesson-title centered">{{ lesson.name }}</h1>
           </div>
 
-          <!-- Отображение отформатированного текста занятия -->
-          <div v-if="lesson.text" class="lesson-description ql-editor" v-html="lesson.text"></div>
-
-          <!-- Отображение изображений -->
-          <div v-if="images.length" class="images-container">
-            <div class="images">
-              <img
-                v-for="image in images"
-                :src="image"
-                :alt="lesson.name"
-                :key="image"
-                @click="openImage(image)"
-              />
-            </div>
-          </div>
+          <!-- Отображение отформатированного текста занятия (Quill) -->
+          <div
+            v-if="lesson.text"
+            class="lesson-description ql-editor"
+            v-html="lesson.text"
+          ></div>
 
           <!-- Список файлов -->
           <div v-if="files.length" class="files-section">
             <ul>
               <li v-for="file in files" :key="file">
                 <a :href="file" download @click.prevent="downloadFile(file)">
-                  <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
+                  <img
+                    src="@/assets/svg/files.svg"
+                    alt="file icon"
+                    class="file-icon"
+                  />
                   {{ getFileName(file) }}
                 </a>
               </li>
@@ -53,13 +48,10 @@
 import SideBar from "./SideBar.vue";
 
 export default {
-  components: {
-    SideBar,
-  },
+  components: { SideBar },
   data() {
     return {
       lesson: null,
-      images: [],
       files: [],
     };
   },
@@ -67,10 +59,8 @@ export default {
     this.fetchLesson();
   },
   updated() {
-    // После обновления DOM применяем стили к изображениям внутри Quill-редактора
-    this.$nextTick(() => {
-      this.applyImageStyles();
-    });
+    // Подправляем стили img внутри Quill-контента
+    this.$nextTick(this.applyImageStyles);
   },
   methods: {
     goBack() {
@@ -81,7 +71,6 @@ export default {
       try {
         const { data } = await this.$axios.get(`/lessons/${lessonId}`);
         this.lesson = data;
-        console.log("Ответ от сервера:", this.lesson);
         this.processMaterials();
       } catch (error) {
         console.error("Ошибка загрузки материалов", error);
@@ -89,19 +78,6 @@ export default {
     },
     processMaterials() {
       const baseUrl = this.$axios.defaults.baseURL.replace(/\/$/, "");
-
-      // Обработка изображений
-      if (this.lesson.image_links && this.lesson.image_links.length > 0) {
-        const allImages = Array.isArray(this.lesson.image_links)
-          ? this.lesson.image_links
-          : this.lesson.image_links.split(",");
-        this.images = allImages.map((image) => {
-          image = image.replace(/\\/g, "/");
-          return `${baseUrl}/${image}`;
-        });
-      } else {
-        console.log("Изображения отсутствуют.");
-      }
 
       // Обработка файлов
       if (this.lesson.files && this.lesson.files.length > 0) {
@@ -113,15 +89,11 @@ export default {
           return `${baseUrl}/${file}`;
         });
       } else {
-        console.log("Файлы отсутствуют.");
+        this.files = [];
       }
     },
     getFileName(file) {
-      const lastIndex = file.lastIndexOf("/");
-      return file.slice(lastIndex + 1);
-    },
-    openImage(imageUrl) {
-      window.open(imageUrl, "_blank");
+      return file.substring(file.lastIndexOf("/") + 1);
     },
     downloadFile(fileUrl) {
       const link = document.createElement("a");
@@ -130,18 +102,28 @@ export default {
       link.click();
     },
     applyImageStyles() {
-      // Применяем стили к изображениям внутри контейнера Quill (например, для lesson.text)
-      document.querySelectorAll('.ql-editor img').forEach(img => {
-        // Задаём фиксированную максимальную ширину, чтобы огромные изображения не растягивали блок
-        img.style.maxWidth = '300px';
-        // Если необходимо, можно задать и width: auto;
-        img.style.width = 'auto';
-        img.style.height = 'auto';
-        img.style.objectFit = 'contain';
-        img.style.display = 'block';
-        img.style.margin = '10px auto';
-      });
-    },
+  document.querySelectorAll(".ql-editor img").forEach((img) => {
+    // Стили
+    img.style.maxWidth = "300px";
+    img.style.width = "auto";
+    img.style.height = "auto";
+    img.style.objectFit = "contain";
+    img.style.display = "block";
+    img.style.margin = "10px auto";
+
+    // Обернуть в ссылку, если ещё не обёрнуто
+    if (!img.parentElement || img.parentElement.tagName.toLowerCase() !== "a") {
+      const link = document.createElement("a");
+      link.href = img.src;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+
+      img.parentNode.insertBefore(link, img);
+      link.appendChild(img);
+    }
+  });
+}
+,
   },
 };
 </script>
@@ -198,24 +180,6 @@ export default {
   color: #333;
 }
 
-/* Стили для изображений */
-.images-container {
-  margin-top: 20px;
-  text-align: center;
-}
-
-.images img {
-  max-width: 150px;
-  margin: 10px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.3s ease;
-}
-
-.images img:hover {
-  transform: scale(1.5);
-}
-
 /* Стили для файлов */
 .files-section ul {
   list-style: none;
@@ -244,10 +208,8 @@ export default {
   flex-shrink: 0;
 }
 
-/* Стили Quill для изображений внутри отформатированного текста */
+/* Стили Quill для изображений внутри текста */
 .ql-editor img {
-  /* Эти стили могут быть изменены через JS (см. applyImageStyles) или прописаны здесь */
-  /* Мы убираем фиксированный процент и задаём максимальную ширину */
   max-width: 300px !important;
   width: auto !important;
   height: auto !important;

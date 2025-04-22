@@ -225,73 +225,105 @@ UPLOAD_FOLDER = "./uploads/"
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# Эндпоинт для создания урока (lesson)
 @app.post("/lessons/", response_model=schemas.LessonResponse)
 async def create_lesson(
     name: str = Form(...),
     description: str = Form(...),
-    videoLink: Optional[str] = Form(None),
     text: str = Form(...),
     date: datetime = Form(...),
-    group_id: int = Form(...),  # Добавляем выбор группы
-    images: Optional[List[UploadFile]] = File(None),
-    files: Optional[List[UploadFile]] = File(None),
-    db: Session = Depends(get_db)
+    group_id: int = Form(...),
+    images: list[UploadFile] = File(default=[]),
+    files:  list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
 ):
-    db_lesson = database.Lesson(
-        name=name,
-        description=description,
-        videoLink=videoLink,
-        text=text,
-        date=date,
-        
-    )
-    db.add(db_lesson)
-    db.commit()
-    db.refresh(db_lesson)
+    # 1) Создаём урок
+    lesson = database.Lesson(name=name, description="", text="", date=date)
+    db.add(lesson); db.commit(); db.refresh(lesson)
 
-    # Получаем группу по group_id
-    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
-    if group:
-        # Добавляем группу в список групп урока
-        db_lesson.groups.append(group)
+    # 2) Привязываем к группе
+    grp = db.query(database.StudyGroup).get(group_id)
+    if grp:
+        lesson.groups.append(grp)
         db.commit()
-        db.refresh(db_lesson)
 
-    lesson_folder = os.path.join(UPLOAD_FOLDER, str(db_lesson.id))
-    os.makedirs(lesson_folder, exist_ok=True)
+    # 3) Подготовка папок
+    base = os.path.join(UPLOAD_FOLDER, str(lesson.id))
+    os.makedirs(os.path.join(base, "files"),  exist_ok=True)
+    os.makedirs(os.path.join(base, "images"), exist_ok=True)
 
-    images_folder = os.path.join(lesson_folder, "images")
-    os.makedirs(images_folder, exist_ok=True)
+    # 4) Сохраняем простые файлы/картинки
+    file_paths = []
+    for f in files:
+        p = os.path.join(base, "files", f.filename)
+        with open(p, "wb") as buf: buf.write(f.file.read())
+        file_paths.append(p.replace("\\","/"))
 
     image_paths = []
-    if images:
-        for image in images:
-            image_location = os.path.join(images_folder, image.filename)
-            with open(image_location, "wb") as f:
-                f.write(image.file.read())
-            normalized_image_path = os.path.normpath(image_location).replace("\\", "/")
-            image_paths.append(normalized_image_path)
+    for img in images:
+        p = os.path.join(base, "images", img.filename)
+        with open(p, "wb") as buf: buf.write(img.file.read())
+        image_paths.append(p.replace("\\","/"))
 
-    file_paths = []
-    if files:
-        for file in files:
-            file_location = os.path.join(lesson_folder, file.filename)
-            with open(file_location, "wb") as f:
-                f.write(file.file.read())
-            normalized_file_path = os.path.normpath(file_location).replace("\\", "/")
-            file_paths.append(normalized_file_path)
+    # 5) Переносим Quill‑temp‑изображения из HTML
+    new_desc, moved_desc = move_temp_images(
+        description, base, lesson.id, "lesson_image", db
+    )
+    new_text, moved_text = move_temp_images(
+        text,        base, lesson.id, "lesson_image", db
+    )
+    lesson.description = new_desc
+    lesson.text        = new_text
 
-    db_lesson.files = ",".join(file_paths)
-    db_lesson.image_links = ",".join(image_paths)
+    # 6) Записываем пути в БД как строку (VARCHAR)
+    all_files  = file_paths
+    all_images = image_paths + [
+        os.path.join(base, "images", fn).replace("\\","/")
+        for fn in moved_desc + moved_text
+    ]
+    lesson.files       = ",".join(all_files)
+    lesson.image_links = ",".join(all_images)
+
+    db.commit(); db.refresh(lesson)
+
+    # 7) Для ответа FastAPI конвертируем обратно в список
+    lesson.files       = lesson.files.split(",")       if lesson.files else []
+    lesson.image_links = lesson.image_links.split(",") if lesson.image_links else []
+    return lesson
+
+@app.delete("/lessons/{lesson_id}", status_code=204)
+async def delete_lesson(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+):
+    # 1) Получаем урок
+    lesson = db.query(database.Lesson).get(lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    # 2) Удаляем все домашки, связанные с уроком
+    #    (предполагается, что в модели Lesson есть relationship .homeworks)
+    for hw in list(lesson.homeworks):
+        # 2.1) Разрываем связи many-to-many у домашки
+        hw.groups.clear()
+        db.commit()
+        # 2.2) Удаляем саму домашку из БД
+        db.delete(hw)
     db.commit()
-    db.refresh(db_lesson)
 
-    db_lesson.files = db_lesson.files.split(",") if db_lesson.files else []
-    db_lesson.image_links = db_lesson.image_links.split(",") if db_lesson.image_links else []
-    
-    return db_lesson
+    # 3) Удаляем папку урока вместе с файлами и домашками
+    lesson_folder = os.path.join(UPLOAD_FOLDER, str(lesson.id))
+    if os.path.exists(lesson_folder):
+        shutil.rmtree(lesson_folder)
 
+    # 4) Очищаем связи урока с группами
+    lesson.groups.clear()
+    db.commit()
+
+    # 5) Удаляем сам урок
+    db.delete(lesson)
+    db.commit()
+
+    return  # 204 No Content
 
 
 
@@ -349,61 +381,69 @@ async def create_homework(
     images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db)
 ):
-    lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
-    
+    lesson = db.query(database.Lesson).get(lesson_id)
     if not lesson:
-        raise HTTPException(status_code=404, detail="Урок не найден")
+        raise HTTPException(404, "Урок не найден")
 
-    db_homework = database.Homework(
-        lesson_id=lesson_id,
-        description=description,
-        text=text,
-        date=date,
-        files="[]",
-        images="[]",
-        
-    )
-    db.add(db_homework)
+    # 1) Создаем домашку
+    hw = database.Homework(lesson_id=lesson_id, description="", text="", date=date)
+    db.add(hw)
     db.commit()
-    db.refresh(db_homework)
+    db.refresh(hw)
 
-    # Привязываем домашнее задание к группам, к которым принадлежит урок
-    # Если урок может принадлежать сразу нескольким группам:
-    for group in lesson.groups:
-        db_homework.groups.append(group)
+    # 2) Привязываем к тем же группам
+    for grp in lesson.groups:
+        hw.groups.append(grp)
     db.commit()
-    db.refresh(db_homework)
 
-    homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
-    os.makedirs(homework_folder, exist_ok=True)
+    # 3) Папки
+    base = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
+    os.makedirs(os.path.join(base, "files"), exist_ok=True)
+    os.makedirs(os.path.join(base, "images"), exist_ok=True)
 
+    # 4) Сохраняем обычные файлы и картинки
     file_paths = []
-    image_paths = []
-
     if files:
-        for file in files:
-            file_location = os.path.join(homework_folder, file.filename)
-            with open(file_location, "wb") as f:
-                f.write(file.file.read())
-            file_paths.append(file_location)
+        for f in files:
+            p = os.path.join(base, "files", f.filename)
+            with open(p, "wb") as buf: buf.write(f.file.read())
+            file_paths.append(p.replace("\\","/"))
 
+    image_paths = []
     if images:
-        for image in images:
-            image_location = os.path.join(homework_folder, image.filename)
-            with open(image_location, "wb") as f:
-                f.write(image.file.read())
-            image_paths.append(image_location)
+        for img in images:
+            p = os.path.join(base, "images", img.filename)
+            with open(p, "wb") as buf: buf.write(img.file.read())
+            image_paths.append(p.replace("\\","/"))
 
-    db_homework.files = json.dumps(file_paths)
-    db_homework.images = json.dumps(image_paths)  # Сохраняем пути в формате JSON
+    # 5) Переносим temp‑изображения
+    new_desc, moved_desc = move_temp_images(
+        description, base, lesson_id, "homework_image", db
+    )
+    new_text, moved_text = move_temp_images(
+        text,        base, lesson_id, "homework_image", db
+    )
+    hw.description = new_desc
+    hw.text        = new_text
+
+    # 6) Сохраняем пути
+    all_files  = file_paths
+    all_images = image_paths + [
+        os.path.join(base, "images", fn).replace("\\","/")
+        for fn in moved_desc + moved_text
+    ]
+    hw.files  = json.dumps(all_files)
+    hw.images = json.dumps(all_images)
 
     db.commit()
-    db.refresh(db_homework)
+    db.refresh(hw)
 
-    db_homework.files = json.loads(db_homework.files) if db_homework.files else []
-    db_homework.images = json.loads(db_homework.images) if db_homework.images else []
+    # 7) Для ответа распарсим обратно
+    hw.files  = json.loads(hw.files)  if hw.files  else []
+    hw.images = json.loads(hw.images) if hw.images else []
 
-    return db_homework
+    return hw
+
 
 
 
@@ -740,35 +780,6 @@ import string
 def generate_group_code(length=6):
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
-@app.delete("/groups/{group_id}/members/{user_id}")
-async def remove_user_from_group(group_id: int, user_id: int, db: Session = Depends(get_db)):
-    user = db.query(database.User).filter(
-        database.User.id == user_id,
-        database.User.group_id == group_id
-    ).first()
-
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден в этой группе")
-
-    user.group_id = None
-    db.commit()
-
-    return {"message": f"Пользователь {user.name} удален из группы"}
-
-@app.delete("/groups/{group_id}")
-async def delete_group(group_id: int, db: Session = Depends(get_db)):
-    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
-
-    if not group:
-        raise HTTPException(status_code=404, detail="Группа не найдена")
-
-    # Обнуляем group_id у всех пользователей в этой группе
-    db.query(database.User).filter(database.User.group_id == group_id).update({database.User.group_id: None})
-    db.delete(group)
-    db.commit()
-
-    return {"message": f"Группа '{group.name}' удалена"}
-
 @app.post("/groups/", response_model=schemas.GroupResponse)
 async def create_group(group: schemas.GroupCreate, db: Session = Depends(get_db)):
     group_code = generate_group_code()
@@ -821,6 +832,16 @@ async def get_group_users(group_id: int, db: Session = Depends(get_db)):
     
     users = db.query(database.User).filter(database.User.group_id == group.id).all()
     return users
+
+@app.delete("/groups/{group_id}", status_code=204)
+async def delete_group(group_id: int, db: Session = Depends(get_db)):
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    db.delete(group)
+    db.commit()
+    return  # статус 204 - пустой ответ
 
 @app.get("/homework/{homework_id}", response_model=schemas.HomeworkResponse)
 async def get_homework(homework_id: int, db: Session = Depends(get_db)):
@@ -879,33 +900,50 @@ async def update_homework(
     # Загружаем новые файлы
     if files:
         for file in files:
-            file_location = os.path.join(homework_folder, file.filename)
+            file_location = os.path.join(homework_folder, "files", file.filename)
+            os.makedirs(os.path.dirname(file_location), exist_ok=True)
             with open(file_location, "wb") as f:
                 f.write(file.file.read())
             file_paths.append(file_location)
-    
+
     if images:
         for image in images:
-            image_location = os.path.join(homework_folder, image.filename)
+            image_location = os.path.join(homework_folder, "images", image.filename)
+            os.makedirs(os.path.dirname(image_location), exist_ok=True)
             with open(image_location, "wb") as f:
                 f.write(image.file.read())
             image_paths.append(image_location)
+
+    # Переносим temp‑изображения
+    new_desc, moved_desc = move_temp_images(
+        description, homework_folder, lesson_id, "homework_image", db
+    )
+    new_text, moved_text = move_temp_images(
+        text, homework_folder, lesson_id, "homework_image", db
+    )
     
-    # Обновляем данные в базе
-    db_homework.lesson_id = lesson_id
-    db_homework.description = description
-    db_homework.text = text
-    db_homework.date = date
-    db_homework.files = json.dumps(file_paths)
-    db_homework.images = json.dumps(image_paths)
+    # Обновляем описание и текст
+    db_homework.description = new_desc
+    db_homework.text = new_text
+
+    # Обновляем пути
+    all_files = file_paths
+    all_images = image_paths + [
+        os.path.join(homework_folder, "images", fn).replace("\\", "/")
+        for fn in moved_desc + moved_text
+    ]
     
+    db_homework.files = json.dumps(all_files)
+    db_homework.images = json.dumps(all_images)
+
     db.commit()
     db.refresh(db_homework)
     
     db_homework.files = json.loads(db_homework.files) if db_homework.files else []
     db_homework.images = json.loads(db_homework.images) if db_homework.images else []
-    
+
     return db_homework
+
 
 
 from fastapi import Query
@@ -1206,8 +1244,22 @@ def create_exam_task(
     # Перемещаем временные изображения, вставленные через Quill,
     # и заменяем URL на итоговые.
     # Если требуется добавить записи attachments для этих картинок – здесь можно добавить дополнительную логику.
-    task.description = move_temp_images(task.description, base_path, task_number, task.id)
-    task.solution_text = move_temp_images(task.solution_text, base_path, task_number, task.id)
+    task.description, _ = move_temp_images(
+    html=task.description,
+    base_path=base_path,
+    owner_id=task.id,
+    attachment_type="task_image",
+    db=db
+)
+
+    task.solution_text, _ = move_temp_images(
+        html=task.solution_text,
+        base_path=base_path,
+        owner_id=task.id,
+        attachment_type="solution_image",
+        db=db
+    )
+
 
     db.commit()
     return task
@@ -1309,26 +1361,63 @@ async def upload_temp_image(image: UploadFile = File(...)):
 
 import re
 import shutil
-def move_temp_images(html: str, base_path: str, task_number: int, task_id: int) -> str:
+from bs4 import BeautifulSoup
+# ловим как абсолютные, так и относительные ссылки на temp
+# Ищет src="/uploads/temp/<filename>"
+TEMP_SRC_PATTERN = re.compile(r'src="(?:https?://[^/]+)?/uploads/temp/([^"]+)"')
+from typing import Tuple, List
+def move_temp_images(
+    html: str,
+    base_path: str,
+    owner_id: int,
+    attachment_type: str,
+    db: Session,
+    url_prefix: str = "/uploads"
+) -> Tuple[str, List[str]]:
     """
-    Ищет ссылки на временные изображения (uploads/temp) в HTML,
-    перемещает файлы в папку base_path/images и заменяет URL на итоговые.
-    Итоговый URL формируется как:
-      http://localhost:8000/uploads/tasks_bank/{task_number}/{task_id}/images/{filename}
+    1) Парсит HTML через BeautifulSoup.
+    2) Ищет все <img> с src, содержащим '/uploads/temp/'.
+    3) Переносит файлы из './uploads/temp' -> 'base_path/images'.
+    4) Меняет в HTML src на '/uploads/.../images/...'.
+    5) (Опционально) создает запись Attachment в БД.
+    Возвращает (new_html, [имена файлов]).
     """
-    pattern = r'src="(http://localhost:8000/uploads/temp/([^"]+))"'
-    matches = re.findall(pattern, html)
-    new_html = html
-    for full_url, filename in matches:
-        temp_path = os.path.join("./uploads/temp", filename)
-        dest_folder = os.path.join(base_path, "images")
-        os.makedirs(dest_folder, exist_ok=True)
-        dest_path = os.path.join(dest_folder, filename)
-        if os.path.exists(temp_path):
-            shutil.move(temp_path, dest_path)
-            final_url = f"http://localhost:8000/uploads/tasks_bank/{task_number}/{task_id}/images/{filename}"
-            new_html = new_html.replace(full_url, final_url)
-    return new_html
+    soup = BeautifulSoup(html, "html.parser")
+    moved: List[str] = []
+    images_dir = os.path.join(base_path, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    for img in soup.find_all("img"):
+        src = img.get("src", "")
+        if "/uploads/temp/" not in src:
+            continue
+
+        filename = src.rsplit("/uploads/temp/", 1)[1]
+        temp_path = os.path.join("uploads", "temp", filename)
+        if not os.path.exists(temp_path):
+            continue
+
+        # Переносим файл
+        dest_path = os.path.join(images_dir, filename)
+        shutil.move(temp_path, dest_path)
+
+        # Новый web‑URL
+        rel = os.path.normpath(dest_path).replace("\\", "/")
+        idx = rel.find("uploads")
+        new_src = "/" + rel[idx:]
+        img["src"] = new_src
+        moved.append(filename)
+
+        # — если нужна Attachment-модель — раскомментируйте:
+        # from app.database import LessonAttachment
+        # att = LessonAttachment(
+        #     owner_id=owner_id,
+        #     file_path=rel,
+        #     attachment_type=attachment_type,
+        # )
+        # db.add(att)
+
+    return str(soup), moved
 
 
 @app.get("/exam_tasks/{id}", response_model=schemas.ExamTaskResponse)
@@ -1722,3 +1811,260 @@ def get_schedule(
 
         return result
     
+
+
+@app.post("/homework_tests/", response_model=schemas.HomeworkTestResponse)
+async def create_homework_test(
+    lesson_id: int = Form(...),
+    duration: int = Form(...),
+    tasks_meta: str = Form(...),  # JSON string of list[dict]
+    task_files: List[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+):
+    # 1. Создаём запись теста
+    test = database.HomeworkTest(lesson_id=lesson_id, duration=duration, tasks_meta=tasks_meta)
+    db.add(test); db.commit(); db.refresh(test)
+
+    base = os.path.join(UPLOAD_FOLDER, str(lesson_id), "test", str(test.id))
+    os.makedirs(os.path.join(base, "files"), exist_ok=True)
+    os.makedirs(os.path.join(base, "images"), exist_ok=True)
+
+    # 2. Сохраняем все файлы и строим карту filename → путь
+    file_map: dict[str,str] = {}
+    for file in task_files:
+        file.file.seek(0)
+        filepath = os.path.join(base, "files", file.filename)
+        with open(filepath, "wb") as f:
+            f.write(file.file.read())
+        db.add(database.HomeworkTestAttachment(
+            test_id=test.id,
+            file_path=filepath.replace("\\", "/"),
+            attachment_type="test_file"
+        ))
+        file_map[file.filename] = filepath.replace("\\", "/")
+    db.commit()
+
+    # 3. Парсим мету задач и для каждой задачи берём только её файлы по имени
+    try:
+        tasks = json.loads(tasks_meta)
+        for task in tasks:
+            # если в JSON‑мете лежат оригинальные имена файлов
+            originals = task.get("files", [])
+            # отфильтруем по нашей карте
+            task["files"] = [file_map[name] for name in originals if name in file_map]
+
+            # обработка картинок в описании как раньше
+            if "description" in task:
+                new_desc, moved_imgs = move_temp_images(
+                    task["description"], base, test.lesson_id, "test_image", db
+                )
+                task["description"] = new_desc
+                task["images"] = moved_imgs
+        # сохраняем обновлённую мету
+        test.tasks_meta = json.dumps(tasks)
+        db.commit()
+    except Exception as e:
+        raise HTTPException(400, f"Невалидный формат tasks_meta: {e}")
+
+    return test
+
+
+
+@app.get(
+    "/homework_tests/{test_id}",
+    response_model=schemas.HomeworkTestFullResponse,
+)
+def read_homework_test(test_id: int, db: Session = Depends(get_db)):
+    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    if not test:
+        raise HTTPException(404, detail="HomeworkTest not found")
+
+    try:
+        raw_tasks = json.loads(test.tasks_meta)
+    except json.JSONDecodeError:
+        raise HTTPException(500, detail="Invalid tasks_meta JSON")
+
+    # Собираем задачи прямо из tasks_meta
+    result_tasks = []
+    for idx, t in enumerate(raw_tasks):
+        result_tasks.append({
+            "id":              idx,                      # или t.get("id", idx)
+            "title":           t.get("title", ""),
+            "description":     t.get("description", ""),
+            "correct_answer":  t.get("correct_answer", ""),
+            "files":           t.get("files", []),
+            "images":          t.get("images", []),       # у тебя в мета этого поля нет — будет []
+        })
+
+    return {
+        "id":          test.id,
+        "homework_id": test.lesson_id,
+        "duration":    test.duration,
+        "tasks":       result_tasks,
+    }
+
+@app.get(
+    "/homework_tests/by_lesson/{lesson_id}",
+    response_model=schemas.HomeworkTestResponse
+)
+def get_test_by_lesson(
+    lesson_id: int,
+    db: Session = Depends(get_db),
+):
+    # Ищем тесты по lesson_id (не через homework_id)
+    test = db.query(database.HomeworkTest).filter_by(lesson_id=lesson_id).first()
+    if not test:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Test for this lesson not found"
+        )
+    
+    return test
+
+
+
+@app.post("/homework_tests/{test_id}/start", response_model=dict)
+def start_homework_test(
+    test_id: int,
+    user_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    # Проверяем, что тест существует
+    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    if not test:
+        raise HTTPException(404, detail="HomeworkTest not found")
+
+    # Смотрим, есть ли уже незавершённая попытка
+    active = (
+        db.query(database.TestSession)
+          .filter_by(user_id=user_id, is_completed=0)
+          .first()
+    )
+    if active:
+        remaining = max(int((active.expires_at - datetime.utcnow()).total_seconds()), 0)
+        return {"attempt_id": active.id, "remaining_time": remaining}
+
+    # Декодируем мета‑данные, чтобы знать число задач
+    try:
+        tasks_meta = json.loads(test.tasks_meta)
+    except json.JSONDecodeError:
+        raise HTTPException(500, detail="Invalid tasks_meta JSON")
+
+    # Вычисляем время жизни сессии
+    expires = datetime.utcnow() + timedelta(minutes=test.duration)
+
+    # *** СТАРЫЙ ФРАГМЕНТ БЫЛ БЕЗ homework_test_id ***
+    new_session = database.TestSession(
+        user_id=user_id,
+        homework_test_id=test_id,               # ← обязательно!
+        task_ids=json.dumps(list(range(len(tasks_meta)))),
+        answers=json.dumps({}),
+        expires_at=expires,                     # ← лучше выставить нормальное время
+        is_completed=0,
+        created_at=datetime.utcnow(),
+    )
+    db.add(new_session)
+    db.commit()
+    db.refresh(new_session)
+
+    remaining_time = max(int((expires - datetime.utcnow()).total_seconds()), 0)
+    return {
+        "attempt_id": new_session.id,
+        "remaining_time": remaining_time,
+    }
+
+
+@app.get(
+    "/homework_tests/session/{attempt_id}",
+    response_model=schemas.HomeworkTestSessionResponse,
+)
+def get_homework_test_session(
+    attempt_id: int,
+    db: Session = Depends(get_db),
+):
+    sess = db.query(database.TestSession).filter_by(id=attempt_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # подтягиваем тест, к которому относится сессия
+    test = db.query(database.HomeworkTest).filter_by(id=sess.homework_test_id).first()
+    if not test:
+        raise HTTPException(status_code=500, detail="HomeworkTest for this session not found")
+
+    # десериализуем мету
+    try:
+        raw = json.loads(test.tasks_meta)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Invalid tasks_meta JSON")
+
+    # собираем список задач
+    tasks = []
+    for idx, t in enumerate(raw):
+        tasks.append({
+            "id":             idx,
+            "title":          t.get("title", ""),
+            "description":    t.get("description", ""),
+            "correct_answer": t.get("correct_answer", ""),
+            "files":          t.get("files", []),
+            "images":         t.get("images", []),
+        })
+
+    # время до истечения
+    delta = sess.expires_at - datetime.utcnow()
+    remaining = max(int(delta.total_seconds()), 0)
+
+    return {
+        "attempt_id":     sess.id,
+        "duration":       test.duration,
+        "remaining_time": remaining,
+        "tasks":          tasks,
+        "answers":        json.loads(sess.answers or "{}"),
+        "is_completed":   bool(sess.is_completed),
+    }
+
+
+
+@app.get("/homework_tests/session/{session_id}/results", response_model=dict)
+def get_homework_test_results(session_id: int, db: Session = Depends(get_db)):
+    # Получаем сессию
+    session = db.query(database.TestSession).filter(database.TestSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    # Загружаем ответы пользователя
+    user_answers = json.loads(session.answers or "{}")
+    task_ids = json.loads(session.task_ids)  # Индексы задач
+    results = {}
+    correct_answers = {}
+    total_score = 0
+
+    # Загружаем информацию о тесте
+    homework_test = db.query(database.HomeworkTest).filter(database.HomeworkTest.id == session.homework_test_id).first()
+    tasks_meta = json.loads(homework_test.tasks_meta)  # Метаданные задач теста
+
+    for task_id in task_ids:
+        # Получаем задачу по индексу
+        task_data = tasks_meta[task_id]  # task_id здесь — это индекс
+        correct_raw = task_data["correct_answer"] or ""
+        user_answer_raw = user_answers.get(str(task_id), "")  # Получаем ответ пользователя по индексу
+
+        # Проверка на правильность ответа
+        if task_data.get("answer_format") in ["tableDyn1Col", "tableDyn2Col", "table10"] or task_data.get("task_number") in [26, 27]:
+            column_count = get_column_count(correct_raw)
+            correct_norm = normalize_answer(correct_raw, column_count)
+            user_norm = normalize_answer(user_answer_raw, column_count)
+            is_correct = user_norm == correct_norm
+        else:
+            is_correct = user_answer_raw.strip().lower() == correct_raw.strip().lower()
+
+        # Сохраняем результат
+        results[str(task_id)] = is_correct
+        correct_answers[str(task_id)] = correct_raw
+        if is_correct:
+            total_score += 2 if task_data.get("task_number") in [26, 27] else 1
+
+    return {
+        "results": results,
+        "score": total_score,
+        "correct_answers": correct_answers
+    }
