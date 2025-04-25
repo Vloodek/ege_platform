@@ -29,12 +29,17 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
++     # ──────────── создаём папку uploads, чтобы StaticFiles не падал ────────────
++      - name: Create uploads directory
++        run: mkdir -p platfrom/backend/uploads
++
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
       - name: Install dependencies
+        working-directory: platfrom/backend
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
@@ -52,4 +57,5 @@ jobs:
           done
 
       - name: Run tests
+        working-directory: platfrom/backend
         run: pytest --maxfail=1 --disable-warnings -v
