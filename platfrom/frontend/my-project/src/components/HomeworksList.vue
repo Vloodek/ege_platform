@@ -1,14 +1,10 @@
 <template>
   <div id="homeworks">
     <div class="container">
-      <!-- Боковое меню -->
       <SideBar :isTestActive="false" />
-
-      <!-- Контент -->
       <main class="main-content">
         <h2>Домашние задания</h2>
 
-        <!-- Фильтр -->
         <div class="filter-container">
           <label for="status-filter">Фильтр по статусу:</label>
           <select id="status-filter" v-model="selectedStatus">
@@ -20,21 +16,18 @@
           </select>
         </div>
 
-        <!-- Карточки домашних заданий -->
         <div class="task-container">
           <div
             class="task-block"
             v-for="(homework, index) in filteredHomeworks"
             :key="index"
           >
-            <!-- Контейнер заголовка с авто-подстройкой размера -->
             <div class="task-header-container">
               <div class="task-header" :class="statusHeaderClass(homework)">
                 {{ homework.description }}
               </div>
             </div>
             <div class="task-bottom">
-              <!-- Левая часть: дата и статус (иконка со смайликом + текст) -->
               <div class="task-info">
                 <div class="task-time">
                   <img
@@ -49,7 +42,6 @@
                   <span class="task-status-text">{{ statusLabel(homework.status) }}</span>
                 </div>
               </div>
-              <!-- Правая часть: кнопка действия -->
               <BaseButton :color="buttonColor" @click="handleButtonClick(homework)">
                 {{ buttonText }}
               </BaseButton>
@@ -66,17 +58,17 @@ import SideBar from "./SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
 
 export default {
-  components: {
-    SideBar,
-    BaseButton,
-  },
+  components: { SideBar, BaseButton },
+
   data() {
     return {
       homeworks: [],
       selectedStatus: "",
-      role: null,
+      role: "student",
+      groupId: null,
     };
   },
+
   computed: {
     filteredHomeworks() {
       if (!this.selectedStatus) return this.homeworks;
@@ -86,50 +78,60 @@ export default {
       return this.role === "teacher" ? "Проверить" : "Посмотреть";
     },
     buttonColor() {
-      return this.role === "teacher" ? "green" : "green";
+      return "green";
     },
   },
+
   created() {
-    // Извлечение объекта пользователя из localStorage и получение роли
     const userData = localStorage.getItem("user");
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        this.role = user.role;
+        this.role = user.role || "student";
+        this.groupId = user.group_id || null;
       } catch (e) {
-        console.error("Ошибка парсинга user из localStorage:", e);
-        this.role = "student";
+        console.error("Ошибка парсинга user:", e);
       }
-    } else {
-      this.role = "student";
     }
     this.fetchHomeworks();
   },
+
   methods: {
     async fetchHomeworks() {
+      const params = {};
+      if (this.role !== "teacher") {
+        if (!this.groupId) {
+          console.error("Группа пользователя не найдена.");
+          return;
+        }
+        params.group_id = this.groupId;
+      }
       try {
-        const response = await this.$axios.get("/homeworks/with-status");
-        this.homeworks = response.data;
-      } catch (error) {
-        console.error("Ошибка при загрузке домашних заданий:", error);
+        const { data } = await this.$axios.get("/homeworks/", { params });
+        this.homeworks = data;
+      } catch (err) {
+        console.error("Ошибка при загрузке домашних заданий:", err);
       }
     },
-    openHomework(homework) {
-      if (!homework.lesson_id) return;
-      this.$router.push({ name: "homework-details", params: { id: homework.lesson_id } });
+
+    openHomework(hw) {
+      if (!hw.lesson_id) return;
+      this.$router.push({ name: "homework-details", params: { id: hw.lesson_id } });
     },
-    handleButtonClick(homework) {
-      this.openHomework(homework);
+    handleButtonClick(hw) {
+      this.openHomework(hw);
     },
+
     formatTime(dateStr) {
-      const date = new Date(dateStr);
-      const d = String(date.getDate()).padStart(2, "0");
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const y = date.getFullYear();
-      const h = String(date.getHours()).padStart(2, "0");
-      const min = String(date.getMinutes()).padStart(2, "0");
-      return `${d}.${m}.${y} ${h}:${min}`;
+      const d = new Date(dateStr);
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      return `${dd}.${mm}.${yy} ${hh}:${min}`;
     },
+
     statusLabel(status) {
       switch (status) {
         case "graded": return "Оценено";
@@ -139,19 +141,27 @@ export default {
         default: return "Неизвестно";
       }
     },
+
     getStatusIcon(status) {
+      // именно такие же пути, как у вас в assets
       switch (status) {
-        case "graded": return require("@/assets/svg/status/graded.svg");
-        case "submitted": return require("@/assets/svg/status/submit.svg");
-        case "response_received": return require("@/assets/svg/status/nosubmit.svg");
-        case "not_submitted": return require("@/assets/svg/status/overdue.svg");
-        default: return require("@/assets/svg/status/nosubmit.svg");
+        case "graded":
+          return require("@/assets/svg/status/graded.svg");
+        case "submitted":
+          return require("@/assets/svg/status/submit.svg");
+        case "response_received":
+          return require("@/assets/svg/status/nosubmit.svg");
+        case "not_submitted":
+          return require("@/assets/svg/status/overdue.svg");
+        default:
+          return require("@/assets/svg/status/nosubmit.svg");
       }
     },
+
     statusHeaderClass(hw) {
-      const now = new Date();
-      const hwDate = new Date(hw.date);
-      if (hwDate < now && hw.status === "not_submitted") {
+      const now = Date.now();
+      const due = new Date(hw.date).getTime();
+      if (hw.status === "not_submitted" && due < now) {
         return "header-overdue";
       }
       switch (hw.status) {
@@ -204,7 +214,7 @@ h2 {
 }
 .filter-container select {
   padding: 5px 12px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 8px;
   background-color: #fff;
   font-size: 16px;
@@ -218,7 +228,7 @@ h2 {
 .task-block {
   padding: 15px;
   margin-bottom: 15px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 20px;
   background-color: #fff;
 

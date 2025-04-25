@@ -7,22 +7,41 @@
         <div v-if="homework">
           <div class="header-section">
             <div class="back-arrow" @click="$router.go(-1)"></div>
-            <h1 class="homework-title centered">
+            <h1 class="homework-title">
               {{ homework.description || "Детали домашнего задания" }}
             </h1>
+            <BaseButton
+              color="green"
+              class="to-lesson-button"
+              @click="goToLesson"
+            >
+              К занятию
+            </BaseButton>
           </div>
 
           <div class="homework-deadline">
             <strong>Дедлайн:</strong><br />
             {{ formatDate(homework.date) }}
           </div>
+            <!-- Бейдж группы (под дедлайном, только для преподавателя) -->
+  <div
+    v-if="isTeacher && homework.group_ids?.length"
+    class="lesson-group-badge"
+  >
+    Группа «{{ groupName(homework) }}»
+  </div>
 
           <div v-if="homework.text" class="homework-description ql-editor" v-html="homework.text"></div>
 
           <div v-if="homeworkImages.length" class="images-container">
             <div class="images">
-              <img v-for="(image, index) in homeworkImages" :key="index" :src="getFileUrl(image)" alt="Homework Image"
-                @click="openImage(getFileUrl(image))" />
+              <img
+                v-for="(image, index) in homeworkImages"
+                :key="index"
+                :src="getFileUrl(image)"
+                alt="Homework Image"
+                @click="openImage(getFileUrl(image))"
+              />
             </div>
           </div>
 
@@ -47,56 +66,48 @@
           </div>
 
           <div v-if="!isTeacher && submission" class="student-section">
-  <div class="section-divider">
-    <h2>Ваш ответ:</h2>
-    <p>{{ submission.comment }}</p>
+            <div class="section-divider">
+              <h2>Ваш ответ:</h2>
+              <p>{{ submission.comment }}</p>
 
-    <div class="uploaded-files">
-      <div
-        v-for="(file, index) in submission.files"
-        :key="index"
-        class="uploaded-file"
-      >
-        📄
-        <a :href="getFileUrl(file)" target="_blank">
-          {{ getFileName(file) }}
-        </a>
-      </div>
-    </div>
-  </div>
+              <div class="uploaded-files">
+                <div
+                  v-for="(file, index) in submission.files"
+                  :key="index"
+                  class="uploaded-file"
+                >
+                  📄
+                  <a :href="getFileUrl(file)" target="_blank">
+                    {{ getFileName(file) }}
+                  </a>
+                </div>
+              </div>
+            </div>
 
-  <div
-    v-if="teacherResponse"
-    class="section-divider"
-  >
-    <h3>Оценка преподавателя: {{ teacherResponse.teacher_grade || "Не выставлена" }}</h3>
-    <p><strong>Комментарий:</strong> {{ teacherResponse.teacher_comment || "Нет комментария" }}</p>
+            <div v-if="teacherResponse" class="section-divider">
+              <h3>Оценка преподавателя: {{ teacherResponse.teacher_grade || "Не выставлена" }}</h3>
+              <p><strong>Комментарий:</strong> {{ teacherResponse.teacher_comment || "Нет комментария" }}</p>
 
-    <div v-if="teacherResponse.files.length" class="teacher-files">
-      <p><strong>Файлы преподавателя:</strong></p>
-      <ul>
-        <li
-          v-for="(file, index) in teacherResponse.files"
-          :key="index"
-        >
-          📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
-        </li>
-      </ul>
-    </div>
-  </div>
+              <div v-if="teacherResponse.files.length" class="teacher-files">
+                <p><strong>Файлы преподавателя:</strong></p>
+                <ul>
+                  <li v-for="(file, index) in teacherResponse.files" :key="index">
+                    📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
+                  </li>
+                </ul>
+              </div>
+            </div>
 
-  <div class="section-divider">
-    <BaseButton
-      :color="teacherResponse?.teacher_grade ? 'gray' : 'green'"
-      :disabled="!!teacherResponse?.teacher_grade"
-      @click="openModal"
-    >
-      Редактировать ответ
-    </BaseButton>
-  </div>
-</div>
-
-
+            <div class="section-divider">
+              <BaseButton
+                :color="teacherResponse?.teacher_grade ? 'gray' : 'green'"
+                :disabled="!!teacherResponse?.teacher_grade"
+                @click="openModal"
+              >
+                Редактировать ответ
+              </BaseButton>
+            </div>
+          </div>
 
           <div v-if="!isTeacher && !submission" class="no-submission">
             <BaseButton color="green" @click="openModal">
@@ -104,8 +115,13 @@
             </BaseButton>
           </div>
 
-          <StudentSubmissionModal v-if="isModalOpen" :isOpen="isModalOpen" :submission="submission" @close="closeModal"
-            @responseSubmitted="fetchSubmission" />
+          <StudentSubmissionModal
+            v-if="isModalOpen"
+            :isOpen="isModalOpen"
+            :submission="submission"
+            @close="closeModal"
+            @responseSubmitted="fetchSubmission"
+          />
         </div>
         <div v-else>
           <p>Загрузка задания...</p>
@@ -116,7 +132,6 @@
 </template>
 
 <script>
-
 import SideBar from "./SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
 import StudentSubmissionModal from "@/components/student/StudentSubmissionModal.vue";
@@ -130,6 +145,8 @@ export default {
       teacherResponse: null,
       isTeacher: false,
       isModalOpen: false,
+      groups: [],
+    groupMap: {},
     };
   },
   computed: {
@@ -139,25 +156,28 @@ export default {
     otherFiles() {
       return Array.isArray(this.homework?.files)
         ? this.homework.files.filter(
-          (file) => !/\.(jpg|jpeg|png|gif)$/i.test(file)
-        )
+            file => !/\.(jpg|jpeg|png|gif)$/i.test(file)
+          )
         : [];
     },
   },
   async created() {
-    await this.fetchHomeworkDetails();
-    const userData = JSON.parse(localStorage.getItem("user"));
-    if (userData?.role === "teacher") {
-      this.isTeacher = true;
-    } else {
-      this.isTeacher = false;
-      await this.fetchSubmission();
-    }
-  },
+  await this.fetchHomeworkDetails();
+
+  const userData = JSON.parse(localStorage.getItem("user"));
+  this.isTeacher = userData?.role === "teacher";
+
+  // ← вставьте это
+  if (this.isTeacher) {
+    await this.fetchGroups();
+  }
+
+  if (!this.isTeacher) {
+    await this.fetchSubmission();
+  }
+},
   updated() {
-    this.$nextTick(() => {
-      this.applyEditorStyles();
-    });
+    this.$nextTick(this.applyEditorStyles);
   },
   methods: {
     async fetchHomeworkDetails() {
@@ -165,9 +185,7 @@ export default {
         const response = await this.$axios.get(
           `/homeworks/${this.$route.params.id}`
         );
-        if (response.status === 200) {
-          this.homework = response.data[0];
-        }
+        if (response.status === 200) this.homework = response.data[0];
       } catch (error) {
         console.error("Ошибка загрузки домашнего задания", error);
       }
@@ -176,43 +194,50 @@ export default {
       try {
         const userData = JSON.parse(localStorage.getItem("user"));
         if (!userData?.userId || !this.homework) return;
-        const homeworkId = this.homework.id;
-        const response = await this.$axios.get(
-          `/homeworks/${homeworkId}/submission?user_id=${userData.userId}`
+        const { data } = await this.$axios.get(
+          `/homeworks/${this.homework.id}/submission?user_id=${userData.userId}`
         );
-        if (response.data) {
-          this.submission = response.data;
-          await this.fetchTeacherResponse(response.data.id);
+        if (data) {
+          this.submission = data;
+          await this.fetchTeacherResponse(data.id);
         }
       } catch (error) {
         console.error("Ошибка загрузки отправленного ответа", error);
       }
     },
-    async fetchTeacherResponse(submissionId) {
+    async fetchTeacherResponse(id) {
       try {
-        const response = await this.$axios.get(`/teacher_response/${submissionId}`);
-        this.teacherResponse = response.data;
+        const { data } = await this.$axios.get(
+          `/teacher_response/${id}`
+        );
+        this.teacherResponse = data;
       } catch (error) {
         console.error("Ошибка загрузки отклика преподавателя", error);
       }
     },
-    openModal() {
-      this.isModalOpen = true;
-    },
-    closeModal() {
-      this.isModalOpen = false;
-    },
+    openModal() { this.isModalOpen = true; },
+    closeModal() { this.isModalOpen = false; },
     getFileUrl(file) {
       return file ? `http://localhost:8000/${file.replace(/\\/g, "/")}` : "";
     },
+    async fetchGroups() {
+    try {
+      const { data } = await this.$axios.get("/groups");
+      this.groups = data;
+      data.forEach(g => { this.groupMap[g.id] = g.name });
+    } catch (err) {
+      console.error("Ошибка загрузки групп:", err);
+    }
+  },
+    groupName(hw) {
+  const gid = hw.group_ids?.[0];
+  return gid != null ? this.groupMap[gid] : '—';
+},
     getFileName(file) {
       if (!file) return "";
-      const parts = file.split(/[\\/]/);
-      return parts[parts.length - 1];
+      return file.split(new RegExp('\\\\|/')).pop();
     },
-    openImage(imageUrl) {
-      window.open(imageUrl, "_blank");
-    },
+    openImage(src) { window.open(src, "_blank"); },
     formatDate(dateString) {
       return new Date(dateString).toLocaleDateString("ru-RU", {
         day: "2-digit",
@@ -223,43 +248,36 @@ export default {
       });
     },
     goToEditHomework() {
-      this.$router.push({
-        name: "EditHomework",
-        params: { id: this.homework.id },
-      });
+      this.$router.push({ name: "EditHomework", params: { id: this.homework.id } });
     },
     goToResponses() {
-      this.$router.push({
-        name: "homework-submissions",
-        params: { id: this.$route.params.id },
-      });
+      this.$router.push({ name: "homework-submissions", params: { id: this.$route.params.id } });
     },
-    applyEditorStyles() {
-  const editorImages = document.querySelectorAll(".ql-editor img");
-
-  editorImages.forEach((img) => {
-    if (img.dataset.listenerAttached === "true") return;
-
-    img.style.maxWidth = "300px";
-    img.style.width = "auto";
-    img.style.height = "auto";
-    img.style.objectFit = "contain";
-    img.style.display = "block";
-    img.style.margin = "10px auto";
-    img.style.cursor = "pointer";
-
-    const src = img.getAttribute("src");
-    if (src) {
-      img.addEventListener("click", () => {
-        window.open(src, "_blank");
-      });
-      img.dataset.listenerAttached = "true";
-    }
-  });
+    goToLesson() {
+  if (this.homework?.lesson_id) {
+    this.$router.push({ name: 'lesson-details', params: { id: this.homework.lesson_id } });
+  } else {
+    console.warn('lesson_id не найден в объекте homework');
+  }
 }
-
 ,
-  },
+    applyEditorStyles() {
+      document.querySelectorAll(".ql-editor img").forEach(img => {
+        if (img.dataset.listenerAttached) return;
+        Object.assign(img.style, {
+          maxWidth: "300px",
+          width: "auto",
+          height: "auto",
+          objectFit: "contain",
+          display: "block",
+          margin: "10px auto",
+          cursor: "pointer"
+        });
+        img.addEventListener("click", () => window.open(img.src, "_blank"));
+        img.dataset.listenerAttached = "true";
+      });
+    }
+  }
 };
 </script>
 
@@ -295,7 +313,7 @@ export default {
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
@@ -303,7 +321,7 @@ export default {
 .homework-title {
   flex: 1;
   font-size: 24px;
-  color: #115544;
+  color: #56AEF6;
   font-weight: 500;
   text-align: center;
   margin: 0;
@@ -393,7 +411,7 @@ export default {
   border-radius: 8px;
   padding: 20px;
   margin-top: 20px;
-  color: #115544;
+  color: #56AEF6;
 }
 
 .teacher-block {
@@ -404,13 +422,13 @@ export default {
 .block-title {
   font-size: 18px;
   font-weight: normal;
-  color: #115544;
+  color: #56AEF6;
   margin-bottom: 10px;
 }
 
 .sub-label {
   font-weight: normal;
-  color: #115544;
+  color: #56AEF6;
   margin-bottom: 4px;
   display: block;
 }
@@ -432,6 +450,19 @@ export default {
 .section-divider:first-of-type {
   border-top: none;
 }
+.lesson-group-badge {
+  /* вместо display: block; width: 100%; */
+  display: block;
+  width: fit-content;     
+  margin-top: 8px;
+  background: #f0f0f0;
+  color: #333;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
 
 .section-divider h2,
 .section-divider h3 {
@@ -461,7 +492,7 @@ export default {
 .section-divider h2 {
   font-size: 18px;
   font-weight: 500;
-  color: #115544;
+  color: #56AEF6;
   margin-bottom: 10px;
 }
 
@@ -475,7 +506,7 @@ export default {
 }
 
 .uploaded-file a {
-  color: #115544;
+  color: #56AEF6;
   font-size: 14px;
   text-decoration: none;
 }

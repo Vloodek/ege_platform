@@ -415,7 +415,6 @@ export default {
   display: flex;
   flex-wrap: wrap;
   width: 100%;
-  padding: 20px;
   background-color: #f3f3f3;
 }
 
@@ -480,7 +479,7 @@ export default {
 
 .submit-btn {
   padding: 10px 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   color: white;
   border: none;
   border-radius: 5px;
@@ -489,7 +488,7 @@ export default {
 }
 
 .submit-btn:hover {
-  background-color: #0f3f3b;
+  background-color: #b8dfff;
 }
 
 .uploaded-files {
@@ -507,7 +506,7 @@ export default {
 
 /* Стили для drag-n-drop, перекрашенные в зеленые тона */
 .drag-drop-area {
-  border: 2px dashed #115544;
+  border: 2px dashed #56AEF6;
   padding: 20px;
   background-color: #ffffff;
   text-align: center;
@@ -517,7 +516,7 @@ export default {
 
 .drag-drop-area p {
   font-size: 16px;
-  color: #115544;
+  color: #56AEF6;
 }
 
 .hidden-input {
@@ -526,7 +525,7 @@ export default {
 
 .helper-text {
   font-size: 12px;
-  color: #115544;
+  color: #56AEF6;
 }
 
 .page-title,
@@ -556,7 +555,7 @@ h4 {
 }
 .toggle-container {
   display: flex;
-  border: 1px solid #115544;
+  border: 1px solid #56AEF6;
   border-radius: 25px;
   overflow: hidden;
   cursor: pointer;
@@ -565,11 +564,11 @@ h4 {
 .toggle-option {
   padding: 8px 16px;
   background-color: #ffffff;
-  color: #115544;
+  color: #56AEF6;
   transition: background 0.3s, color 0.3s;
 }
 .toggle-option.active {
-  background-color: #115544;
+  background-color: #56AEF6;
   color: #fff;
 }
 </style>

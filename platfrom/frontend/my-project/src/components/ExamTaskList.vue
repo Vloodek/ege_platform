@@ -287,7 +287,7 @@ export default {
 .back-arrow {
   width: 20px;
   height: 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
   position: absolute;
@@ -303,15 +303,15 @@ export default {
 .task-type {
   margin-top: 5px;
   font-size: 20px;
-  color: #115544;
+  color: #56AEF6;
   padding-left: 30px;
-  border-left: 3px solid #115544;
+  border-left: 3px solid #56AEF6;
   display: inline-block;
 }
 
 /* Карточки заданий */
 .task-card {
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 10px;
   padding: 15px;
   margin-bottom: 20px;
@@ -333,7 +333,7 @@ export default {
 .task-link {
   color: inherit;
   text-decoration: none;
-  text-decoration: underline #115544;
+  text-decoration: underline #56AEF6;
 }
 .task-description {
   margin-bottom: 10px;

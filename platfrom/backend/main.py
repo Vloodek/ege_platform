@@ -1,7 +1,7 @@
 # main.py
 import sys
 print(sys.path)
-
+from fastapi import Query
 from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from typing import List, Dict
 from fastapi.responses import FileResponse
 import json
 from app.database import init_db  # Импортируем функцию инициализации БД
+from sqlalchemy import select
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -28,9 +29,15 @@ app.add_middleware(
 )
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Инициализация базы данных
-database.init_db()
+# Инициализация базы данных основной
+# database.init_db()
 
+@app.on_event("startup")
+def on_startup():
+    # создаём таблицы на текущем database.engine
+    from app.database import init_db  
+    init_db()
+    
 # Функция для получения сессии базы данных
 def get_db():
     db = database.SessionLocal()
@@ -328,27 +335,96 @@ async def delete_lesson(
 
 
 # Эндпоинт для получения всех уроков (lessons)
+from sqlalchemy.orm import aliased
+
 @app.get("/lessons", response_model=List[schemas.LessonResponse])
-async def get_lessons(db: Session = Depends(get_db)):
-    lessons = db.query(database.Lesson).all()
+async def get_lessons(
+    group_id: Optional[int] = Query(None, description="ID группы для фильтрации (если не передан — возвращаются все уроки)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Если в запросе есть ?group_id=…, то возвращаем только уроки, привязанные к этой группе.
+    Иначе — все уроки.
+    """
+    query = db.query(database.Lesson)
+
+    if group_id is not None:
+        query = (
+            query
+            .join(
+                database.lesson_groups,
+                database.lesson_groups.c.lesson_id == database.Lesson.id
+            )
+            .filter(
+                database.lesson_groups.c.group_id == group_id
+            )
+        )
+
+    lessons = query.all()
+
+    # Загружаем group_ids для всех уроков
+    lesson_ids = [lesson.id for lesson in lessons]
+
+    # Используем ORM-подход для извлечения связей
+    group_links = db.query(database.lesson_groups.c.lesson_id, database.lesson_groups.c.group_id).filter(
+        database.lesson_groups.c.lesson_id.in_(lesson_ids)
+    ).all()
+
+    lesson_to_groups = {}
+    for lesson_id, group_id in group_links:
+        lesson_to_groups.setdefault(lesson_id, []).append(group_id)
+
+    # Преобразуем поля и добавляем group_ids
     for lesson in lessons:
         lesson.files = lesson.files.split(",") if lesson.files else []
         lesson.image_links = lesson.image_links.split(",") if lesson.image_links else []
+        lesson.group_ids = lesson_to_groups.get(lesson.id, [])
+
     return lessons
+
  
+@app.get("/group-id")
+def get_group_id(group_name: str, db: Session = Depends(get_db)):
+    group = db.query(database.StudyGroup).filter(database.StudyGroup.name == group_name).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Группа не найдена")
+    return {"group_id": group.id}
+
 
 # Эндпоинт для получения конкретного урока (lesson) по ID
 # Возвращаем нормализованные данные в формате JSON
 @app.get("/lessons/{lesson_id}", response_model=schemas.LessonResponse)
-async def get_lesson(lesson_id: int, db: Session = Depends(get_db)):
+async def get_lesson(
+    lesson_id: int,
+    db: Session = Depends(get_db)
+):
+    # 1) достаём сам урок
     lesson = db.query(database.Lesson).filter(database.Lesson.id == lesson_id).first()
     if not lesson:
         raise HTTPException(status_code=404, detail="Урок не найден")
-    
-    # Нормализация путей с проверкой на None
-    lesson.files = [os.path.normpath(f).replace("\\", "/") for f in (lesson.files or "").split(",") if f]
-    lesson.image_links = [os.path.normpath(img).replace("\\", "/") for img in (lesson.image_links or "").split(",") if img]
-    
+
+    # 2) нормализуем файлы / картинки
+    lesson.files = [
+        os.path.normpath(f).replace("\\", "/")
+        for f in (lesson.files or "").split(",")
+        if f
+    ]
+    lesson.image_links = [
+        os.path.normpath(img).replace("\\", "/")
+        for img in (lesson.image_links or "").split(",")
+        if img
+    ]
+
+    # 3) собираем привязки к группам
+    #    таблица связи называется lesson_groups, она содержит пары (lesson_id, group_id)
+    group_rows = (
+        db.query(database.lesson_groups.c.group_id)
+          .filter(database.lesson_groups.c.lesson_id == lesson_id)
+          .all()
+    )
+    # group_rows — список кортежей вида [(gid1,), (gid2,), …]
+    lesson.group_ids = [gid for (gid,) in group_rows]
+
     return lesson
 
 
@@ -442,81 +518,132 @@ async def create_homework(
     hw.files  = json.loads(hw.files)  if hw.files  else []
     hw.images = json.loads(hw.images) if hw.images else []
 
+    hw.group_ids = [grp.id for grp in lesson.groups]
+
     return hw
 
 
 
 
 
-@app.get("/homeworks/", response_model=List[schemas.HomeworkResponse])
-async def get_homeworks(db: Session = Depends(get_db)):
-    homeworks = db.query(database.Homework).all()
-    for homework in homeworks:
-        homework.files = json.loads(homework.files) if homework.files else []
-        # Убираем обработку images, если она не нужна
-        homework.images = []  # Можно просто очистить список или убрать строку
-    return homeworks
-
-@app.get("/homeworks/with-status")
-def get_homeworks_with_status(
+@app.get("/homeworks/", response_model=List[schemas.HomeworkWithStatus])
+async def get_homeworks_with_status(
+    request: Request,
+    group_id: Optional[int] = Query(None, description="ID группы для фильтрации"),
     db: Session = Depends(get_db),
-    request: Request = None
 ):
+    # 1. Авторизация (из Request.state.user кладём email)
     user_email = getattr(request.state, "user", None)
     if not user_email:
         raise HTTPException(status_code=401, detail="Не авторизован")
-
     user = db.query(database.User).filter(database.User.email == user_email).first()
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-    homeworks = db.query(database.Homework).all()
+    # 2. Базовый запрос по Homework и фильтр по группам (если указан group_id)
+    hw_q = db.query(database.Homework)
+    if group_id is not None:
+        hw_q = (
+            hw_q
+            .join(database.homework_groups,
+                  database.homework_groups.c.homework_id == database.Homework.id)
+            .filter(database.homework_groups.c.group_id == group_id)
+        )
+    homeworks = hw_q.all()
+
+    # 3. Подгружаем связи homework↔groups
+    hw_ids = [hw.id for hw in homeworks]
+    links = db.query(
+        database.homework_groups.c.homework_id,
+        database.homework_groups.c.group_id
+    ).filter(database.homework_groups.c.homework_id.in_(hw_ids)).all()
+    hw_to_groups = {}
+    for hw_id, g_id in links:
+        hw_to_groups.setdefault(hw_id, []).append(g_id)
+
+    # 4. Подгружаем последние сабмишены текущего пользователя для всех этих ДЗ
+    subs = (
+        db.query(
+            database.HomeworkSubmission.homework_id,
+            database.HomeworkSubmission.status
+        )
+        .filter(
+            database.HomeworkSubmission.homework_id.in_(hw_ids),
+            database.HomeworkSubmission.user_id == user.id
+        )
+        .order_by(database.HomeworkSubmission.homework_id,
+                  database.HomeworkSubmission.id.desc())
+        .all()
+    )
+    # Оставим только по одному (последнему) статусу на homework_id
+    last_status = {}
+    for hw_id, status in subs:
+        if hw_id not in last_status:
+            last_status[hw_id] = status
+
+    # 5. Собираем итоговый список с полями из schemas.HomeworkWithStatus
     result = []
-
     for hw in homeworks:
-        submission = db.query(database.HomeworkSubmission).filter_by(
-            homework_id=hw.id,
-            user_id=user.id
-        ).order_by(database.HomeworkSubmission.id.desc()).first()
-
-        if submission is None:
-            status = "not_submitted"
-        elif submission.status == "graded":
-            status = "graded"
-        elif submission.status == "response_received":
-            status = "response_received"
-        elif submission.status in ["submitted", "waiting"]:
-            status = "submitted"
+        # вычисляем статус
+        raw = last_status.get(hw.id)
+        if raw == "graded":
+            st = "graded"
+        elif raw == "response_received":
+            st = "response_received"
+        elif raw in ("submitted", "waiting"):
+            st = "submitted"
         else:
-            status = "not_submitted"
+            st = "not_submitted"
 
         result.append({
             "id": hw.id,
             "lesson_id": hw.lesson_id,
             "description": hw.description,
-            "date": hw.date.isoformat(),
-            "status": status
+            "date": hw.date,
+            "files": hw.files.split(",") if hw.files else [],
+            "images": hw.images.split(",") if hw.images else [],
+            "group_ids": hw_to_groups.get(hw.id, []),
+            "status": st,
         })
 
     return result
 
+
+
 # Получение конкретного домашнего задания (homework)
 @app.get("/homeworks/{lesson_id}", response_model=List[schemas.HomeworkResponse])
-async def get_homeworks_by_lesson(lesson_id: int, db: Session = Depends(get_db)):
-    print(f"Получен запрос на домашки для урока с ID: {lesson_id}")
-    homeworks = db.query(database.Homework).filter(database.Homework.lesson_id == lesson_id).all()
-    
+async def get_homeworks_by_lesson(
+    lesson_id: int,
+    db: Session = Depends(get_db)
+):
+    # 1) получаем все домашки по уроку
+    homeworks = (
+        db.query(database.Homework)
+          .filter(database.Homework.lesson_id == lesson_id)
+          .all()
+    )
     if not homeworks:
-        print(f"Нет домашних заданий для урока с ID {lesson_id}")
-        raise HTTPException(status_code=404, detail="Домашние задания не найдены для данного урока")
-    
-    print(f"Найдены домашки для урока с ID {lesson_id}: {homeworks}")
+        raise HTTPException(status_code=404, detail="Домашние задания не найдены")
 
-    # Преобразуем файлы и изображения в списки
-    for homework in homeworks:
-        homework.files = json.loads(homework.files) if homework.files else []
-        homework.images = json.loads(homework.images) if homework.images else []  # Добавляем обработку images
-    
+    # 2) нормализуем файлы и картинки
+    for hw in homeworks:
+        hw.files = json.loads(hw.files) if hw.files else []
+        hw.images = json.loads(hw.images) if hw.images else []
+
+    # 3) берём группы, привязанные к уроку
+    from sqlalchemy import select
+    group_rows = (
+        db.execute(
+            select(database.lesson_groups.c.group_id)
+            .where(database.lesson_groups.c.lesson_id == lesson_id)
+        )
+        .scalars()
+        .all()
+    )
+    # в ответе — одно и то же group_ids для всех homeworks этого урока
+    for hw in homeworks:
+        hw.group_ids = group_rows
+
     return homeworks
 
 
@@ -851,10 +978,13 @@ async def get_homework(homework_id: int, db: Session = Depends(get_db)):
     # Если файлы сохранены как JSON, преобразуем их обратно в список
     if homework.files:
         homework.files = json.loads(homework.files)
-    # Если ссылки на изображения сохранены как строка, можно их преобразовать (если нужно)
+    # Если ссылки на изображения сохранены как JSON-строка, преобразуем их обратно
     if homework.images:
         homework.images = json.loads(homework.images)
+    # Собираем привязки к группам (Many-to-Many через homework_groups)
+    homework.group_ids = [g.id for g in homework.groups]
     return homework
+
 
 
 @app.put("/homeworks/{homework_id}", response_model=schemas.HomeworkResponse)
@@ -875,14 +1005,15 @@ async def update_homework(
     if not db_homework:
         raise HTTPException(status_code=404, detail="Домашнее задание не найдено")
     
+    # Папка для файлов/картинок домашки
     homework_folder = os.path.join(UPLOAD_FOLDER, str(lesson_id), "homework")
     os.makedirs(homework_folder, exist_ok=True)
     
-    # Загружаем существующие файлы и изображения
+    # Загружаем JSON-строки с уже существующими вложениями
     existing_files = json.loads(existing_files)
     existing_images = json.loads(existing_images)
     
-    # Удаляем старые файлы, которых нет в existing_files
+    # Удаляем старые файлы, которых нет в списке existing_files
     current_files = json.loads(db_homework.files) if db_homework.files else []
     for file in current_files:
         if file not in existing_files and os.path.exists(file):
@@ -894,10 +1025,11 @@ async def update_homework(
         if image not in existing_images and os.path.exists(image):
             os.remove(image)
     
+    # Начинаем собирать новые пути
     file_paths = existing_files[:]
     image_paths = existing_images[:]
 
-    # Загружаем новые файлы
+    # Сохраняем новые файлы
     if files:
         for file in files:
             file_location = os.path.join(homework_folder, "files", file.filename)
@@ -906,6 +1038,7 @@ async def update_homework(
                 f.write(file.file.read())
             file_paths.append(file_location)
 
+    # Сохраняем новые картинки
     if images:
         for image in images:
             image_location = os.path.join(homework_folder, "images", image.filename)
@@ -914,7 +1047,7 @@ async def update_homework(
                 f.write(image.file.read())
             image_paths.append(image_location)
 
-    # Переносим temp‑изображения
+    # Перемещаем временные изображения из Quill и правим HTML
     new_desc, moved_desc = move_temp_images(
         description, homework_folder, lesson_id, "homework_image", db
     )
@@ -922,11 +1055,11 @@ async def update_homework(
         text, homework_folder, lesson_id, "homework_image", db
     )
     
-    # Обновляем описание и текст
+    # Обновляем поля описания и текста
     db_homework.description = new_desc
     db_homework.text = new_text
-
-    # Обновляем пути
+    db_homework.date = date
+    # Собираем итоговые списки путей
     all_files = file_paths
     all_images = image_paths + [
         os.path.join(homework_folder, "images", fn).replace("\\", "/")
@@ -939,14 +1072,18 @@ async def update_homework(
     db.commit()
     db.refresh(db_homework)
     
+    # Распарсиваем JSON обратно в списки для ответа
     db_homework.files = json.loads(db_homework.files) if db_homework.files else []
     db_homework.images = json.loads(db_homework.images) if db_homework.images else []
+
+    # ВАЖНО: добавляем список group_ids, иначе Pydantic-схема HomeworkResponse упадёт
+    db_homework.group_ids = [grp.id for grp in db_homework.groups]
 
     return db_homework
 
 
 
-from fastapi import Query
+
 
 @app.get("/api/homework/{homework_id}/submissions")
 async def get_submissions(
@@ -2068,3 +2205,119 @@ def get_homework_test_results(session_id: int, db: Session = Depends(get_db)):
         "score": total_score,
         "correct_answers": correct_answers
     }
+
+
+@app.get(
+    "/homework_tests/{test_id}/student_result",
+    response_model=schemas.StudentResultResponse,
+    summary="Получить результат по конкретному студенту"
+)
+def get_student_result(
+    test_id: int,
+    user_id: int = Query(..., description="ID пользователя"),
+    db: Session = Depends(get_db),
+):
+    # 1) Проверяем наличие теста
+    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Тест не найден")
+
+    # 2) Получаем мета-данные задач
+    raw_meta = test.tasks_meta
+    if isinstance(raw_meta, str):
+        try:
+            tasks_meta: List[Any] = json.loads(raw_meta)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=500, detail="Invalid tasks_meta JSON")
+    else:
+        tasks_meta = raw_meta  # SQLAlchemy мог уже вернуть структуру
+
+    max_score = len(tasks_meta)
+
+    # 3) Ищем последнюю сессию этого пользователя по тесту
+    session = (
+        db.query(database.TestSession)
+          .filter_by(homework_test_id=test_id, user_id=user_id)
+          .order_by(database.TestSession.created_at.desc())
+          .first()
+    )
+    if not session:
+        # Если сессии нет — возвращаем 404 (или можно вернуть 200 с нулями)
+        raise HTTPException(status_code=404, detail="Результат не найден")
+
+    # 4) Достаём ответы пользователя
+    try:
+        answers = json.loads(session.answers or "{}")
+    except json.JSONDecodeError:
+        answers = {}
+
+    # 5) Считаем количество правильных
+    score = 0
+    for idx, task in enumerate(tasks_meta):
+        correct = (task.get("correct_answer") or "").strip().lower()
+        user_ans = (answers.get(str(idx), "") or "").strip().lower()
+        if user_ans and user_ans == correct:
+            score += 1
+
+    return {"score": score, "max_score": max_score}
+
+
+
+@app.get(
+    "/homework_tests/{test_id}/results_by_group",
+    response_model=List[schemas.StudentGroupResult],
+    summary="Результаты теста для всех студентов группы"
+)
+def get_results_by_group(
+    test_id: int,
+    db: Session = Depends(get_db),
+    # если у тебя есть Depends(get_current_user) — можно проверить роль "teacher"
+):
+    # 1) Проверяем, что тест существует
+    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="HomeworkTest not found")
+
+    # 2) Достаём список всех сессий по этому тесту
+    sessions = (
+        db.query(database.TestSession)
+          .filter_by(homework_test_id=test_id)
+          .all()
+    )
+
+    # 3) Подгружаем мета-данные, чтобы знать correct_answer и total
+    try:
+        tasks_meta = json.loads(test.tasks_meta)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="Invalid tasks_meta JSON")
+    total = len(tasks_meta)
+
+    results = []
+    for sess in sessions:
+        # получаем данные пользователя
+        user = db.query(database.User).filter_by(id=sess.user_id).first()
+        if not user:
+            continue
+
+        # парсим ответы и считаем, сколько правильных
+        answers = json.loads(sess.answers or "{}")
+        correct = 0
+        for idx, t in enumerate(tasks_meta):
+            user_ans = (answers.get(str(idx), "") or "").strip().lower()
+            corr    = (t.get("correct_answer") or "").strip().lower()
+            if user_ans and user_ans == corr:
+                correct += 1
+
+        # считаем, что "passed", если они хоть что-то сделали (можно уточнить логику)
+        passed = bool(answers)
+
+        results.append({
+            "user_id":    user.id,
+            "name":       user.name,
+            "class_name": user.group.name if user.group else None,
+            "passed":     passed,
+            "correct":    correct,
+            "total":      total,
+        })
+
+    return results

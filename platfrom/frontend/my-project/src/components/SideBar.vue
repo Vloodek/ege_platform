@@ -1,8 +1,7 @@
 <template>
   <div :class="['sidebar', userTypeClass]" :style="{ height: sidebarHeight }">
-    <!-- Тестовая навигация -->
+    <!-- Навигация во время теста -->
     <div v-if="internalTestActive" class="test-sidebar-navigation">
-      <!-- Сетка для навигации между заданиями -->
       <div class="task-grid-sidebar">
         <div
           v-for="(taskId, index) in taskIds"
@@ -14,35 +13,36 @@
           {{ index + 1 }}
         </div>
       </div>
-      <!-- Кнопки переключения заданий (скрываем, если тест завершён) -->
+
       <div class="nav-controls" v-if="!testFinished">
         <button @click="$emit('prevTask')" class="nav-arrow">←</button>
         <button @click="$emit('nextTask')" class="nav-arrow">→</button>
       </div>
-      <!-- Информация: либо время теста, либо итоговый балл -->
+
       <div class="test-info">
         <p v-if="!testFinished">Осталось: {{ formattedTimer }}</p>
         <p v-else>Итоговый балл: {{ score }}</p>
         <p>Всего вопросов: {{ totalQuestions }}</p>
       </div>
-      <!-- Кнопка завершения теста (если тест ещё идёт) -->
-      <button 
-        v-if="!testFinished" 
-        class="exit-btn-sidebar" 
+
+      <button
+        v-if="!testFinished"
+        class="exit-btn-sidebar"
         @click="$emit('finishTest')"
       >
         Завершить тест
       </button>
-      <!-- Кнопка "Выйти" после завершения теста -->
-      <button 
-        v-if="testFinished" 
-        class="exit-btn-sidebar" 
+
+      <button
+        v-if="testFinished"
+        class="exit-btn-sidebar"
         @click="$emit('exitTest')"
       >
         Выйти
       </button>
     </div>
-    <!-- Стандартное меню -->
+
+    <!-- Обычное меню -->
     <div v-else class="default-menu">
       <ul class="menu">
         <router-link
@@ -52,14 +52,9 @@
           class="menu-item"
         >
           <img :src="item.icon" alt="icon" class="menu-icon" />
-          <span class="menu-label">{{ item.label }}</span>
+          <span :class="['menu-label', labelClass(item.label)]">{{ item.label }}</span>
         </router-link>
       </ul>
-      <div v-if="internalTestActive" class="test-sidebar-info">
-        <p>Тест активен</p>
-        <p>Время до конца: {{ timerDisplay }}</p>
-        <p>Всего вопросов: {{ totalQuestions }}</p>
-      </div>
     </div>
   </div>
 </template>
@@ -74,15 +69,15 @@ import groupsIcon from "@/assets/svg/sidebar/groups.svg";
 export default {
   name: "SideBar",
   props: {
-    isTestActive: { type: Boolean, default: false },
-    timerDisplay: { type: Number, default: 0 },
-    totalQuestions: { type: Number, default: 0 },
-    taskIds: { type: Array, default: () => [] },
-    currentTaskIndex: { type: Number, default: 0 },
-    answers: { type: Object, default: () => ({}) },
-    results: { type: Object, default: () => ({}) },
-    score: { type: Number, default: 0 },
-    testFinished: { type: Boolean, default: false }
+    isTestActive: Boolean,
+    timerDisplay: Number,
+    totalQuestions: Number,
+    taskIds: Array,
+    currentTaskIndex: Number,
+    answers: Object,
+    results: Object,
+    score: Number,
+    testFinished: Boolean,
   },
   data() {
     return {
@@ -98,65 +93,63 @@ export default {
       };
     },
     sidebarHeight() {
-      if (this.internalTestActive) return "400px";
-      return this.userData.role === "teacher" ? "340px" : "270px";
+      return this.internalTestActive
+        ? "400px"
+        : this.userData.role === "teacher"
+        ? "340px"
+        : "270px";
     },
     menuItems() {
-      const commonItems = [
+      const base = [
         { label: "Занятия", icon: lessonsIcon, link: "/lessons" },
         { label: "Расписание", icon: scheduleIcon, link: "/calendar" },
         { label: "Домашние задания", icon: homeworkIcon, link: "/homeworks" },
         { label: "Тренажёр", icon: trainerIcon, link: "/trainer" },
       ];
       if (this.userData.role === "teacher") {
-        return [...commonItems, { label: "Группы", icon: groupsIcon, link: "/groups" }];
+        base.push({ label: "Группы", icon: groupsIcon, link: "/groups" });
       }
-      return commonItems;
-    },
-    hours() {
-      const totalSeconds = this.timerDisplay;
-      return Math.floor(totalSeconds / 3600);
-    },
-    minutes() {
-      const totalSeconds = this.timerDisplay;
-      return Math.floor((totalSeconds % 3600) / 60);
+      return base;
     },
     formattedTimer() {
-      return `${this.hours} часов, ${this.minutes} минут`;
-    },
-  },
-  watch: {
-    $route(to) {
-      if (to.name !== "test-session") {
-        this.internalTestActive = false;
-      } else {
-        this.internalTestActive = true;
-      }
+      const hours = Math.floor(this.timerDisplay / 3600);
+      const minutes = Math.floor((this.timerDisplay % 3600) / 60);
+      return `${hours} ч ${minutes} мин`;
     },
   },
   mounted() {
-    this.internalTestActive = (this.$route.name === "test-session");
+    this.internalTestActive = this.$route.name === "test-session";
+  },
+  watch: {
+    $route(to) {
+      this.internalTestActive = to.name === "test-session";
+    },
   },
   methods: {
-    /**
-     * Функция для определения класса квадратика задания.
-     * Если тест не завершён, отмечается наличие ответа в answers.
-     * Если тест завершён, используется объект results: если результат true – зеленый, false – красный.
-     */
     squareClass(taskId, index) {
       if (!this.testFinished) {
         return {
           active: this.currentTaskIndex === index,
-          answered: Boolean(this.answers[String(taskId)]),
+          answered: Boolean(this.answers?.[taskId]),
         };
       } else {
-        const res = this.results[String(taskId)];
+        const res = this.results?.[taskId];
         return {
           active: this.currentTaskIndex === index,
-          answered: res === true, // зеленый – правильный
-          wrong: res === false,   // красный – неправильный
+          answered: res === true,
+          wrong: res === false,
         };
       }
+    },
+    labelClass(label) {
+      return {
+        "label-schedule": label === "Расписание",
+        "label-homework": label === "Домашние задания",
+        "label-groups": label === "Группы",
+        "label-train": label === "Тренажёр",
+        "label-lessons": label === "Занятия",
+
+      };
     },
   },
 };
@@ -165,14 +158,15 @@ export default {
 <style scoped>
 .sidebar {
   width: 257px;
-  background-color: #ffffff;
-  color: #000000;
+  background-color: #fff;
+  color: #000;
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
-
-/* Меню */
+.label-lessons{
+  padding-top: 5px;
+}
 .menu {
   list-style: none;
   padding: 0;
@@ -184,9 +178,12 @@ export default {
   padding: 10px 15px;
   border-radius: 10px;
   margin-bottom: 10px;
-  transition: background-color 0.2s;
   text-decoration: none;
   color: inherit;
+  transition: background-color 0.2s;
+}
+.label-train{
+  padding-top: 4px;
 }
 .menu-item:hover {
   background-color: #e0e0e0;
@@ -199,10 +196,21 @@ export default {
 .menu-label {
   font-size: 18px;
   font-weight: 350;
-  flex-grow: 1;
 }
 
-/* Тестовая навигация */
+/* Индивидуальные настройки */
+.label-schedule {
+  padding-top: 8px;
+}
+.label-homework {
+  padding-top: 4px;
+  font-size: 17px;
+}
+.label-groups {
+  padding-top: 6px;
+}
+
+/* Тестовая часть */
 .test-sidebar-navigation {
   display: flex;
   flex-direction: column;
@@ -212,29 +220,29 @@ export default {
 .task-grid-sidebar {
   display: grid;
   grid-template-columns: repeat(5, 20px);
-  grid-gap: 4px;
+  gap: 4px;
   margin-bottom: 10px;
 }
 .task-square-sidebar {
   width: 20px;
   height: 20px;
-  background-color: #cccccc;
+  background-color: #ccc;
   border: 1px solid #56AEF6;
   border-radius: 3px;
+  font-size: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   cursor: pointer;
 }
 .task-square-sidebar.active {
   border: 2px solid #56AEF6;
 }
 .task-square-sidebar.answered {
-  background-color: #66bb6a; /* зеленый */
+  background-color: #66bb6a;
 }
 .task-square-sidebar.wrong {
-  background-color: #e57373; /* красный */
+  background-color: #e57373;
 }
 .nav-controls {
   display: flex;
@@ -265,6 +273,4 @@ export default {
   border-radius: 5px;
   cursor: pointer;
 }
-
-/* Прочие стили */
 </style>

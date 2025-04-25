@@ -374,7 +374,7 @@ export default {
 }
 .modal-header h3 {
   margin: 0;
-  color: #115544;
+  color: #56AEF6;
 }
 /* Кнопка закрытия */
 .close-btn {
@@ -382,7 +382,7 @@ export default {
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #115544;
+  color: #56AEF6;
 }
 
 /* Основное тело */
@@ -395,7 +395,7 @@ export default {
 .section-input label {
   display: block;
   margin-bottom: 5px;
-  color: #115544;
+  color: #56AEF6;
 }
 /* Quill-редактор */
 .quill-editor {
@@ -416,7 +416,7 @@ input[type="file"] {
   display: flex;
   align-items: center;
   text-decoration: none;
-  color: #115544;
+  color: #56AEF6;
   font-size: 16px;
 }
 .file-link::before {
@@ -437,13 +437,13 @@ input[type="file"] {
 .answer-input label {
   display: block;
   margin-bottom: 5px;
-  color: #115544;
+  color: #56AEF6;
 }
 .answer-input input[type="text"] {
   max-width: 300px;
   width: 100%;
   padding: 8px;
-  border: 1px solid #115544;
+  border: 1px solid #56AEF6;
   border-radius: 5px;
 }
 
@@ -464,7 +464,7 @@ input[type="file"] {
   max-width: 80px;
   padding: 4px;
   text-align: center;
-  border: 1px solid #115544;
+  border: 1px solid #56AEF6;
   border-radius: 3px;
 }
 
@@ -477,7 +477,7 @@ input[type="file"] {
 }
 .save-btn {
   padding: 8px 16px;
-  background: #115544;
+  background: #56AEF6;
   color: #fff;
   border: none;
   border-radius: 5px;

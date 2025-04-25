@@ -124,7 +124,7 @@
   
   .task-title {
     font-size: 24px;
-    color: #115544;
+    color: #56AEF6;
     margin-bottom: 15px;
     text-align: center;
   }
@@ -184,7 +184,7 @@
   }
   
   .submit-answer-btn {
-    background-color: #115544;
+    background-color: #56AEF6;
     color: #fff;
     padding: 10px 20px;
     border: none;

@@ -33,6 +33,7 @@ class LessonResponse(BaseModel):
     date: datetime
     files: List[str] = []  # Пути к файлам
     image_links: List[str] = []  # Пути к изображениям
+    group_ids: List[int] = []  # ← добавь это поле
 
     class Config:
         orm_mode = True
@@ -51,7 +52,8 @@ class HomeworkResponse(BaseModel):
     text: str
     date: datetime
     files: List[str]
-    images: List[str] = []  # Добавляем поле images!
+    images: List[str] = []  
+    group_ids: List[int]
 
     class Config:
         orm_mode = True
@@ -70,6 +72,19 @@ class HomeworkSubmissionResponse(BaseModel):
     homework_id: int
     user_id: int
     grade: Optional[int]
+    status: str
+
+    class Config:
+        orm_mode = True
+
+class HomeworkWithStatus(BaseModel):
+    id: int
+    lesson_id: int
+    description: str
+    date: datetime
+    files: List[str]
+    images: List[str]
+    group_ids: List[int]
     status: str
 
     class Config:
@@ -240,3 +255,17 @@ class HomeworkTestSessionResponse(BaseModel):
     tasks: List[TaskInSession]
     answers: Dict[int, str]
     is_completed: bool
+
+
+class StudentGroupResult(BaseModel): 
+    user_id: int
+    name: str
+    class_name: str
+    passed: bool
+    correct: int
+    total: int
+
+
+class StudentResultResponse(BaseModel): 
+    score: int
+    max_score: int

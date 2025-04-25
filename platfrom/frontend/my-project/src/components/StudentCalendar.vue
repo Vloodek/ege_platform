@@ -303,15 +303,15 @@ export default {
 .toggle-button {
   padding: 10px 20px;
   background-color: transparent;
-  border: 2px solid #115544;
-  color: #115544;
+  border: 2px solid #56AEF6;
+  color: #56AEF6;
   border-radius: 20px;
   cursor: pointer;
   width: 90px;
 }
 
 .toggle-button.active {
-  background-color: #115544;
+  background-color: #56AEF6;
   color: white;
 }
 
@@ -343,7 +343,7 @@ export default {
   height: 84px;
   text-align: center;
   border-radius: 10px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   background-color: transparent;
   display: flex;
   flex-direction: column;
@@ -352,8 +352,7 @@ export default {
 }
 
 .day.current-day {
-  background-color: #d1f2d1;
-  color: #115544;
+  background-color: #a4d8ff;
   font-weight: bold;
 }
 
@@ -384,7 +383,7 @@ export default {
   background-color: red;
 }
 .homework-indicator.green {
-  background-color: green;
+  background-color: #abd9ff;
 }
 .homework-indicator.gray {
   background-color: gray;
@@ -392,7 +391,7 @@ export default {
 .lesson-indicator {
   width: 12px;
   height: 12px;
-  background-color: green;
+  background-color: #008cff;
   border-radius: 50%;
   position: absolute;
   bottom: 8px;
@@ -430,7 +429,7 @@ export default {
 }
 
 h2 {
-  color: #115544;
+  color: #56AEF6;
   font-weight: 500;
 }
 .homework-indicator.orange {

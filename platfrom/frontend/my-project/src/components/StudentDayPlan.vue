@@ -164,7 +164,7 @@ h2 {
   flex: 0 1 60%;
   display: flex;
   flex-direction: column;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   padding: 20px;
   border-radius: 20px;
   transition: border 0.3s ease;
@@ -177,7 +177,7 @@ h2 {
 
 .task-type {
   background-color: transparent;
-  color: #115544;
+  color: #56AEF6;
   padding: 5px 0;
   text-align: left;
   font-size: 14px;
@@ -206,7 +206,7 @@ h2 {
   justify-content: center;
   align-items: center;
   margin-left: 20px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   transition: border 0.3s ease;
 }
 
@@ -225,7 +225,7 @@ h2 {
 .add-task-btn {
   width: 50px;
   height: 50px;
-  background-color: #115544;
+  background-color: #56AEF6;
   border-radius: 50%;
   display: flex;
   justify-content: center;

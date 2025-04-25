@@ -8,7 +8,14 @@ from datetime import datetime
 
 DATABASE_URL = "mysql+pymysql://root:ink-rooted-se1337@localhost:3306/ink"
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=20,
+    max_overflow=40,
+    pool_timeout=30,
+    pool_recycle=1800,     # обновлять соединения каждые 30 минут
+    pool_pre_ping=True
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

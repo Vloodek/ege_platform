@@ -259,7 +259,7 @@ export default {
   border-radius: 5px;
 }
 .green-text {
-  color: #115544;
+  color: #56AEF6;
 }
 .delete-btn {
   background: none;

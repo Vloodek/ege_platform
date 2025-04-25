@@ -35,20 +35,28 @@
               />
               <span class="lesson-date">{{ formatDateTime(lesson.date) }}</span>
             </div>
+
             <p class="lesson-description">{{ lesson.description }}</p>
+
             <div class="checkbox-container">
               <input type="checkbox" id="watched" v-model="lesson.watched" />
               <label for="watched">Просмотрено</label>
             </div>
+
+            <!-- Название группы (для преподавателя) -->
+            <div
+              v-if="isTeacher && lesson.group_ids?.length"
+              class="lesson-group-badge"
+            >
+              Группа «{{ groupName(lesson) }}»
+            </div>
           </div>
 
           <div class="right-column">
-            <!-- Materials button -->
             <BaseButton color="white" @click="viewMaterials">
               Материалы занятия
             </BaseButton>
 
-            <!-- Homework button -->
             <BaseButton
               v-if="isTeacher || homeworkExists"
               color="green"
@@ -57,17 +65,16 @@
               ДЗ
             </BaseButton>
 
-            <!-- Take Test button (всегда, если есть тест) -->
+            <!-- Кнопка теста -->
             <BaseButton
               v-if="testExists"
               color="green"
-              @click="goToTest"
+              @click="onTestButtonClick"
             >
-              Пройти тест
+              {{ testButtonText }}
             </BaseButton>
-            <!-- Create Test button (только если нет теста и ты учитель) -->
             <BaseButton
-              v-else-if="isTeacher"
+              v-else-if="!testExists && isTeacher"
               color="green"
               @click="goToCreateTest"
             >
@@ -78,17 +85,37 @@
       </main>
 
       <div v-else class="loading">Загрузка...</div>
+
+      <!-- Модалка результатов -->
+      <div
+        v-if="showResultsModal"
+        class="modal-overlay"
+        @click.self="closeResults"
+      >
+        <div class="modal-window">
+          <button class="modal-close" @click="closeResults">×</button>
+          <HomeworkTestResults
+            :test-id="testId"
+            @close="closeResults"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import SideBar from "./SideBar.vue";
+import SideBar from "@/components/SideBar.vue";
 import BaseButton from "@/components/UI/BaseButton.vue";
+import HomeworkTestResults from "@/components/testing/TestResults.vue";
 
 export default {
   name: "LessonDetail",
-  components: { SideBar, BaseButton },
+  components: {
+    SideBar,
+    BaseButton,
+    HomeworkTestResults
+  },
   data() {
     return {
       lesson: null,
@@ -97,12 +124,28 @@ export default {
       isTeacher: false,
       homeworkExists: false,
       testExists: false,
+      testPassed: false,
       testId: null,
+      showResultsModal: false,
+      groups: [],
+      groupMap: {}
     };
+  },
+  computed: {
+    testButtonText() {
+      if (this.isTeacher) {
+        return "Результаты теста";
+      }
+      return this.testPassed ? "Результаты теста" : "Пройти тест";
+    }
   },
   async created() {
     const user = JSON.parse(localStorage.getItem("user")) || {};
     this.isTeacher = user.role === "teacher";
+
+    if (this.isTeacher) {
+      await this.fetchGroups();
+    }
 
     await this.fetchLesson();
     await this.checkHomework();
@@ -112,6 +155,20 @@ export default {
     goBack() {
       this.$router.go(-1);
     },
+
+    async fetchGroups() {
+      try {
+        const { data } = await this.$axios.get("/groups");
+        this.groups = data;
+        this.groupMap = {};
+        data.forEach(g => {
+          this.groupMap[g.id] = g.name;
+        });
+      } catch (err) {
+        console.error("Ошибка загрузки групп:", err);
+      }
+    },
+
     async fetchLesson() {
       try {
         const lessonId = this.$route.params.id;
@@ -122,6 +179,7 @@ export default {
         console.error("Ошибка загрузки занятия:", err);
       }
     },
+
     async checkHomework() {
       try {
         const lessonId = this.$route.params.id;
@@ -131,42 +189,79 @@ export default {
         this.homeworkExists = false;
       }
     },
+
     async checkTest() {
-  try {
-    const lessonId = this.$route.params.id;
-    // Проверяем наличие теста для урока
-    const { data } = await this.$axios.get(`/homework_tests/by_lesson/${lessonId}`);
-    this.testExists = true;
-    this.testId = data.id;
-  } catch (err) {
-    console.warn("Нет тестов домашки:", err);
-    this.testExists = false;
-  }
-},
-    goToHomework() {
-      const lessonId = this.$route.params.id;
-      if (this.homeworkExists) {
-        this.$router.push(`/homework/${lessonId}`);
-      } else {
-        this.$router.push(`/lesson/${lessonId}/edit`);
+      try {
+        const lessonId = this.$route.params.id;
+        const { data } = await this.$axios.get(
+          `/homework_tests/by_lesson/${lessonId}`
+        );
+        this.testExists = true;
+        this.testId = data.id;
+        if (!this.isTeacher) {
+          await this.checkTestStatus();
+        }
+      } catch {
+        this.testExists = false;
       }
     },
-    goToCreateTest() {
-      this.$router.push({
-        name: "CreateHomeworkTest",
-        params: { id: this.lesson.id },
-      });
+
+    async checkTestStatus() {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      try {
+        await this.$axios.get(
+          `/homework_tests/${this.testId}/student_result`,
+          { params: { user_id: user.userId } }
+        );
+        this.testPassed = true;
+      } catch (err) {
+        if (err.response && err.response.status === 404) {
+          this.testPassed = false;
+        } else {
+          console.error("Ошибка при проверке student_result:", err);
+          this.testPassed = false;
+        }
+      }
     },
-    goToTest() {
-  this.$router.push({
-    name: "HomeworkTestSession", // 👈 название маршрута
-    params: { id: this.testId },
-  });
-}
-,
+
     viewMaterials() {
       this.$router.push(`/lesson/${this.lesson.id}/materials`);
     },
+
+    goToHomework() {
+      const lessonId = this.$route.params.id;
+      const path = this.homeworkExists
+        ? `/homework/${lessonId}`
+        : `/lesson/${lessonId}/edit`;
+      this.$router.push(path);
+    },
+
+    goToCreateTest() {
+      this.$router.push({
+        name: "CreateHomeworkTest",
+        params: { id: this.lesson.id }
+      });
+    },
+
+    onTestButtonClick() {
+      if (!this.isTeacher && !this.testPassed) {
+        this.goToTest();
+      } else {
+        this.showResultsModal = true;
+      }
+    },
+
+    goToTest() {
+      this.$router.push({
+        name: "HomeworkTestSession",
+        params: { id: this.testId }
+      });
+    },
+
+    closeResults() {
+      this.showResultsModal = false;
+    },
+
     processVideoLink(link) {
       if (!link) return;
       if (link.includes("<iframe")) {
@@ -183,16 +278,22 @@ export default {
           : null;
       }
     },
+
     formatDateTime(dt) {
       return new Date(dt).toLocaleString("ru-RU", {
         day: "2-digit",
         month: "2-digit",
         year: "2-digit",
         hour: "2-digit",
-        minute: "2-digit",
+        minute: "2-digit"
       });
     },
-  },
+
+    groupName(lesson) {
+      const gid = lesson.group_ids?.[0];
+      return gid != null ? this.groupMap[gid] || "—" : "—";
+    }
+  }
 };
 </script>
 
@@ -221,7 +322,7 @@ export default {
   padding: 20px;
   border-radius: 20px;
   margin-left: 20px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 .header-section {
   position: relative;
@@ -233,14 +334,15 @@ export default {
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 20px; height: 20px;
-  background: #115544;
-  clip-path: polygon(100% 0,0 50%,100% 100%);
+  width: 20px;
+  height: 20px;
+  background: #56AEF6;
+  clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
 .lesson-title {
   font-size: 24px;
-  color: #115544;
+  color: #56AEF6;
   margin: 0;
   font-weight: 500;
 }
@@ -262,15 +364,18 @@ export default {
   margin-bottom: 10px;
 }
 .calendar-icon {
-  width: 24px; height: 24px;
+  width: 24px;
+  height: 24px;
   margin-right: 10px;
 }
 .lesson-date {
-  font-size: 16px; color: #000;
+  font-size: 16px;
+  color: #000;
 }
 .lesson-description {
   margin: 10px 0;
-  font-size: 16px; color: #333;
+  font-size: 16px;
+  color: #333;
 }
 .checkbox-container {
   display: flex;
@@ -279,27 +384,78 @@ export default {
 }
 .checkbox-container input {
   appearance: none;
-  width: 20px; height: 20px;
-  border: 2px solid #115544;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #56AEF6;
   border-radius: 4px;
   margin-right: 10px;
   position: relative;
 }
 .checkbox-container input:checked {
-  background: #115544;
+  background: #56AEF6;
 }
 .checkbox-container input:checked::after {
   content: "✔";
-  position: absolute; top: 2px; left: 4px;
-  color: #fff; font-size: 14px;
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  color: #fff;
+  font-size: 14px;
 }
 .checkbox-container label {
-  font-size: 16px; color: #333;
+  font-size: 16px;
+  color: #333;
 }
+
+/* Бейдж группы */
+.lesson-group-badge {
+  display: inline-block;
+  background: #f0f0f0;
+  color: #333;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-top: 10px;
+  font-weight: 500;
+}
+
 .right-column {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
+}
+
+/* Стили модалки */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal-window {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90%;
+  overflow-y: auto;
+  position: relative;
+  padding: 20px;
+}
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
 }
 </style>

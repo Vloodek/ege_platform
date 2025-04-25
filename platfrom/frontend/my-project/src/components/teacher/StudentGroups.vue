@@ -337,7 +337,7 @@ export default {
 }
 
 .group-card {
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 20px;
   padding: 20px;
   height: 105px;
@@ -349,7 +349,7 @@ export default {
 }
 
 .group-card:hover {
-  border-color: #1e9275;
+  background-color: #b8dfff;
 }
 
 .group-name {
@@ -387,7 +387,7 @@ export default {
   display: inline-block;
   width: 48px;
   height: 48px;
-  background: #28a745;
+  background: #b8dfff;
   color: white;
   font-size: 32px;
   border-radius: 50%;
@@ -397,7 +397,7 @@ export default {
 }
 
 .bottom-create-button span:hover {
-  background: #218838;
+  background: #b8dfff;
 }
 
 /* Модалки */
@@ -468,13 +468,13 @@ export default {
 
 .students-table th,
 .students-table td {
-  border: 1px solid #115544;
+  border: 1px solid #56AEF6;
   padding: 10px;
   text-align: left;
 }
 
 .students-table thead {
-  background: #115544;
+  background: #56AEF6;
   color: white;
 }
 

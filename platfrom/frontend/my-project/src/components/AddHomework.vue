@@ -256,7 +256,7 @@ export default {
   transform: translateY(-50%);
   width: 24px;
   height: 24px;
-  background-color: #115544;
+  background-color: #56AEF6;
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
@@ -264,7 +264,7 @@ export default {
   flex: 1;
   text-align: center;
   font-size: 24px;
-  color: #115544;
+  color: #56AEF6;
   font-weight: 500;
   margin: 0;
 }
@@ -298,7 +298,7 @@ export default {
 }
 .submit-btn {
   padding: 10px 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   color: white;
   border: none;
   border-radius: 5px;
@@ -309,7 +309,7 @@ export default {
 }
 
 .submit-btn:hover {
-  background-color: #1e9275;
+  background-color: #b8dfff;
 }
 /* Стили Quill-редактора */
 .quill-editor {

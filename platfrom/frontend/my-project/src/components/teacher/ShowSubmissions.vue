@@ -254,7 +254,7 @@ export default {
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   clip-path: polygon(100% 0, 0 50%, 100% 100%);
   cursor: pointer;
 }
@@ -262,7 +262,7 @@ export default {
 .homework-title {
   flex: 1;
   font-size: 24px;
-  color: #115544;
+  color: #56AEF6;
   font-weight: 500;
   text-align: center;
   margin: 0;

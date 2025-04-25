@@ -4,7 +4,7 @@
       <div class="header-container">
         <div class="logo-container">
           <img src="@/assets/svg/logo.svg" alt="Логотип" class="logo" />
-          <h1 class="academy-name">Школа искусственного интеллекта</h1>
+          <p class="academy-name">Иркутская школа <br> искусственного интеллекта</p>
         </div>
         <div class="user-info">
           <span class="user-name">{{ isAuthenticated ? userName : 'Гость' }}</span>
@@ -152,13 +152,12 @@ export default {
 }
 
 .logo {
-  width: 40px;
+  width: 50px;
   margin-right: 10px;
 }
 
 .academy-name {
   font-size: 24px;
-  font-weight: bold;
   color: #56AEF6;
 }
 

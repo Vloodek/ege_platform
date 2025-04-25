@@ -216,10 +216,10 @@ h2 {
 
 .subheader {
   font-size: 20px;
-  color: #115544;
+  color: #56AEF6;
   padding-left: 10px;
   margin-bottom: 15px;
-  border-left: 3px solid #115544;
+  border-left: 3px solid #56AEF6;
 }
 
 .task-list {
@@ -234,15 +234,15 @@ h2 {
   align-items: center;
   padding: 12px 15px;
   margin-bottom: 8px;
-  border: 2px solid #115544;
+  border: 2px solid #56AEF6;
   border-radius: 10px;
   cursor: pointer;
   transition: background-color 0.3s ease, border 0.3s ease;
 }
 
 .task-list li:hover {
-  background-color: #e6f7f1;
-  border: 2px solid #1e9275;
+  background-color: #b8dfff;
+  border: 2px solid #b8dfff;
 }
 
 .task-list li.active {
@@ -260,7 +260,7 @@ h2 {
 
 .task-count {
   font-size: 16px;
-  color: #115544;
+  color: #56AEF6;
   margin-left: 10px;
 }
 
@@ -272,7 +272,7 @@ h2 {
 
 .random-btn {
   padding: 10px 20px;
-  background-color: #115544;
+  background-color: #56AEF6;
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -281,13 +281,13 @@ h2 {
 }
 
 .random-btn:hover {
-  background-color: #1e9275;
+  background-color: #b8dfff;
 }
 
 .add-task-btn {
   width: 50px;
   height: 50px;
-  background-color: #115544;
+  background-color: #56AEF6;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -298,7 +298,7 @@ h2 {
 }
 
 .add-task-btn:hover {
-  background-color: #1e9275;
+  background-color: #b8dfff;
 }
 
 .plus-icon {

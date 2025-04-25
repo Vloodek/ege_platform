@@ -131,6 +131,13 @@ const routes = [
     component: AddHomework,
   },
   {
+    path: '/test/:id/results',
+    name: 'HomeworkTestResults',
+    component: () => import('@/components/testing/TestResults.vue'),
+    meta: { requiresAuth: true },
+  }
+,  
+  {
     path: '/profile',
     name: 'user-profile',
     component: UserProfile,
