@@ -29,10 +29,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-+     # ──────────── создаём папку uploads, чтобы StaticFiles не падал ────────────
-+      - name: Create uploads directory
-+        run: mkdir -p platfrom/backend/uploads
-+
+      - name: Create uploads directory
+        run: mkdir -p platfrom/backend/uploads
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
