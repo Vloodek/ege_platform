@@ -2,7 +2,7 @@
 import sys
 print(sys.path)
 from fastapi import Query
-from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, UploadFile
+from fastapi import FastAPI, Depends, HTTPException, Form, File, Request, UploadFile,status
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 import app.database as database  # Импортируем базу данных
@@ -185,7 +185,6 @@ async def login(user: UserLogin, request: Request, db: Session = Depends(get_db)
 
 @app.post("/refresh-token")
 async def refresh_token(request: Request, db: Session = Depends(get_db)):
-    # Получаем refresh_token из куки
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         print("Refresh token not found in cookies")
@@ -193,26 +192,28 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
 
     print(f"Received refresh token: {refresh_token}")
 
-    
-
     db_refresh_token = db.query(database.RefreshToken).filter_by(token=refresh_token).first()
     if not db_refresh_token:
         print("Refresh token not found in database")
         raise HTTPException(status_code=401, detail="Неверный рефреш-токен")
 
-    # Проверка срока действия рефреш-токена
     if db_refresh_token.expires_at < datetime.utcnow():
         print(f"Refresh token expired: {db_refresh_token.expires_at}")
         raise HTTPException(status_code=401, detail="Рефреш-токен истек")
 
-    
+    # Проверяем, что пользователь существует
+    user = db.query(database.User).filter_by(id=db_refresh_token.user_id).first()
+    if not user:
+        print("User not found for this refresh token")
+        # Удаляем рефреш-токен, чтобы он не остался валидным
+        db.delete(db_refresh_token)
+        db.commit()
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
 
-    # Удаляем старый рефреш-токен
+    # Всё ок — удаляем старый токен и создаем новый
     db.delete(db_refresh_token)
     db.commit()
 
-    # Создаем новый access и refresh токены
-    user = db.query(database.User).filter_by(id=db_refresh_token.user_id).first()
     access_token = create_access_token(data={"sub": user.email})
     new_refresh_token = create_refresh_token(user.id, db)
 
@@ -221,10 +222,11 @@ async def refresh_token(request: Request, db: Session = Depends(get_db)):
         key="refresh_token", 
         value=new_refresh_token, 
         httponly=True, 
-        samesite="Strict",  # Ограничение для куки по сайтам
-        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # Время жизни куки в секундах
+        samesite="Strict",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     return response
+
 
 
 UPLOAD_FOLDER = "./uploads/"
@@ -232,46 +234,72 @@ UPLOAD_FOLDER = "./uploads/"
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-@app.post("/lessons/", response_model=schemas.LessonResponse)
+def build_embed_url(raw: str) -> str:
+    m = re.search(r"vkvideo\.ru/video-(\d+)_(\d+)", raw)
+    if m:
+        owner, vid = m.groups()
+        return f"https://vk.com/video_ext.php?oid={owner}&id={vid}"
+    return raw
+
+@app.post(
+    "/lessons/",
+    response_model=schemas.LessonResponse,
+    status_code=status.HTTP_201_CREATED
+)
 async def create_lesson(
-    name: str = Form(...),
-    description: str = Form(...),
-    text: str = Form(...),
-    date: datetime = Form(...),
-    group_id: int = Form(...),
-    images: list[UploadFile] = File(default=[]),
-    files:  list[UploadFile] = File(default=[]),
-    db: Session = Depends(get_db),
+    request: Request,
+    name: str                = Form(...),
+    description: str         = Form(...),    # HTML из Quill
+    text: str                = Form(...),    # HTML из Quill
+    date: datetime           = Form(...),
+    group_id: int            = Form(...),
+    videoLink: Optional[str] = Form(None),
+    images: Optional[List[UploadFile]] = File(default=[]),
+    files:  Optional[List[UploadFile]] = File(default=[]),
+    db: Session              = Depends(get_db),
 ):
-    # 1) Создаём урок
-    lesson = database.Lesson(name=name, description="", text="", date=date)
+    # 1) проверяем авторизацию
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Не авторизован")
+
+    # 2) создаём урок с пустым description/text
+    lesson = database.Lesson(
+        name=name,
+        description="",
+        text="",
+        date=date,
+        videoLink=videoLink,   # raw, без конвертации
+    )
     db.add(lesson); db.commit(); db.refresh(lesson)
 
-    # 2) Привязываем к группе
+    # 3) привязываем к группе
     grp = db.query(database.StudyGroup).get(group_id)
     if grp:
         lesson.groups.append(grp)
         db.commit()
 
-    # 3) Подготовка папок
+    # 4) готовим папки
     base = os.path.join(UPLOAD_FOLDER, str(lesson.id))
     os.makedirs(os.path.join(base, "files"),  exist_ok=True)
     os.makedirs(os.path.join(base, "images"), exist_ok=True)
 
-    # 4) Сохраняем простые файлы/картинки
+    # 5) сохраняем обычные файлы и картинки
     file_paths = []
-    for f in files:
-        p = os.path.join(base, "files", f.filename)
-        with open(p, "wb") as buf: buf.write(f.file.read())
-        file_paths.append(p.replace("\\","/"))
+    for f in files or []:
+        dest = os.path.join(base, "files", f.filename)
+        with open(dest, "wb") as buf:
+            buf.write(await f.read())
+        file_paths.append(dest.replace("\\","/"))
 
     image_paths = []
-    for img in images:
-        p = os.path.join(base, "images", img.filename)
-        with open(p, "wb") as buf: buf.write(img.file.read())
-        image_paths.append(p.replace("\\","/"))
+    for img in images or []:
+        dest = os.path.join(base, "images", img.filename)
+        with open(dest, "wb") as buf:
+            buf.write(await img.read())
+        image_paths.append(dest.replace("\\","/"))
 
-    # 5) Переносим Quill‑temp‑изображения из HTML
+    # 6) обрабатываем Quill-temporary-картинки в description/text
     new_desc, moved_desc = move_temp_images(
         description, base, lesson.id, "lesson_image", db
     )
@@ -281,20 +309,25 @@ async def create_lesson(
     lesson.description = new_desc
     lesson.text        = new_text
 
-    # 6) Записываем пути в БД как строку (VARCHAR)
-    all_files  = file_paths
+    # 7) собираем все image-пути: загруженные + перенесённые из HTML
     all_images = image_paths + [
         os.path.join(base, "images", fn).replace("\\","/")
         for fn in moved_desc + moved_text
     ]
-    lesson.files       = ",".join(all_files)
-    lesson.image_links = ",".join(all_images)
+
+    # 8) сохраняем пути в полях lesson.files / lesson.image_links
+    lesson.files       = json.dumps(file_paths)
+    lesson.image_links = json.dumps(all_images)
 
     db.commit(); db.refresh(lesson)
 
-    # 7) Для ответа FastAPI конвертируем обратно в список
-    lesson.files       = lesson.files.split(",")       if lesson.files else []
-    lesson.image_links = lesson.image_links.split(",") if lesson.image_links else []
+    # 9) конвертируем JSON-строки обратно в списки для ответа
+    lesson.files       = json.loads(lesson.files)       if lesson.files else []
+    lesson.image_links = json.loads(lesson.image_links) if lesson.image_links else []
+
+    # 10) добавляем group_ids
+    lesson.group_ids = [g.id for g in lesson.groups]
+
     return lesson
 
 @app.delete("/lessons/{lesson_id}", status_code=204)
@@ -532,15 +565,11 @@ async def get_homeworks_with_status(
     group_id: Optional[int] = Query(None, description="ID группы для фильтрации"),
     db: Session = Depends(get_db),
 ):
-    # 1. Авторизация (из Request.state.user кладём email)
-    user_email = getattr(request.state, "user", None)
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Не авторизован")
-    user = db.query(database.User).filter(database.User.email == user_email).first()
+    user = getattr(request.state, "user", None)
     if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Не авторизован")
 
-    # 2. Базовый запрос по Homework и фильтр по группам (если указан group_id)
+    # Базовый запрос по Homework + фильтр по группе
     hw_q = db.query(database.Homework)
     if group_id is not None:
         hw_q = (
@@ -551,17 +580,21 @@ async def get_homeworks_with_status(
         )
     homeworks = hw_q.all()
 
-    # 3. Подгружаем связи homework↔groups
+    if not homeworks:
+        return []
+
+    # Подгружаем связи homework ↔ groups
     hw_ids = [hw.id for hw in homeworks]
     links = db.query(
         database.homework_groups.c.homework_id,
         database.homework_groups.c.group_id
     ).filter(database.homework_groups.c.homework_id.in_(hw_ids)).all()
-    hw_to_groups = {}
-    for hw_id, g_id in links:
-        hw_to_groups.setdefault(hw_id, []).append(g_id)
 
-    # 4. Подгружаем последние сабмишены текущего пользователя для всех этих ДЗ
+    hw_to_groups = {}
+    for hw_id, group_id in links:
+        hw_to_groups.setdefault(hw_id, []).append(group_id)
+
+    # Подгружаем последние сабмишены пользователя
     subs = (
         db.query(
             database.HomeworkSubmission.homework_id,
@@ -571,29 +604,30 @@ async def get_homeworks_with_status(
             database.HomeworkSubmission.homework_id.in_(hw_ids),
             database.HomeworkSubmission.user_id == user.id
         )
-        .order_by(database.HomeworkSubmission.homework_id,
-                  database.HomeworkSubmission.id.desc())
+        .order_by(
+            database.HomeworkSubmission.homework_id,
+            database.HomeworkSubmission.id.desc()
+        )
         .all()
     )
-    # Оставим только по одному (последнему) статусу на homework_id
-    last_status = {}
-    for hw_id, status in subs:
-        if hw_id not in last_status:
-            last_status[hw_id] = status
 
-    # 5. Собираем итоговый список с полями из schemas.HomeworkWithStatus
+    last_status = {}
+    for hw_id, status_value in subs:
+        if hw_id not in last_status:
+            last_status[hw_id] = status_value
+
+    # Сборка результата
     result = []
     for hw in homeworks:
-        # вычисляем статус
-        raw = last_status.get(hw.id)
-        if raw == "graded":
-            st = "graded"
-        elif raw == "response_received":
-            st = "response_received"
-        elif raw in ("submitted", "waiting"):
-            st = "submitted"
+        raw_status = last_status.get(hw.id)
+        if raw_status == "graded":
+            status_mapped = "graded"
+        elif raw_status == "response_received":
+            status_mapped = "response_received"
+        elif raw_status in ("submitted", "waiting"):
+            status_mapped = "submitted"
         else:
-            st = "not_submitted"
+            status_mapped = "not_submitted"
 
         result.append({
             "id": hw.id,
@@ -603,11 +637,10 @@ async def get_homeworks_with_status(
             "files": hw.files.split(",") if hw.files else [],
             "images": hw.images.split(",") if hw.images else [],
             "group_ids": hw_to_groups.get(hw.id, []),
-            "status": st,
+            "status": status_mapped,
         })
 
     return result
-
 
 
 # Получение конкретного домашнего задания (homework)
@@ -650,49 +683,65 @@ async def get_homeworks_by_lesson(
 
 from fastapi import status
 from fastapi.responses import JSONResponse
+from app.database import SessionLocal, User as DBUser  # ← вот отсюда берём SessionLocal и модель User
 @app.middleware("http")
 async def check_authorization(request: Request, call_next):
+    # 1) Пропускаем preflight и статические запросы
     if request.method == "OPTIONS":
-        return await call_next(request)  # Пропускаем OPTIONS-запросы
-    print(f"Обрабатываемый путь запроса: {request.url.path}")
-
+        return await call_next(request)
     if "/uploads/" in request.url.path or request.url.path == "/favicon.ico":
         return await call_next(request)
 
+    # 2) Пропускаем публичные роуты
+    excluded = ["/register", "/login", "/refresh-token", "/docs", "/openapi.json", "/sse/timer"]
+    if any(request.url.path.startswith(route) for route in excluded):
+        return await call_next(request)
 
-    excluded_routes = ["/register", "/login", "/refresh-token", "/docs","/openapi.json","/sse/timer"]  # Маршруты, где не требуется токен
-    if any(request.url.path.startswith(route) for route in excluded_routes):
-        return await call_next(request)  # Пропускаем проверку токена для исключенных маршрутов
-
-    token = request.headers.get("Authorization")
-    if not token:
-        print("Токен не найден в заголовках")
+    # 3) Проверяем заголовок Authorization
+    auth: str | None = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    if not token.startswith("Bearer "):
-        print(f"Некорректный токен: {token}")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format")
 
+    token = auth[7:]
     try:
-        payload = jwt.decode(token[7:], SECRET_KEY, algorithms=[ALGORITHM])
-        user = payload.get("sub")
-        if not user:
-            print(f"Не найден пользователь в токене: {payload}")
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        request.state.user = user
-        print(f"Авторизация успешна для пользователя: {user}")
-    except jwt.PyJWTError as e:
-        print(f"Ошибка декодирования JWT: {str(e)}")
+        # 4) Декодируем JWT и получаем идентификатор пользователя
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_ident = payload.get("sub")
+        if not user_ident:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+        # 5) Извлекаем объект User из БД
+        db: Session = SessionLocal()
+        try:
+            db_user = db.query(DBUser).filter_by(email=user_ident).first()
+            if not db_user:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+            # Кладём ORM-объект в state
+            request.state.user = db_user
+            print(f"Авторизация успешна для пользователя: {db_user.email}")
+        finally:
+            db.close()
+
+    except jwt.ExpiredSignatureError:
         return JSONResponse(
-    status_code=401,
-    content={"detail": "Invalid token"},
-    headers={
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": "true"
-    }
-)
-        
-        
-    
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Token expired"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Credentials": "true"
+            }
+        )
+    except jwt.PyJWTError:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"detail": "Invalid token"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Credentials": "true"
+            }
+        )
+
+    # 6) Всё ок — передаём запрос дальше
     response = await call_next(request)
     return response
 
@@ -1868,86 +1917,121 @@ def delete_exam_task(id: int, db: Session = Depends(get_db)):
 
 
 
+from fastapi import APIRouter, Depends, Query, Request, HTTPException, status
+from sqlalchemy.orm import Session
+from datetime import datetime
+from typing import List, Literal
+
+
+
+
+
+from sqlalchemy import or_
+
 @app.get("/schedule")
 def get_schedule(
     month: int,
     year: int,
-    type: str = Query("lessons", enum=["lessons", "homeworks"]),
+    type: Literal["lessons", "homeworks"] = Query("lessons"),
     db: Session = Depends(get_db),
-    request: Request = None
+    request: Request = None,
 ):
+    # 1) Валидация даты
     try:
         start_date = datetime(year, month, 1)
         end_date = datetime(year + 1, 1, 1) if month == 12 else datetime(year, month + 1, 1)
     except ValueError:
-        raise HTTPException(status_code=400, detail="Неверная дата")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверная дата")
 
-    # Получаем пользователя из токена
-    user_email = getattr(request.state, "user", None)
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Не авторизован")
-
-    user = db.query(database.User).filter(database.User.email == user_email).first()
+    # 2) Получение пользователя из middleware
+    user = getattr(request.state, "user", None)
     if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Не авторизован")
 
-    current_user_id = user.id
+    # 3) Подтверждение пользователя из БД
+    db_user = db.query(database.User).get(user.id)
+    if not db_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
 
+    # 4) Определение доступа по группам
+    if db_user.role == "teacher":
+        user_group_ids = None  # Учителю показываем всё
+    else:
+        if hasattr(db_user, "group"):
+            grp = db_user.group
+            user_group_ids = [grp.id] if grp else []
+        else:
+            user_group_ids = [g.id for g in getattr(db_user, "groups", [])]
+
+        if not user_group_ids:
+            return []
+
+    # 5) Выдача уроков
     if type == "lessons":
-        lessons = db.query(database.Lesson).filter(
+        query = db.query(database.Lesson).join(
+            database.lesson_groups,
+            database.lesson_groups.c.lesson_id == database.Lesson.id
+        ).filter(
             database.Lesson.date >= start_date,
             database.Lesson.date < end_date
-        ).all()
+        )
+
+        if user_group_ids is not None:
+            query = query.filter(database.lesson_groups.c.group_id.in_(user_group_ids))
+
+        lessons = query.all()
+
         return [
-            {
-                "id": lesson.id,
-                "name": lesson.name,
-                "date": lesson.date.isoformat()
-            }
-            for lesson in lessons
+            {"id": l.id, "name": l.name, "date": l.date.isoformat()}
+            for l in lessons
         ]
 
-    elif type == "homeworks":
-        homeworks = db.query(database.Homework).filter(
-            database.Homework.date >= start_date,
-            database.Homework.date < end_date
-        ).all()
-        result = []
+    # 6) Выдача домашних заданий
+    query = db.query(database.Homework).join(
+        database.homework_groups,
+        database.homework_groups.c.homework_id == database.Homework.id
+    ).filter(
+        database.Homework.date >= start_date,
+        database.Homework.date < end_date
+    )
 
-        for hw in homeworks:
-            submission = db.query(database.HomeworkSubmission).filter_by(
-                homework_id=hw.id, user_id=current_user_id
-            ).order_by(database.HomeworkSubmission.id.desc()).first()
+    if user_group_ids is not None:
+        query = query.filter(database.homework_groups.c.group_id.in_(user_group_ids))
 
-            if submission is None:
-                dot = "red"
-                raw_status = "not submitted"
-            elif submission.status == "graded":
-                dot = "green"
-                raw_status = submission.status
-            elif submission.status == "response_received":
-                dot = "orange"
-                raw_status = submission.status
-            elif submission.status in ["submitted", "waiting"]:
-                dot = "gray"
-                raw_status = submission.status
-            else:
-                dot = "red"
-                raw_status = submission.status
+    homeworks = query.all()
 
+    result = []
+    for hw in homeworks:
+        sub = (
+            db.query(database.HomeworkSubmission)
+            .filter_by(homework_id=hw.id, user_id=user.id)
+            .order_by(database.HomeworkSubmission.id.desc())
+            .first()
+        )
 
-            hw_name = hw.description.strip() if hw.description and hw.description.strip() else "Домашнее задание"
+        if not sub:
+            dot, raw = "red", "not_submitted"
+        elif sub.status == "graded":
+            dot, raw = "green", "graded"
+        elif sub.status == "response_received":
+            dot, raw = "orange", "response_received"
+        elif sub.status in ("submitted", "waiting"):
+            dot, raw = "gray", sub.status
+        else:
+            dot, raw = "red", sub.status
 
-            result.append({
-                "id": hw.lesson_id,
-                "name": hw_name,
-                "date": hw.date.isoformat(),
-                "submission_status": dot,
-                "raw_status": raw_status
-            })
+        name = (hw.description or "").strip() or "Домашнее задание"
+        result.append({
+            "id": hw.lesson_id,
+            "name": name,
+            "date": hw.date.isoformat(),
+            "submission_status": dot,
+            "raw_status": raw,
+        })
 
-        return result
-    
+    return result
+
+ 
 
 
 @app.post("/homework_tests/", response_model=schemas.HomeworkTestResponse)
@@ -2262,62 +2346,123 @@ def get_student_result(
     return {"score": score, "max_score": max_score}
 
 
-
+from sqlalchemy.orm import joinedload
 @app.get(
     "/homework_tests/{test_id}/results_by_group",
     response_model=List[schemas.StudentGroupResult],
-    summary="Результаты теста для всех студентов группы"
+    summary="Результаты теста для всех студентов группы через связь Lesson→StudyGroup"
 )
 def get_results_by_group(
     test_id: int,
     db: Session = Depends(get_db),
-    # если у тебя есть Depends(get_current_user) — можно проверить роль "teacher"
 ):
-    # 1) Проверяем, что тест существует
-    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    # 1) Проверяем, что тест существует и подгружаем его lesson с группами
+    test = (
+        db.query(database.HomeworkTest)
+          .filter_by(id=test_id)
+          .join(database.Lesson)
+          .options(
+            # eager load групп и пользователей
+            joinedload(database.HomeworkTest.lesson)
+             .joinedload(database.Lesson.groups)
+             .joinedload(database.StudyGroup.users)
+          )
+          .first()
+    )
     if not test:
         raise HTTPException(status_code=404, detail="HomeworkTest not found")
 
-    # 2) Достаём список всех сессий по этому тесту
+    lesson = test.lesson
+    groups = lesson.groups
+    if not groups:
+        raise HTTPException(status_code=400, detail="No groups attached to this lesson")
+
+    # 2) Собираем всех студентов из всех групп, убирая дубликаты
+    students = {}
+    for grp in groups:
+        for user in grp.users:
+            # пропускаем преподавателей
+            if user.role != "student":
+                continue
+            students[user.id] = {
+                "user": user,
+                "class_name": grp.name
+            }
+
+    if not students:
+        raise HTTPException(status_code=400, detail="No students in these groups")
+
+    # 3) Подгружаем все сессии для этого теста и делаем мапу user_id→сессия
     sessions = (
         db.query(database.TestSession)
           .filter_by(homework_test_id=test_id)
           .all()
     )
+    sessions_map = {sess.user_id: sess for sess in sessions}
 
-    # 3) Подгружаем мета-данные, чтобы знать correct_answer и total
+    # 4) Парсим tasks_meta
     try:
         tasks_meta = json.loads(test.tasks_meta)
     except json.JSONDecodeError:
         raise HTTPException(status_code=500, detail="Invalid tasks_meta JSON")
     total = len(tasks_meta)
 
+    # 5) Для каждого студента считаем correct / passed
     results = []
-    for sess in sessions:
-        # получаем данные пользователя
-        user = db.query(database.User).filter_by(id=sess.user_id).first()
-        if not user:
-            continue
+    for user_id, info in students.items():
+        user = info["user"]
+        class_name = info["class_name"]
+        sess = sessions_map.get(user_id)
 
-        # парсим ответы и считаем, сколько правильных
-        answers = json.loads(sess.answers or "{}")
-        correct = 0
-        for idx, t in enumerate(tasks_meta):
-            user_ans = (answers.get(str(idx), "") or "").strip().lower()
-            corr    = (t.get("correct_answer") or "").strip().lower()
-            if user_ans and user_ans == corr:
-                correct += 1
-
-        # считаем, что "passed", если они хоть что-то сделали (можно уточнить логику)
-        passed = bool(answers)
-
+        if sess:
+            answers = json.loads(sess.answers or "{}")
+            correct = 0
+            for idx, t in enumerate(tasks_meta):
+                ua = (answers.get(str(idx), "") or "").strip().lower()
+                ca = (t.get("correct_answer") or "").strip().lower()
+                if ua and ua == ca:
+                    correct += 1
+            passed = bool(answers)
+        else:
+            correct = 0
+            passed = False
+        completed_at = sess.created_at if sess else None
         results.append({
             "user_id":    user.id,
             "name":       user.name,
-            "class_name": user.group.name if user.group else None,
+            "class_name": class_name,
             "passed":     passed,
             "correct":    correct,
             "total":      total,
+            "completed_at": completed_at,
         })
 
+    # опционально: сортируем по имени студента
+    results.sort(key=lambda r: r["name"])
     return results
+
+
+@app.delete(
+    "/homework_tests/{test_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Удалить домашний тест (только для преподавателя)"
+)
+def delete_homework_test(
+    test_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # user прокинут в request.state.user вашим middleware
+    current_user = request.state.user
+
+    if current_user.role != "teacher":
+        raise HTTPException(status_code=403, detail="Только для преподавателей")
+
+    test = db.query(database.HomeworkTest).filter_by(id=test_id).first()
+    if not test:
+        raise HTTPException(status_code=404, detail="Тест не найден")
+
+    db.delete(test)
+    db.commit()
+    # 204 — тело ответа не нужно
+    return

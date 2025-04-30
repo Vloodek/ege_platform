@@ -1,49 +1,72 @@
 <template>
   <div class="edit-homework-page">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <div class="main-content">
         <div class="header">
-          <div class="back-arrow" @click="confirmExit"></div>
-          <h1 class="edit-title">Редактирование домашнего задания</h1>
+          <div
+            class="back-arrow"
+            @click="confirmExit"
+          />
+          <h1 class="edit-title">
+            Редактирование домашнего задания
+          </h1>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="homework-form">
+        <form
+          class="homework-form"
+          @submit.prevent="handleSubmit"
+        >
           <div class="form-group">
             <label for="homeworkTitle">Название задания</label>
             <input
-              type="text"
               id="homeworkTitle"
               v-model="homework.title"
+              type="text"
               placeholder="Введите название задания"
               required
-            />
+            >
           </div>
 
           <div class="form-group">
             <label for="homeworkText">Текст задания</label>
-            <div ref="homeworkEditor" class="quill-editor"></div>
+            <div
+              ref="homeworkEditor"
+              class="quill-editor"
+            />
           </div>
 
           <div class="form-group">
             <label for="homeworkFiles">Файлы</label>
             
             <input
-              type="file"
               id="homeworkFiles"
-              @change="handleFileUpload"
+              type="file"
               multiple
               accept="application/pdf"
-            />
+              @change="handleFileUpload"
+            >
             <div v-if="homework.files.length">
               <p>Прикрепленные файлы:</p>
               <ul>
-                <li v-for="(file, index) in homework.files" :key="index">
-        <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
-        {{ file.name || file }}
-        <button type="button" @click="removeFile(index)">Удалить</button>
-      </li>
+                <li
+                  v-for="(file, index) in homework.files"
+                  :key="index"
+                >
+                  <img
+                    src="@/assets/svg/files.svg"
+                    alt="file icon"
+                    class="file-icon"
+                  >
+                  {{ file.name || file }}
+                  <button
+                    type="button"
+                    @click="removeFile(index)"
+                  >
+                    Удалить
+                  </button>
+                </li>
               </ul>
             </div>
           </div>
@@ -51,14 +74,19 @@
           <div class="form-group">
             <label for="homeworkDate">Дедлайн</label>
             <input
-              type="datetime-local"
               id="homeworkDate"
               v-model="homework.date"
+              type="datetime-local"
               required
-            />
+            >
           </div>
 
-          <button type="submit" class="submit-btn">Сохранить изменения</button>
+          <button
+            type="submit"
+            class="submit-btn"
+          >
+            Сохранить изменения
+          </button>
         </form>
       </div>
     </div>

@@ -1,20 +1,27 @@
 <template>
   <div id="exam-task-list">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
       <main class="main-content">
         <!-- Header Section -->
         <div class="header-section">
           <div class="header-top">
-            <div class="back-arrow" @click="goBack"></div>
-            <h2 class="main-title">Тренажер</h2>
+            <div
+              class="back-arrow"
+              @click="goBack"
+            />
+            <h2 class="main-title">
+              Тренажер
+            </h2>
           </div>
           <div class="task-type">
             Тип {{ taskName }} ({{ taskId }})
           </div>
         </div>
 
-        <div v-if="tasks.length === 0">Нет заданий для этого типа.</div>
+        <div v-if="tasks.length === 0">
+          Нет заданий для этого типа.
+        </div>
 
         <div
           v-for="(task, index) in tasks"
@@ -36,10 +43,15 @@
               v-if="isTeacher"
               class="delete-task-btn"
               @click="confirmDelete(task.id)"
-            >&times;</button>
+            >
+              &times;
+            </button>
           </div>
 
-          <div class="task-description ql-editor" v-html="task.description"></div>
+          <div
+            class="task-description ql-editor"
+            v-html="task.description"
+          />
           <div class="task-images">
             <img
               v-for="img in task.task_images"
@@ -47,14 +59,20 @@
               :src="img"
               alt="Task image"
               class="task-image"
-            />
+            >
           </div>
           <div
-            class="task-files"
             v-if="task.task_files && task.task_files.length"
+            class="task-files"
           >
-            <div v-for="file in task.task_files" :key="file">
-              <a :href="file" target="_blank">{{ getFileName(file) }}</a>
+            <div
+              v-for="file in task.task_files"
+              :key="file"
+            >
+              <a
+                :href="file"
+                target="_blank"
+              >{{ getFileName(file) }}</a>
             </div>
           </div>
 
@@ -70,7 +88,10 @@
             v-if="showSolution[task.id]"
             class="solution-section"
           >
-            <div class="solution-text" v-html="task.solution_text"></div>
+            <div
+              class="solution-text"
+              v-html="task.solution_text"
+            />
             <div class="solution-images">
               <img
                 v-for="img in task.solution_images"
@@ -78,14 +99,20 @@
                 :src="img"
                 alt="Solution image"
                 class="task-image"
-              />
+              >
             </div>
             <div
-              class="solution-files"
               v-if="task.solution_files && task.solution_files.length"
+              class="solution-files"
             >
-              <div v-for="file in task.solution_files" :key="file">
-                <a :href="file" target="_blank">{{ getFileName(file) }}</a>
+              <div
+                v-for="file in task.solution_files"
+                :key="file"
+              >
+                <a
+                  :href="file"
+                  target="_blank"
+                >{{ getFileName(file) }}</a>
               </div>
             </div>
             <div class="solution-answer">
@@ -108,11 +135,15 @@
           <button
             class="modal-btn confirm"
             @click="deleteTask"
-          >Удалить</button>
+          >
+            Удалить
+          </button>
           <button
             class="modal-btn cancel"
             @click="cancelDelete"
-          >Отмена</button>
+          >
+            Отмена
+          </button>
         </div>
       </div>
     </div>

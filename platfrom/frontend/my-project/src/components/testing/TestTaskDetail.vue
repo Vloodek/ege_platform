@@ -1,48 +1,84 @@
 <template>
-    <div class="train-task-detail">
-      <h2 class="task-title" v-if="task">Задание №{{ task.id }} (Тип {{ task.task_number }})</h2>
-      <div v-if="loading" class="loading">Загрузка задания...</div>
-      <div v-else-if="!task" class="not-found">Задание не найдено.</div>
-      <div v-else class="task-container">
-        <!-- Описание задания -->
-        <div class="task-description ql-editor" v-html="task.description"></div>
-  
-        <!-- Изображения задания -->
-        <div class="task-images" v-if="task.task_images && task.task_images.length">
-          <img
-            v-for="img in task.task_images"
-            :key="img"
-            :src="img"
-            alt="Изображение задания"
-            class="task-image"
-          />
-        </div>
-  
-        <!-- Файлы задания -->
-        <div class="task-files" v-if="task.task_files && task.task_files.length">
-          <div v-for="file in task.task_files" :key="file">
-            <a :href="file" target="_blank">📎 {{ getFileName(file) }}</a>
-          </div>
-        </div>
-  
-        <!-- Поле ввода ответа -->
-        <div class="answer-input">
-          <label for="userAnswer">Ваш ответ:</label>
-          <input
-            type="text"
-            id="userAnswer"
-            v-model="userAnswer"
-            placeholder="Введите ваш ответ"
-          />
-        </div>
-  
-        <!-- Кнопка отправки ответа -->
-        <button class="submit-answer-btn" @click="submitAnswer">
-          Отправить ответ
-        </button>
-      </div>
+  <div class="train-task-detail">
+    <h2
+      v-if="task"
+      class="task-title"
+    >
+      Задание №{{ task.id }} (Тип {{ task.task_number }})
+    </h2>
+    <div
+      v-if="loading"
+      class="loading"
+    >
+      Загрузка задания...
     </div>
-  </template>
+    <div
+      v-else-if="!task"
+      class="not-found"
+    >
+      Задание не найдено.
+    </div>
+    <div
+      v-else
+      class="task-container"
+    >
+      <!-- Описание задания -->
+      <div
+        class="task-description ql-editor"
+        v-html="task.description"
+      />
+  
+      <!-- Изображения задания -->
+      <div
+        v-if="task.task_images && task.task_images.length"
+        class="task-images"
+      >
+        <img
+          v-for="img in task.task_images"
+          :key="img"
+          :src="img"
+          alt="Изображение задания"
+          class="task-image"
+        >
+      </div>
+  
+      <!-- Файлы задания -->
+      <div
+        v-if="task.task_files && task.task_files.length"
+        class="task-files"
+      >
+        <div
+          v-for="file in task.task_files"
+          :key="file"
+        >
+          <a
+            :href="file"
+            target="_blank"
+          >📎 {{ getFileName(file) }}</a>
+        </div>
+      </div>
+  
+      <!-- Поле ввода ответа -->
+      <div class="answer-input">
+        <label for="userAnswer">Ваш ответ:</label>
+        <input
+          id="userAnswer"
+          v-model="userAnswer"
+          type="text"
+          placeholder="Введите ваш ответ"
+        >
+      </div>
+  
+      <!-- Кнопка отправки ответа -->
+      <button
+        class="submit-answer-btn"
+        @click="submitAnswer"
+      >
+        Отправить ответ
+      </button>
+    </div>
+  </div>
+</template>
   
   <script>
   export default {

@@ -2,15 +2,20 @@
   <div id="materials-page">
     <div class="container">
       <!-- Боковое меню -->
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <!-- Основной контент -->
       <main class="main-content">
         <div v-if="lesson">
           <!-- Стрелка назад и центрированный заголовок -->
           <div class="header-section">
-            <div class="back-arrow" @click="goBack"></div>
-            <h1 class="lesson-title centered">{{ lesson.name }}</h1>
+            <div
+              class="back-arrow"
+              @click="goBack"
+            />
+            <h1 class="lesson-title centered">
+              {{ lesson.name }}
+            </h1>
           </div>
 
           <!-- Отображение отформатированного текста занятия (Quill) -->
@@ -18,18 +23,28 @@
             v-if="lesson.text"
             class="lesson-description ql-editor"
             v-html="lesson.text"
-          ></div>
+          />
 
           <!-- Список файлов -->
-          <div v-if="files.length" class="files-section">
+          <div
+            v-if="files.length"
+            class="files-section"
+          >
             <ul>
-              <li v-for="file in files" :key="file">
-                <a :href="file" download @click.prevent="downloadFile(file)">
+              <li
+                v-for="file in files"
+                :key="file"
+              >
+                <a
+                  :href="file"
+                  download
+                  @click.prevent="downloadFile(file)"
+                >
                   <img
                     src="@/assets/svg/files.svg"
                     alt="file icon"
                     class="file-icon"
-                  />
+                  >
                   {{ getFileName(file) }}
                 </a>
               </li>

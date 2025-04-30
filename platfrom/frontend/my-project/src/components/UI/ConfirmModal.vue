@@ -1,19 +1,28 @@
 <template>
-    <div class="modal-overlay" v-if="show">
-      <div class="modal-window">
-        <h3>{{ title }}</h3>
-        <p>{{ message }}</p>
-        <div class="modal-actions">
-          <button class="btn cancel" @click="$emit('cancel')">
-            {{ cancelText }}
-          </button>
-          <button class="btn confirm" @click="$emit('confirm')">
-            {{ confirmText }}
-          </button>
-        </div>
+  <div
+    v-if="show"
+    class="modal-overlay"
+  >
+    <div class="modal-window">
+      <h3>{{ title }}</h3>
+      <p>{{ message }}</p>
+      <div class="modal-actions">
+        <button
+          class="btn cancel"
+          @click="$emit('cancel')"
+        >
+          {{ cancelText }}
+        </button>
+        <button
+          class="btn confirm"
+          @click="$emit('confirm')"
+        >
+          {{ confirmText }}
+        </button>
       </div>
     </div>
-  </template>
+  </div>
+</template>
   
   <script>
   export default {

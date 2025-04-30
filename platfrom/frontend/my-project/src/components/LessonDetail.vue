@@ -1,18 +1,18 @@
 <template>
   <div id="lesson-detail">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
-      <main class="main-content" v-if="lesson">
+      <main v-if="lesson" class="main-content">
         <!-- Header -->
         <div class="header-section">
-          <div class="back-arrow" @click="goBack" />
+          <button class="back-arrow" @click="goBack"></button>
           <h1 class="lesson-title">{{ lesson.name }}</h1>
         </div>
 
         <!-- Video -->
         <div v-if="lesson.videoLink" class="video-container">
-          <div v-if="videoEmbedHtml" v-html="videoEmbedHtml" />
+          <div v-if="videoEmbedHtml" v-html="videoEmbedHtml"></div>
           <iframe
             v-else-if="videoEmbedUrl"
             :src="videoEmbedUrl"
@@ -21,7 +21,7 @@
             frameborder="0"
             allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;"
             allowfullscreen
-          />
+          ></iframe>
         </div>
 
         <!-- Description + Actions -->
@@ -39,16 +39,16 @@
             <p class="lesson-description">{{ lesson.description }}</p>
 
             <div class="checkbox-container">
-              <input type="checkbox" id="watched" v-model="lesson.watched" />
+              <input
+                id="watched"
+                v-model="lesson.watched"
+                type="checkbox"
+              />
               <label for="watched">Просмотрено</label>
             </div>
 
-            <!-- Название группы (для преподавателя) -->
-            <div
-              v-if="isTeacher && lesson.group_ids?.length"
-              class="lesson-group-badge"
-            >
-              Группа «{{ groupName(lesson) }}»
+            <div v-if="isTeacher && lesson.group_ids.length" class="lesson-group-badge">
+              Группа «{{ groupName }}»
             </div>
           </div>
 
@@ -65,7 +65,6 @@
               ДЗ
             </BaseButton>
 
-            <!-- Кнопка теста -->
             <BaseButton
               v-if="testExists"
               color="green"
@@ -86,18 +85,11 @@
 
       <div v-else class="loading">Загрузка...</div>
 
-      <!-- Модалка результатов -->
-      <div
-        v-if="showResultsModal"
-        class="modal-overlay"
-        @click.self="closeResults"
-      >
+      <!-- Modal -->
+      <div v-if="showResultsModal" class="modal-overlay" @click.self="closeResults">
         <div class="modal-window">
           <button class="modal-close" @click="closeResults">×</button>
-          <HomeworkTestResults
-            :test-id="testId"
-            @close="closeResults"
-          />
+          <HomeworkTestResults :test-id="testId" @close="closeResults" />
         </div>
       </div>
     </div>
@@ -137,10 +129,14 @@ export default {
         return "Результаты теста";
       }
       return this.testPassed ? "Результаты теста" : "Пройти тест";
+    },
+    groupName() {
+      const gid = this.lesson.group_ids[0];
+      return this.groupMap[gid] || "—";
     }
   },
   async created() {
-    const user = JSON.parse(localStorage.getItem("user")) || {};
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
     this.isTeacher = user.role === "teacher";
 
     if (this.isTeacher) {
@@ -160,7 +156,6 @@ export default {
       try {
         const { data } = await this.$axios.get("/groups");
         this.groups = data;
-        this.groupMap = {};
         data.forEach(g => {
           this.groupMap[g.id] = g.name;
         });
@@ -215,12 +210,7 @@ export default {
         );
         this.testPassed = true;
       } catch (err) {
-        if (err.response && err.response.status === 404) {
-          this.testPassed = false;
-        } else {
-          console.error("Ошибка при проверке student_result:", err);
-          this.testPassed = false;
-        }
+        this.testPassed = false;
       }
     },
 
@@ -264,19 +254,30 @@ export default {
 
     processVideoLink(link) {
       if (!link) return;
-      if (link.includes("<iframe")) {
+      // если сохранён готовый iframe HTML
+      if (link.trim().startsWith("<iframe")) {
         this.videoEmbedHtml = link;
-      } else if (/youtube\.com|youtu\.be/.test(link)) {
-        const m = link.match(/(?:v=|\/)([A-Za-z0-9_-]{11})/);
-        this.videoEmbedUrl = m
-          ? `https://www.youtube.com/embed/${m[1]}`
-          : null;
-      } else if (/vkvideo\.ru/.test(link)) {
-        const m = link.match(/video-?(\d+)_(\d+)/);
-        this.videoEmbedUrl = m
-          ? `https://vk.com/video_ext.php?oid=-${m[1]}&id=${m[2]}&hd=2`
-          : null;
+        this.videoEmbedUrl = null;
+        return;
       }
+      // YouTube
+      const yt = link.match(/(?:v=|\/)([A-Za-z0-9_-]{11})/);
+      if (yt) {
+        this.videoEmbedUrl = `https://www.youtube.com/embed/${yt[1]}`;
+        this.videoEmbedHtml = null;
+        return;
+      }
+      // VK
+      const vk = link.match(/video-(\d+)_(\d+)/);
+      if (vk) {
+        const [ , owner, vid ] = vk;
+        this.videoEmbedUrl = `https://vk.com/video_ext.php?oid=${owner}&id=${vid}&hd=2`;
+        this.videoEmbedHtml = null;
+        return;
+      }
+      // иначе — прямой URL
+      this.videoEmbedUrl = link;
+      this.videoEmbedHtml = null;
     },
 
     formatDateTime(dt) {
@@ -287,15 +288,11 @@ export default {
         hour: "2-digit",
         minute: "2-digit"
       });
-    },
-
-    groupName(lesson) {
-      const gid = lesson.group_ids?.[0];
-      return gid != null ? this.groupMap[gid] || "—" : "—";
     }
   }
 };
 </script>
+
 
 <style scoped>
 #lesson-detail {

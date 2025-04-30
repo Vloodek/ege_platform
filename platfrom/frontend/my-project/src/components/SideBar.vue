@@ -1,7 +1,13 @@
 <template>
-  <div :class="['sidebar', userTypeClass]" :style="{ height: sidebarHeight }">
+  <div
+    :class="['sidebar', userTypeClass]"
+    :style="{ height: sidebarHeight }"
+  >
     <!-- Навигация во время теста -->
-    <div v-if="internalTestActive" class="test-sidebar-navigation">
+    <div
+      v-if="internalTestActive"
+      class="test-sidebar-navigation"
+    >
       <div class="task-grid-sidebar">
         <div
           v-for="(taskId, index) in taskIds"
@@ -14,14 +20,31 @@
         </div>
       </div>
 
-      <div class="nav-controls" v-if="!testFinished">
-        <button @click="$emit('prevTask')" class="nav-arrow">←</button>
-        <button @click="$emit('nextTask')" class="nav-arrow">→</button>
+      <div
+        v-if="!testFinished"
+        class="nav-controls"
+      >
+        <button
+          class="nav-arrow"
+          @click="$emit('prevTask')"
+        >
+          ←
+        </button>
+        <button
+          class="nav-arrow"
+          @click="$emit('nextTask')"
+        >
+          →
+        </button>
       </div>
 
       <div class="test-info">
-        <p v-if="!testFinished">Осталось: {{ formattedTimer }}</p>
-        <p v-else>Итоговый балл: {{ score }}</p>
+        <p v-if="!testFinished">
+          Осталось: {{ formattedTimer }}
+        </p>
+        <p v-else>
+          Итоговый балл: {{ score }}
+        </p>
         <p>Всего вопросов: {{ totalQuestions }}</p>
       </div>
 
@@ -43,7 +66,10 @@
     </div>
 
     <!-- Обычное меню -->
-    <div v-else class="default-menu">
+    <div
+      v-else
+      class="default-menu"
+    >
       <ul class="menu">
         <router-link
           v-for="item in menuItems"
@@ -51,7 +77,11 @@
           :to="item.link"
           class="menu-item"
         >
-          <img :src="item.icon" alt="icon" class="menu-icon" />
+          <img
+            :src="item.icon"
+            alt="icon"
+            class="menu-icon"
+          >
           <span :class="['menu-label', labelClass(item.label)]">{{ item.label }}</span>
         </router-link>
       </ul>
@@ -117,13 +147,13 @@ export default {
       return `${hours} ч ${minutes} мин`;
     },
   },
-  mounted() {
-    this.internalTestActive = this.$route.name === "test-session";
-  },
   watch: {
     $route(to) {
       this.internalTestActive = to.name === "test-session";
     },
+  },
+  mounted() {
+    this.internalTestActive = this.$route.name === "test-session";
   },
   methods: {
     squareClass(taskId, index) {

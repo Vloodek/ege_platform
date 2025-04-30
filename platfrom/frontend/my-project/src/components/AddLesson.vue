@@ -1,24 +1,29 @@
 <template>
   <div class="add-lesson-page">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <div class="main-content">
-        <h2 class="page-title">Добавление урока</h2>
+        <h2 class="page-title">
+          Добавление урока
+        </h2>
 
-        <form @submit.prevent="handleSubmit" class="lesson-form">
+        <form
+          class="lesson-form"
+          @submit.prevent="handleSubmit"
+        >
           <!-- Информация об уроке -->
           <div class="lesson-info">
             <!-- Название урока -->
             <div class="form-group">
               <label for="lessonTitle">Название урока</label>
               <input
-                type="text"
                 id="lessonTitle"
                 v-model="lesson.name"
+                type="text"
                 placeholder="Введите название урока"
                 required
-              />
+              >
             </div>
 
             <!-- Описание урока обычным текстовым полем -->
@@ -29,13 +34,16 @@
                 v-model="lesson.description"
                 placeholder="Введите описание урока"
                 required
-              ></textarea>
+              />
             </div>
 
             <!-- Переключатель типа видео -->
             <div class="form-group toggle-group">
               <label>Тип видео</label>
-              <div class="toggle-container" @click="toggleVideoType">
+              <div
+                class="toggle-container"
+                @click="toggleVideoType"
+              >
                 <div
                   class="toggle-option"
                   :class="{ active: lesson.videoType === 'video' }"
@@ -52,29 +60,37 @@
             </div>
 
             <!-- Если выбран тип Видео -->
-            <div class="form-group" v-if="lesson.videoType === 'video'">
+            <div
+              v-if="lesson.videoType === 'video'"
+              class="form-group"
+            >
               <label for="videoLink">Ссылка на видео</label>
               <input
-                type="text"
                 id="videoLink"
                 v-model="lesson.videoLink"
+                type="text"
                 placeholder="Введите ссылку на видео"
                 @blur="validateVideoLink"
-              />
-              <p v-if="videoLinkError" class="error-text">
+              >
+              <p
+                v-if="videoLinkError"
+                class="error-text"
+              >
                 Пожалуйста, введите корректную ссылку на видео.
               </p>
             </div>
 
             <!-- Если выбран тип Стрим -->
-            <div class="form-group" v-else>
+            <div
+              v-else
+              class="form-group"
+            >
               <label for="iframeEmbed">Embed-код стрима</label>
               <textarea
                 id="iframeEmbed"
                 v-model="lesson.iframeEmbed"
                 placeholder="Вставьте HTML-код iframe стрима"
-
-              ></textarea>
+              />
             </div>
           </div>
 
@@ -84,7 +100,10 @@
             <!-- Текст занятия через Quill -->
             <div class="form-group">
               <label for="lessonText">Текст занятия</label>
-              <div ref="textEditor" class="quill-editor"></div>
+              <div
+                ref="textEditor"
+                class="quill-editor"
+              />
             </div>
 
             <!-- Загрузка файлов (с drag’n’drop) -->
@@ -98,13 +117,13 @@
                 @click="$refs.lessonFileInput.click()"
               >
                 <input
-                  type="file"
                   id="lessonFiles"
-                  @change="handleFileUpload"
-                  multiple
                   ref="lessonFileInput"
+                  type="file"
+                  multiple
                   class="hidden-input"
-                />
+                  @change="handleFileUpload"
+                >
                 <p>Перетащите файлы сюда или нажмите для выбора</p>
               </div>
             </div>
@@ -116,14 +135,22 @@
             <div class="uploaded-files">
               <h4>Загруженные файлы</h4>
               <ul>
-                <li v-for="(file, index) in lesson.files" :key="index">
+                <li
+                  v-for="(file, index) in lesson.files"
+                  :key="index"
+                >
                   {{ file.name }}
-                  <button type="button" @click="removeFile(index)">
+                  <button
+                    type="button"
+                    @click="removeFile(index)"
+                  >
                     Удалить
                   </button>
                 </li>
               </ul>
-              <p v-if="lesson.files.length === 0">Нет загруженных файлов.</p>
+              <p v-if="lesson.files.length === 0">
+                Нет загруженных файлов.
+              </p>
             </div>
           </div>
 
@@ -131,11 +158,11 @@
           <div class="form-group">
             <label for="lessonDate">Дата занятия</label>
             <input
-              type="datetime-local"
               id="lessonDate"
               v-model="lesson.date"
+              type="datetime-local"
               required
-            />
+            >
           </div>
           <div class="form-group">
             <label for="groupSelect">Выберите группу</label>
@@ -145,7 +172,12 @@
               required
               @focus="fetchGroups"
             >
-              <option v-if="!groupsLoaded" disabled>Загрузка...</option>
+              <option
+                v-if="!groupsLoaded"
+                disabled
+              >
+                Загрузка...
+              </option>
               <option
                 v-for="group in groups"
                 :key="group.id"
@@ -156,12 +188,24 @@
             </select>
           </div>
 
-          <button type="submit" class="submit-btn">Добавить урок</button>
+          <button
+            type="submit"
+            class="submit-btn"
+          >
+            Добавить урок
+          </button>
         </form>
 
         <!-- Полноразмерное изображение -->
-        <div v-if="fullImage" class="full-image-modal" @click="closeImage">
-          <img :src="fullImage" alt="Полноразмерное изображение" />
+        <div
+          v-if="fullImage"
+          class="full-image-modal"
+          @click="closeImage"
+        >
+          <img
+            :src="fullImage"
+            alt="Полноразмерное изображение"
+          >
         </div>
       </div>
     </div>
@@ -183,7 +227,7 @@ export default {
         description: "",
         videoLink: "",
         iframeEmbed: "",
-        videoType: "video", // "video" или "stream"
+        videoType: "video",
         text: "",
         files: [],
         images: [],
@@ -194,126 +238,118 @@ export default {
       groupsLoaded: false,
       videoLinkError: false,
       fullImage: null,
-      // Ссылки на Quill-редакторы для текста занятия (описание урока остаётся обычным полем)
       textEditor: null,
     };
   },
+  mounted() {
+    this.initEditors();
+    this.fetchGroups();
+  },
   methods: {
-    // Файловые операции
-    handleFileUpload(event) {
-      const files = Array.from(event.target.files);
-      files.forEach((file) => {
-        // Если изображение, сохраняем его для возможного предпросмотра (вы можете убрать, если не нужно)
-        if (file.type.startsWith("image/")) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            this.lesson.images.push({
-              file,
-              preview: e.target.result,
-            });
-          };
-          reader.readAsDataURL(file);
-        } else {
-          this.lesson.files.push(file);
-        }
-      });
-    },
-    handleDrop(event) {
-      const files = Array.from(event.dataTransfer.files);
-      files.forEach((file) => {
-        if (file.type.startsWith("image/")) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            this.lesson.images.push({
-              file,
-              preview: e.target.result,
-            });
-          };
-          reader.readAsDataURL(file);
-        } else {
-          this.lesson.files.push(file);
-        }
-      });
-    },
-    removeFile(index) {
-      this.lesson.files.splice(index, 1);
-    },
-    removeImage(index) {
-      this.lesson.images.splice(index, 1);
-    },
-    openImage(preview) {
-      this.fullImage = preview;
-    },
-    closeImage() {
-      this.fullImage = null;
-    },
     async fetchGroups() {
       if (this.groupsLoaded) return;
       try {
-        const response = await this.$axios.get("/groups/");
-        this.groups = response.data;
+        const { data } = await this.$axios.get("/groups/");
+        this.groups = data;
         this.groupsLoaded = true;
       } catch (error) {
-        console.error("Ошибка при загрузке групп", error);
+        console.error("Ошибка загрузки групп:", error);
       }
     },
+
     validateVideoLink() {
       if (this.lesson.videoType === "video") {
-        const regex = /https?:\/\/.*/;
+        const regex = /https?:\/\/(vkvideo\.ru|youtube\.com|vimeo\.com)\/.*/;
         this.videoLinkError = !regex.test(this.lesson.videoLink);
       } else {
         this.videoLinkError = false;
       }
     },
-    // Красивый тоггл для типа видео
+
     toggleVideoType() {
-      this.lesson.videoType =
-        this.lesson.videoType === "video" ? "stream" : "video";
+      this.lesson.videoType = this.lesson.videoType === "video" ? "stream" : "video";
     },
-    handleSubmit() {
-      if (this.lesson.videoType === "stream") {
-        this.lesson.videoLink = this.lesson.iframeEmbed;
+
+    handleFileUpload(event) {
+      const files = Array.from(event.target.files);
+      this.processFiles(files);
+    },
+
+    handleDrop(event) {
+      const files = Array.from(event.dataTransfer.files);
+      this.processFiles(files);
+    },
+
+    processFiles(files) {
+      files.forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.lesson.images.push({ file, preview: e.target.result });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          this.lesson.files.push(file);
+        }
+      });
+    },
+
+    removeFile(index) {
+      this.lesson.files.splice(index, 1);
+    },
+
+    openImage(preview) {
+      this.fullImage = preview;
+    },
+
+    closeImage() {
+      this.fullImage = null;
+    },
+
+    buildEmbedUrl(raw) {
+      const match = raw.match(/vkvideo\.ru\/video-(\d+)_(\d+)/);
+      if (match) {
+        const [, owner, vid] = match;
+        return `https://vk.com/video_ext.php?oid=${owner}&id=${vid}`;
       }
+      return raw;
+    },
+
+    async handleSubmit() {
+      let videoLink = this.lesson.videoType === "video"
+        ? this.buildEmbedUrl(this.lesson.videoLink)
+        : this.lesson.iframeEmbed;
+
       const formData = new FormData();
       formData.append("name", this.lesson.name);
       formData.append("description", this.lesson.description);
-      formData.append("videoLink", this.lesson.videoLink);
+      formData.append("videoLink", videoLink);
       formData.append("text", this.lesson.text);
       formData.append("date", this.lesson.date);
       formData.append("group_id", this.lesson.group_id);
 
-      this.lesson.images.forEach((imgObj) => {
-        formData.append("images", imgObj.file);
-      });
-      this.lesson.files.forEach((file) => {
-        formData.append("files", file);
-      });
+      this.lesson.images.forEach((imgObj) => formData.append("images", imgObj.file));
+      this.lesson.files.forEach((file) => formData.append("files", file));
 
-      this.$axios
-  .post("/lessons/", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  })
-
-        .then((response) => {
-          console.log("Урок успешно добавлен", response.data);
-          this.$router.push("/day-plan");
-        })
-        .catch((error) => {
-          console.error("Ошибка при добавлении урока", error);
+      try {
+        const { data } = await this.$axios.post("/lessons/", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
+        console.log("Урок успешно добавлен", data);
+        this.$router.push("/day-plan");
+      } catch (error) {
+        console.error("Ошибка при добавлении урока:", error);
+      }
     },
 
-    // Инициализация Quill-редактора для текста занятия
     initEditors() {
       this.$nextTick(() => {
-        const textEl = this.$refs.textEditor;
-        if (!textEl) {
-          console.error("Не найден элемент для Quill-редактора");
+        const el = this.$refs.textEditor;
+        if (!el) {
+          console.error("Элемент редактора не найден");
           return;
         }
-        // Опции тулбара без смены шрифта
+
         const toolbarOptions = [
           [{ header: "1" }, { header: "2" }],
           [{ list: "ordered" }, { list: "bullet" }],
@@ -321,23 +357,21 @@ export default {
           [{ align: [] }],
           ["link", "image"]
         ];
+
         const self = this;
-        const customImageHandler = async function () {
+        const customImageHandler = function () {
           const quill = this.quill;
-          if (!quill) return;
           const input = document.createElement("input");
           input.setAttribute("type", "file");
           input.setAttribute("accept", "image/*");
           input.click();
           input.onchange = async () => {
             const file = input.files[0];
-            if (file) {
-              await self.uploadAndInsertImage(quill, file);
-            }
+            if (file) await self.uploadAndInsertImage(quill, file);
           };
         };
 
-        this.textEditor = new Quill(textEl, {
+        this.textEditor = new Quill(el, {
           theme: "snow",
           modules: {
             toolbar: {
@@ -347,58 +381,45 @@ export default {
           }
         });
 
-        this.textEditor.root.addEventListener("paste", (e) => {
-          this.handlePaste(e, this.textEditor);
-        });
-
+        this.textEditor.root.addEventListener("paste", (e) => this.handlePaste(e, this.textEditor));
         this.textEditor.on("text-change", () => {
           this.lesson.text = this.textEditor.root.innerHTML;
         });
       });
     },
+
     async uploadAndInsertImage(quill, file) {
       const formData = new FormData();
       formData.append("image", file);
       try {
-        const response =  await this.$axios.post("/upload_temp_image", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+        const { data } = await this.$axios.post("/upload_temp_image", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
-        const imageUrl = response.data.image_url;
         const range = quill.getSelection();
         if (range) {
-          const imgHtml = `<img src="${imageUrl}" alt="${file.name}" />`;
-          quill.clipboard.dangerouslyPasteHTML(range.index, imgHtml);
+          quill.clipboard.dangerouslyPasteHTML(range.index, `<img src="${data.image_url}" alt="${file.name}" />`);
         }
       } catch (error) {
         console.error("Ошибка загрузки изображения:", error);
         alert("Ошибка загрузки изображения");
       }
     },
+
     handlePaste(e, quill) {
       const clipboardData = e.clipboardData || window.clipboardData;
       if (!clipboardData) return;
-      const items = clipboardData.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
+      for (const item of clipboardData.items) {
         if (item.type.indexOf("image") !== -1) {
           e.preventDefault();
           const file = item.getAsFile();
-          if (file) {
-            this.uploadAndInsertImage(quill, file);
-          }
+          if (file) this.uploadAndInsertImage(quill, file);
         }
       }
     }
-  },
-  mounted() {
-    this.initEditors();
-    this.fetchGroups();
   }
 };
 </script>
+
 
 <style scoped>
 /* Общий стиль страницы */

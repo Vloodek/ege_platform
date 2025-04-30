@@ -9,27 +9,39 @@
         <!-- Заголовок с переключением месяцев -->
         <div class="calendar-header">
           <div class="month-nav">
-            <button @click="changeMonth(-1)" class="arrow-button">
-              <img src="@/assets/svg/Calendar/arrow_left.svg" alt="Prev Month" />
+            <button
+              class="arrow-button"
+              @click="changeMonth(-1)"
+            >
+              <img
+                src="@/assets/svg/Calendar/arrow_left.svg"
+                alt="Prev Month"
+              >
             </button>
             <h2>{{ currentMonthName }} {{ currentYear }}</h2>
-            <button @click="changeMonth(1)" class="arrow-button">
-              <img src="@/assets/svg/Calendar/arrow_right.svg" alt="Next Month" />
+            <button
+              class="arrow-button"
+              @click="changeMonth(1)"
+            >
+              <img
+                src="@/assets/svg/Calendar/arrow_right.svg"
+                alt="Next Month"
+              >
             </button>
           </div>
           <div class="toggle">
             <div class="toggle-container">
               <button
-                @click="toggleView(true)"
                 :class="{ active: isScheduleView }"
                 class="toggle-button"
+                @click="toggleView(true)"
               >
                 Занятия
               </button>
               <button
-                @click="toggleView(false)"
                 :class="{ active: !isScheduleView }"
                 class="toggle-button"
+                @click="toggleView(false)"
               >
                 ДЗ
               </button>
@@ -61,20 +73,20 @@
               @mouseover="showItemMenu(index)"
               @mouseleave="hideItemMenu"
             >
-            <div class="day-number">
-  <span>{{ day }}</span>
-</div>
-<!-- Добавляем индикатор для занятий -->
-<div
-  v-if="isScheduleView && scheduleByDate[day]"
-  class="lesson-indicator"
-></div>
-<!-- Индикатор для ДЗ (если текущий режим – ДЗ) -->
-<div
-  v-if="!isScheduleView && scheduleByDate[day]"
-  class="homework-indicator"
-  :class="getHomeworkIndicatorClass(scheduleByDate[day])"
-></div>
+              <div class="day-number">
+                <span>{{ day }}</span>
+              </div>
+              <!-- Добавляем индикатор для занятий -->
+              <div
+                v-if="isScheduleView && scheduleByDate[day]"
+                class="lesson-indicator"
+              />
+              <!-- Индикатор для ДЗ (если текущий режим – ДЗ) -->
+              <div
+                v-if="!isScheduleView && scheduleByDate[day]"
+                class="homework-indicator"
+                :class="getHomeworkIndicatorClass(scheduleByDate[day])"
+              />
 
               <!-- Всплывающее меню для отображения списка уроков/ДЗ -->
               <div
@@ -87,8 +99,7 @@
                     :key="idx"
                     @click="openItem(item.id)"
                   >
-                  {{ item.name }}
-
+                    {{ item.name }}
                   </li>
                 </ul>
               </div>

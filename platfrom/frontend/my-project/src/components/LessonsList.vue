@@ -1,47 +1,67 @@
 <template>
   <div id="day-plan">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <main class="main-content">
         <h2>Занятия</h2>
 
         <div class="filter-container">
-  <label for="lesson-filter">Фильтр:</label>
-  <select id="lesson-filter" v-model="selectedStatus">
-    <option value="">Все</option>
-    <option value="upcoming">Предстоящие</option>
-    <option value="past">Прошедшие</option>
-  </select>
+          <label for="lesson-filter">Фильтр:</label>
+          <select
+            id="lesson-filter"
+            v-model="selectedStatus"
+          >
+            <option value="">
+              Все
+            </option>
+            <option value="upcoming">
+              Предстоящие
+            </option>
+            <option value="past">
+              Прошедшие
+            </option>
+          </select>
 
-  <!-- Фильтр по группам (только для преподавателя) -->
-  <label v-if="isTeacher" for="group-filter">Группа:</label>
-  <select
-    v-if="isTeacher"
-    id="group-filter"
-    v-model="selectedGroupId"
-  >
-    <option value="">Все группы</option>
-    <option
-      v-for="group in groups"
-      :key="group.id"
-      :value="group.id"
-    >
-      {{ group.name }}
-    </option>
-  </select>
-</div>
+          <!-- Фильтр по группам (только для преподавателя) -->
+          <label
+            v-if="isTeacher"
+            for="group-filter"
+          >Группа:</label>
+          <select
+            v-if="isTeacher"
+            id="group-filter"
+            v-model="selectedGroupId"
+          >
+            <option value="">
+              Все группы
+            </option>
+            <option
+              v-for="group in groups"
+              :key="group.id"
+              :value="group.id"
+            >
+              {{ group.name }}
+            </option>
+          </select>
+        </div>
 
 
         <div class="task-container">
-          <div class="task-block" v-for="lesson in filteredLessons" :key="lesson.id">
+          <div
+            v-for="lesson in filteredLessons"
+            :key="lesson.id"
+            class="task-block"
+          >
             <!-- Кнопка удаления (только для учителя) -->
             <button
               v-if="isTeacher"
               class="delete-btn"
-              @click="deleteLesson(lesson.id)"
               title="Удалить урок"
-            >×</button>
+              @click="deleteLesson(lesson.id)"
+            >
+              ×
+            </button>
 
             <!-- Заголовок урока -->
             <div class="task-header-container">
@@ -66,12 +86,15 @@
                     src="@/assets/svg/sidebar/calendar.svg"
                     alt="calendar"
                     class="calendar-icon"
-                  />
+                  >
                   <span class="calendar-text">{{ formatTime(lesson.date) }}</span>
                 </div>
               </div>
 
-              <BaseButton :color="buttonColor" @click="openLesson(lesson.id)">
+              <BaseButton
+                :color="buttonColor"
+                @click="openLesson(lesson.id)"
+              >
                 {{ buttonText }}
               </BaseButton>
             </div>
@@ -79,8 +102,14 @@
         </div>
 
         <!-- Кнопка добавления урока (для учителя) -->
-        <div v-if="isTeacher" class="add-task-btn-container">
-          <div class="add-task-btn" @click="goToAddLessonPage">
+        <div
+          v-if="isTeacher"
+          class="add-task-btn-container"
+        >
+          <div
+            class="add-task-btn"
+            @click="goToAddLessonPage"
+          >
             <span class="plus-icon">+</span>
           </div>
         </div>

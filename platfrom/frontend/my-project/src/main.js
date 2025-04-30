@@ -58,18 +58,27 @@ axios.interceptors.response.use(
       
       // Если ошибка 401 для любого другого запроса, пробуем обновить токен
       if (error.response.status === 401) {
+        const isLoginRequest = originalRequest.url.includes("/login");
+        const isRefreshRequest = originalRequest.url.includes("/refresh-token");
+      
+        if (isLoginRequest || isRefreshRequest) {
+          console.log("Ошибка авторизации при логине или рефреше, разлогиниваем");
+          handleUnauthorized();
+          return Promise.reject(error);
+        }
+      
         console.log("Ошибка 401: токен протух или недействителен");
+      
         if (!isRefreshing) {
           isRefreshing = true;
           try {
-            // Запрос к /refresh-token для обновления токена
             const refreshResponse = await axios.post('/refresh-token', {}, { withCredentials: true });
             const newAccessToken = refreshResponse.data.access_token;
-
+      
             localStorage.setItem('access_token', newAccessToken);
             axios.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
             onRefreshed(newAccessToken);
-
+      
             isRefreshing = false;
             return axios(originalRequest);
           } catch (refreshError) {
@@ -79,7 +88,7 @@ axios.interceptors.response.use(
             return Promise.reject(refreshError);
           }
         }
-
+      
         return new Promise((resolve) => {
           refreshSubscribers.push((newToken) => {
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -87,6 +96,7 @@ axios.interceptors.response.use(
           });
         });
       }
+      
     } else if (error.code === 'ERR_NETWORK') {
       console.log('Ошибка сети (ERR_NETWORK)');
     }

@@ -2,7 +2,7 @@
   <div id="day-plan">
     <div class="container">
       <!-- Боковое меню -->
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <!-- Основной контент -->
       <main class="main-content">
@@ -10,15 +10,17 @@
         <h2>Тренажер</h2>
 
         <!-- Подзаголовок слева -->
-        <div class="subheader">Банк заданий</div>
+        <div class="subheader">
+          Банк заданий
+        </div>
 
         <!-- Пронумерованный список типов заданий -->
         <ol class="task-list">
           <li
             v-for="(task, index) in examTasks"
             :key="task.id"
-            @click="openTaskDetail(task)"
             :class="{ active: selectedTask?.id === task.id }"
+            @click="openTaskDetail(task)"
           >
             <span class="task-info">
               {{ index + 1 }}. {{ task.name }}
@@ -32,7 +34,10 @@
         <!-- Панель действий внизу -->
         <div class="action-buttons">
           <!-- Всегда видна -->
-          <button class="random-btn" @click="randomVariant">
+          <button
+            class="random-btn"
+            @click="randomVariant"
+          >
             Случайный вариант
           </button>
 

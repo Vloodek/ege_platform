@@ -5,12 +5,12 @@
         mode="session"
         :duration="Math.ceil(initialDuration / 60)"
         :count="taskIds.length"
-        :currentIndex="currentTaskIndex"
+        :current-index="currentTaskIndex"
         :answers="answersArray"
         :results="resultsArray"
-        :testFinished="testFinished"
-        :timerDisplay="formattedTimer"
-        exitLabel="Выйти"
+        :test-finished="testFinished"
+        :timer-display="formattedTimer"
+        exit-label="Выйти"
         @select="goToTask"
         @prev="prevTask"
         @next="nextTask"
@@ -19,20 +19,59 @@
       />
       <main class="main-content">
         <div class="train-task-detail">
-          <h2 class="task-title" v-if="task">Задание №{{ task.id }} (Тип {{ task.task_number }})</h2>
-          <div v-if="loading" class="loading">Загрузка задания...</div>
-          <div v-else-if="!task" class="not-found">Задание не найдено.</div>
+          <h2
+            v-if="task"
+            class="task-title"
+          >
+            Задание №{{ task.id }} (Тип {{ task.task_number }})
+          </h2>
+          <div
+            v-if="loading"
+            class="loading"
+          >
+            Загрузка задания...
+          </div>
+          <div
+            v-else-if="!task"
+            class="not-found"
+          >
+            Задание не найдено.
+          </div>
 
-          <div v-else class="task-container">
-            <div class="task-description ql-editor" v-html="task.description"></div>
+          <div
+            v-else
+            class="task-container"
+          >
+            <div
+              class="task-description ql-editor"
+              v-html="task.description"
+            />
 
-            <div class="task-images" v-if="task.task_images?.length">
-              <img v-for="img in task.task_images" :key="img" :src="img" class="task-image" />
+            <div
+              v-if="task.task_images?.length"
+              class="task-images"
+            >
+              <img
+                v-for="img in task.task_images"
+                :key="img"
+                :src="img"
+                class="task-image"
+              >
             </div>
 
-            <div class="task-files" v-if="task.task_files?.length">
-              <div v-for="file in task.task_files" :key="file">
-                <a :href="file" target="_blank" class="file-link">
+            <div
+              v-if="task.task_files?.length"
+              class="task-files"
+            >
+              <div
+                v-for="file in task.task_files"
+                :key="file"
+              >
+                <a
+                  :href="file"
+                  target="_blank"
+                  class="file-link"
+                >
                   {{ getFileName(file) }}
                 </a>
               </div>
@@ -40,44 +79,72 @@
 
             <div class="answer-input">
               <label for="userAnswer">Ваш ответ:</label>
-              <div v-if="isDynamicTable && dynamicTableConfig" class="dynamic-table">
+              <div
+                v-if="isDynamicTable && dynamicTableConfig"
+                class="dynamic-table"
+              >
                 <table>
-                  <tr v-for="(row, rIndex) in dynamicTableAnswers" :key="rIndex">
-                    <td v-for="(cell, cIndex) in row" :key="cIndex">
+                  <tr
+                    v-for="(row, rIndex) in dynamicTableAnswers"
+                    :key="rIndex"
+                  >
+                    <td
+                      v-for="(cell, cIndex) in row"
+                      :key="cIndex"
+                    >
                       <input
-                        type="text"
                         v-model="dynamicTableAnswers[rIndex][cIndex]"
+                        type="text"
                         :disabled="testFinished"
                         placeholder="Ответ"
-                      />
+                      >
                     </td>
                   </tr>
                 </table>
               </div>
               <div v-else>
                 <input
-                  type="text"
                   id="userAnswer"
                   v-model="userAnswer"
+                  type="text"
                   :disabled="testFinished"
                   placeholder="Введите ваш ответ"
-                />
+                >
               </div>
             </div>
 
-            <button v-if="!testFinished" class="submit-answer-btn" @click="submitAnswer">
+            <button
+              v-if="!testFinished"
+              class="submit-answer-btn"
+              @click="submitAnswer"
+            >
               Отправить ответ
             </button>
 
-            <button v-if="testFinished" class="solution-toggle-btn" @click="showSolution = !showSolution">
+            <button
+              v-if="testFinished"
+              class="solution-toggle-btn"
+              @click="showSolution = !showSolution"
+            >
               {{ showSolution ? 'Скрыть решение' : 'Показать решение' }}
             </button>
 
-            <div v-if="testFinished && showSolution" class="solution-text">
+            <div
+              v-if="testFinished && showSolution"
+              class="solution-text"
+            >
               <h3>Правильный ответ:</h3>
-              <div class="ql-editor" v-html="task.correct_answer || 'Ответ отсутствует'"></div>
-              <h3 style="margin-top: 15px;">Решение:</h3>
-              <div class="ql-editor" v-html="solutions[task.id] || 'Решение отсутствует'"></div>
+              <div
+                class="ql-editor"
+                v-html="task.correct_answer || 'Ответ отсутствует'"
+              />
+              <h3 style="margin-top: 15px;">
+                Решение:
+              </h3>
+              <div
+                class="ql-editor"
+                v-html="solutions[task.id] || 'Решение отсутствует'"
+              />
             </div>
           </div>
         </div>
@@ -203,6 +270,15 @@ export default {
     localStorage.setItem("testSessionId", this.sessionId);
     this.startTimer();
   },
+  mounted() {
+    this.fixQuillCodeBlocks();
+  },
+  updated() {
+    this.$nextTick(this.fixQuillCodeBlocks);
+  },
+  beforeUnmount() {
+    if (this.timerSource) this.timerSource.close();
+  },
   methods: {
     async loadTask() {
       this.loading = true;
@@ -293,15 +369,6 @@ export default {
         el.style.wordBreak = 'break-all';
       });
     }
-  },
-  mounted() {
-    this.fixQuillCodeBlocks();
-  },
-  updated() {
-    this.$nextTick(this.fixQuillCodeBlocks);
-  },
-  beforeUnmount() {
-    if (this.timerSource) this.timerSource.close();
   }
 };
 </script>

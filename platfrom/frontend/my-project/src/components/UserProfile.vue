@@ -1,13 +1,16 @@
 <template>
   <div id="user-profile">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <main class="main-content">
         <h2>Профиль</h2>
 
         <!-- Блок сообщений -->
-        <div v-if="messageText" :class="['message', messageType]">
+        <div
+          v-if="messageText"
+          :class="['message', messageType]"
+        >
           {{ messageText }}
         </div>
 
@@ -15,27 +18,50 @@
         <div class="profile-form">
           <div class="form-group">
             <label for="name">Имя:</label>
-            <input type="text" id="name" v-model="user.name" disabled />
+            <input
+              id="name"
+              v-model="user.name"
+              type="text"
+              disabled
+            >
           </div>
 
           <div class="form-group">
             <label for="email">Почта:</label>
-            <input type="email" id="email" v-model="user.email" disabled />
+            <input
+              id="email"
+              v-model="user.email"
+              type="email"
+              disabled
+            >
           </div>
 
           <div class="form-group">
             <label for="group">Группа:</label>
-            <input type="text" id="group" v-model="user.group_name" disabled />
+            <input
+              id="group"
+              v-model="user.group_name"
+              type="text"
+              disabled
+            >
           </div>
         </div>
 
         <!-- Для студента: форма для вступления в группу -->
-        <div v-if="user.role === 'student' && !user.group_id" class="join-group">
+        <div
+          v-if="user.role === 'student' && !user.group_id"
+          class="join-group"
+        >
           <h3>Вступить в группу</h3>
-          <input type="text" v-model="joinGroupCode" placeholder="Введите код группы" />
-          <BaseButton @click="joinGroup">Вступить</BaseButton>
+          <input
+            v-model="joinGroupCode"
+            type="text"
+            placeholder="Введите код группы"
+          >
+          <BaseButton @click="joinGroup">
+            Вступить
+          </BaseButton>
         </div>
-
       </main>
     </div>
   </div>

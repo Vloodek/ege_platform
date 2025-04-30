@@ -264,7 +264,7 @@ class StudentGroupResult(BaseModel):
     passed: bool
     correct: int
     total: int
-
+    completed_at: datetime | None
 
 class StudentResultResponse(BaseModel): 
     score: int

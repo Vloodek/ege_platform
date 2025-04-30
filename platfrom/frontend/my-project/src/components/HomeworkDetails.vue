@@ -1,12 +1,15 @@
 <template>
   <div id="homework-details">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <main class="main-content">
         <div v-if="homework">
           <div class="header-section">
-            <div class="back-arrow" @click="$router.go(-1)"></div>
+            <div
+              class="back-arrow"
+              @click="$router.go(-1)"
+            />
             <h1 class="homework-title">
               {{ homework.description || "Детали домашнего задания" }}
             </h1>
@@ -20,20 +23,27 @@
           </div>
 
           <div class="homework-deadline">
-            <strong>Дедлайн:</strong><br />
+            <strong>Дедлайн:</strong><br>
             {{ formatDate(homework.date) }}
           </div>
-            <!-- Бейдж группы (под дедлайном, только для преподавателя) -->
-  <div
-    v-if="isTeacher && homework.group_ids?.length"
-    class="lesson-group-badge"
-  >
-    Группа «{{ groupName(homework) }}»
-  </div>
+          <!-- Бейдж группы (под дедлайном, только для преподавателя) -->
+          <div
+            v-if="isTeacher && homework.group_ids?.length"
+            class="lesson-group-badge"
+          >
+            Группа «{{ groupName(homework) }}»
+          </div>
 
-          <div v-if="homework.text" class="homework-description ql-editor" v-html="homework.text"></div>
+          <div
+            v-if="homework.text"
+            class="homework-description ql-editor"
+            v-html="homework.text"
+          />
 
-          <div v-if="homeworkImages.length" class="images-container">
+          <div
+            v-if="homeworkImages.length"
+            class="images-container"
+          >
             <div class="images">
               <img
                 v-for="(image, index) in homeworkImages"
@@ -41,31 +51,56 @@
                 :src="getFileUrl(image)"
                 alt="Homework Image"
                 @click="openImage(getFileUrl(image))"
-              />
+              >
             </div>
           </div>
 
-          <div v-if="otherFiles.length" class="files-section">
+          <div
+            v-if="otherFiles.length"
+            class="files-section"
+          >
             <ul>
-              <li v-for="(file, index) in otherFiles" :key="index">
-                <a :href="getFileUrl(file)" target="_blank">
-                  <img src="@/assets/svg/files.svg" alt="file icon" class="file-icon" />
+              <li
+                v-for="(file, index) in otherFiles"
+                :key="index"
+              >
+                <a
+                  :href="getFileUrl(file)"
+                  target="_blank"
+                >
+                  <img
+                    src="@/assets/svg/files.svg"
+                    alt="file icon"
+                    class="file-icon"
+                  >
                   {{ getFileName(file) }}
                 </a>
               </li>
             </ul>
           </div>
 
-          <div v-if="isTeacher" class="teacher-buttons">
-            <BaseButton color="green" @click="goToEditHomework">
+          <div
+            v-if="isTeacher"
+            class="teacher-buttons"
+          >
+            <BaseButton
+              color="green"
+              @click="goToEditHomework"
+            >
               Изменить ДЗ
             </BaseButton>
-            <BaseButton color="white" @click="goToResponses">
+            <BaseButton
+              color="white"
+              @click="goToResponses"
+            >
               Отклики студентов
             </BaseButton>
           </div>
 
-          <div v-if="!isTeacher && submission" class="student-section">
+          <div
+            v-if="!isTeacher && submission"
+            class="student-section"
+          >
             <div class="section-divider">
               <h2>Ваш ответ:</h2>
               <p>{{ submission.comment }}</p>
@@ -77,22 +112,37 @@
                   class="uploaded-file"
                 >
                   📄
-                  <a :href="getFileUrl(file)" target="_blank">
+                  <a
+                    :href="getFileUrl(file)"
+                    target="_blank"
+                  >
                     {{ getFileName(file) }}
                   </a>
                 </div>
               </div>
             </div>
 
-            <div v-if="teacherResponse" class="section-divider">
+            <div
+              v-if="teacherResponse"
+              class="section-divider"
+            >
               <h3>Оценка преподавателя: {{ teacherResponse.teacher_grade || "Не выставлена" }}</h3>
               <p><strong>Комментарий:</strong> {{ teacherResponse.teacher_comment || "Нет комментария" }}</p>
 
-              <div v-if="teacherResponse.files.length" class="teacher-files">
+              <div
+                v-if="teacherResponse.files.length"
+                class="teacher-files"
+              >
                 <p><strong>Файлы преподавателя:</strong></p>
                 <ul>
-                  <li v-for="(file, index) in teacherResponse.files" :key="index">
-                    📄 <a :href="getFileUrl(file.file_path)" target="_blank">{{ file.file_name }}</a>
+                  <li
+                    v-for="(file, index) in teacherResponse.files"
+                    :key="index"
+                  >
+                    📄 <a
+                      :href="getFileUrl(file.file_path)"
+                      target="_blank"
+                    >{{ file.file_name }}</a>
                   </li>
                 </ul>
               </div>
@@ -109,15 +159,21 @@
             </div>
           </div>
 
-          <div v-if="!isTeacher && !submission" class="no-submission">
-            <BaseButton color="green" @click="openModal">
+          <div
+            v-if="!isTeacher && !submission"
+            class="no-submission"
+          >
+            <BaseButton
+              color="green"
+              @click="openModal"
+            >
               Добавить ответ
             </BaseButton>
           </div>
 
           <StudentSubmissionModal
             v-if="isModalOpen"
-            :isOpen="isModalOpen"
+            :is-open="isModalOpen"
             :submission="submission"
             @close="closeModal"
             @responseSubmitted="fetchSubmission"

@@ -3,16 +3,32 @@
     <header class="header">
       <div class="header-container">
         <div class="logo-container">
-          <img src="@/assets/svg/logo.svg" alt="Логотип" class="logo" />
-          <p class="academy-name">Иркутская школа <br> искусственного интеллекта</p>
+          <img
+            src="@/assets/svg/logo.svg"
+            alt="Логотип"
+            class="logo"
+          >
+          <p class="academy-name">
+            Иркутская школа <br> искусственного интеллекта
+          </p>
         </div>
         <div class="user-info">
           <span class="user-name">{{ isAuthenticated ? userName : 'Гость' }}</span>
-          <span class="icon-dropdown" @click="toggleDropdown">&#x25BC;</span>
-          <div v-if="dropdownOpen" class="dropdown-menu">
+          <span
+            class="icon-dropdown"
+            @click="toggleDropdown"
+          >&#x25BC;</span>
+          <div
+            v-if="dropdownOpen"
+            class="dropdown-menu"
+          >
             <ul>
-              <li @click="goToProfile">Профиль</li>
-              <li @click="logout">Выйти</li>
+              <li @click="goToProfile">
+                Профиль
+              </li>
+              <li @click="logout">
+                Выйти
+              </li>
             </ul>
           </div>
           <img 
@@ -20,14 +36,14 @@
             alt="Домик" 
             class="home-icon"
             @click="goToDayPlan"
-          />
+          >
         </div>
       </div>
     </header>
 
     <div class="content">
       <main class="main-content">
-        <router-view></router-view>
+        <router-view />
       </main>
     </div>
   </div>

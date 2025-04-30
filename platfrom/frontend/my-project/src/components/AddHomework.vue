@@ -2,52 +2,70 @@
   <div class="add-homework-page">
     <div class="container">
       <!-- Боковое меню -->
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <!-- Основной контент для редактирования домашнего задания -->
       <div class="main-content">
         <!-- Заголовок с кнопкой-стрелочкой для возврата -->
         <div class="header">
-          <div class="back-arrow" @click="confirmExit"></div>
-          <h1 class="edit-title">Добавление домашнего задания</h1>
+          <div
+            class="back-arrow"
+            @click="confirmExit"
+          />
+          <h1 class="edit-title">
+            Добавление домашнего задания
+          </h1>
         </div>
 
         <!-- Форма для редактирования домашнего задания -->
-        <form @submit.prevent="handleSubmit" class="homework-form">
+        <form
+          class="homework-form"
+          @submit.prevent="handleSubmit"
+        >
           <!-- Название задания -->
           <div class="form-group">
             <label for="homeworkTitle">Название задания</label>
             <input
-              type="text"
               id="homeworkTitle"
               v-model="homework.title"
+              type="text"
               placeholder="Введите название задания"
               required
-            />
+            >
           </div>
 
           <!-- Текст задания через Quill -->
           <div class="form-group">
             <label for="homeworkText">Текст задания</label>
-            <div ref="homeworkEditor" class="quill-editor"></div>
+            <div
+              ref="homeworkEditor"
+              class="quill-editor"
+            />
           </div>
 
           <!-- Файлы (только PDF) -->
           <div class="form-group">
             <label for="homeworkFiles">Файлы</label>
             <input
-              type="file"
               id="homeworkFiles"
-              @change="handleFileUpload"
+              type="file"
               multiple
-              accept="application/pdf"
-            />
+              @change="handleFileUpload"
+            >
             <div v-if="homework.files.length">
               <p>Прикрепленные файлы:</p>
               <ul>
-                <li v-for="(file, index) in homework.files" :key="index">
+                <li
+                  v-for="(file, index) in homework.files"
+                  :key="index"
+                >
                   {{ file.name }}
-                  <button type="button" @click="removeFile(index)">Удалить</button>
+                  <button
+                    type="button"
+                    @click="removeFile(index)"
+                  >
+                    Удалить
+                  </button>
                 </li>
               </ul>
             </div>
@@ -57,14 +75,19 @@
           <div class="form-group">
             <label for="homeworkDate">Дедлайн</label>
             <input
-              type="datetime-local"
               id="homeworkDate"
               v-model="homework.date"
+              type="datetime-local"
               required
-            />
+            >
           </div>
 
-          <button type="submit" class="submit-btn">Добавить ДЗ</button>
+          <button
+            type="submit"
+            class="submit-btn"
+          >
+            Добавить ДЗ
+          </button>
         </form>
       </div>
     </div>
@@ -92,17 +115,22 @@ export default {
       homeworkEditor: null,
     };
   },
+  mounted() {
+    this.initEditor();
+  },
   methods: {
     handleFileUpload(event) {
-      const files = Array.from(event.target.files);
-      files.forEach((file) => {
-        if (file.type === "application/pdf") {
-          this.homework.files.push(file);
-        } else {
-          alert("Можно загружать только PDF файлы.");
-        }
-      });
-    },
+  const files = Array.from(event.target.files);
+  files.forEach((file) => {
+    // Запрещаем изображения
+    if (file.type.startsWith("image/")) {
+      alert(`Файл "${file.name}" не загружен: изображения запрещены.`);
+      return;
+    }
+    this.homework.files.push(file);
+  });
+}
+,
     removeFile(index) {
       this.homework.files.splice(index, 1);
     },
@@ -212,9 +240,6 @@ export default {
         alert("Ошибка загрузки изображения");
       }
     },
-  },
-  mounted() {
-    this.initEditor();
   },
 };
 </script>

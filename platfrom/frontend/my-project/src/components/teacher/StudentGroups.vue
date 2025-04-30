@@ -1,16 +1,26 @@
 <template>
   <div id="student-groups">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
       <main class="main-content">
         <h2>Группы студентов</h2>
 
         <!-- Контейнер с группами -->
         <div class="groups-container">
-          <div class="group-card" v-for="(group, index) in groups" :key="index" @click="selectGroup(group)">
+          <div
+            v-for="(group, index) in groups"
+            :key="index"
+            class="group-card"
+            @click="selectGroup(group)"
+          >
             <div class="group-left">
-              <div class="group-name">{{ group.name }}</div>
-              <div class="group-code" @click.stop="copyGroupCode(group.code)">
+              <div class="group-name">
+                {{ group.name }}
+              </div>
+              <div
+                class="group-code"
+                @click.stop="copyGroupCode(group.code)"
+              >
                 {{ group.code }}
               </div>
             </div>
@@ -18,86 +28,149 @@
         </div>
 
         <!-- Плюсик под карточками -->
-        <div v-if="user.role === 'teacher'" class="bottom-create-button">
+        <div
+          v-if="user.role === 'teacher'"
+          class="bottom-create-button"
+        >
           <span @click="showCreateGroup = true">+</span>
         </div>
 
         <!-- Модалка создания группы -->
-        <div v-if="showCreateGroup" class="create-group-modal" @click.self="showCreateGroup = false">
+        <div
+          v-if="showCreateGroup"
+          class="create-group-modal"
+          @click.self="showCreateGroup = false"
+        >
           <div class="modal-content">
-            <input v-model="newGroupName" placeholder="Название новой группы" class="large-input" />
-            <BaseButton :disabled="isCreating" @click="createGroup">Создать</BaseButton>
-            <BaseButton color="gray" @click="showCreateGroup = false">Отмена</BaseButton>
+            <input
+              v-model="newGroupName"
+              placeholder="Название новой группы"
+              class="large-input"
+            >
+            <BaseButton
+              :disabled="isCreating"
+              @click="createGroup"
+            >
+              Создать
+            </BaseButton>
+            <BaseButton
+              color="gray"
+              @click="showCreateGroup = false"
+            >
+              Отмена
+            </BaseButton>
           </div>
         </div>
 
         <!-- Модалка студентов в группе -->
-<div v-if="showStudentsModal" class="create-group-modal" @click.self="closeStudentsModal">
-  <div class="modal-content students-modal">
-    
-    <!-- Верхняя панель с кнопкой удаления -->
-    <div class="modal-header">
-      <h3>Студенты в группе "{{ selectedGroup?.name }}"</h3>
-      <BaseButton
-        color="red"
-        size="small"
-        class="delete-icon-btn"
-        @click="confirmGroupDelete"
-      >
-        Удалить
-      </BaseButton>
-    </div>
+        <div
+          v-if="showStudentsModal"
+          class="create-group-modal"
+          @click.self="closeStudentsModal"
+        >
+          <div class="modal-content students-modal">
+            <!-- Верхняя панель с кнопкой удаления -->
+            <div class="modal-header">
+              <h3>Студенты в группе "{{ selectedGroup?.name }}"</h3>
+              <BaseButton
+                color="red"
+                size="small"
+                class="delete-icon-btn"
+                @click="confirmGroupDelete"
+              >
+                Удалить
+              </BaseButton>
+            </div>
 
-    <p class="group-code-display">
-      Код группы: <span @click="copyGroupCode(selectedGroup.code)">{{ selectedGroup.code }}</span>
-    </p>
+            <p class="group-code-display">
+              Код группы: <span @click="copyGroupCode(selectedGroup.code)">{{ selectedGroup.code }}</span>
+            </p>
 
-    <table class="students-table" style="margin-top: 20px">
-      <thead>
-        <tr>
-          <th>Имя</th>
-          <th>Email</th>
-          <th>Баллы</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="student in studentsInGroup" :key="student.id">
-          <td>{{ student.name }}</td>
-          <td>{{ student.email }}</td>
-          <td>{{ student.total_points }}</td>
-          <td><button class="remove-btn" @click="confirmRemove(student)">×</button></td>
-        </tr>
-      </tbody>
-    </table>
+            <table
+              class="students-table"
+              style="margin-top: 20px"
+            >
+              <thead>
+                <tr>
+                  <th>Имя</th>
+                  <th>Email</th>
+                  <th>Баллы</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="student in studentsInGroup"
+                  :key="student.id"
+                >
+                  <td>{{ student.name }}</td>
+                  <td>{{ student.email }}</td>
+                  <td>{{ student.total_points }}</td>
+                  <td>
+                    <button
+                      class="remove-btn"
+                      @click="confirmRemove(student)"
+                    >
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
 
-    <div style="text-align: right; margin-top: 20px">
-      <BaseButton color="gray" @click="closeStudentsModal">Закрыть</BaseButton>
-    </div>
-  </div>
-</div>
+            <div style="text-align: right; margin-top: 20px">
+              <BaseButton
+                color="gray"
+                @click="closeStudentsModal"
+              >
+                Закрыть
+              </BaseButton>
+            </div>
+          </div>
+        </div>
 
 
         <!-- Модалка подтверждения удаления -->
-        <div v-if="studentToRemove" class="create-group-modal" @click.self="studentToRemove = null">
+        <div
+          v-if="studentToRemove"
+          class="create-group-modal"
+          @click.self="studentToRemove = null"
+        >
           <div class="modal-content">
             <p>Вы уверены, что хотите удалить "{{ studentToRemove.name }}" из группы?</p>
             <div style="display: flex; justify-content: flex-end; gap: 10px">
-              <BaseButton color="gray" @click="studentToRemove = null">Отмена</BaseButton>
-              <BaseButton color="red" @click="removeStudentConfirmed">Удалить</BaseButton>
+              <BaseButton
+                color="gray"
+                @click="studentToRemove = null"
+              >
+                Отмена
+              </BaseButton>
+              <BaseButton
+                color="red"
+                @click="removeStudentConfirmed"
+              >
+                Удалить
+              </BaseButton>
             </div>
           </div>
         </div>
 
         <!-- Список студентов под карточками (если не открыта модалка) -->
-        <div v-if="selectedGroup && !showStudentsModal" class="students-list">
+        <div
+          v-if="selectedGroup && !showStudentsModal"
+          class="students-list"
+        >
           <h3>Студенты в группе "{{ selectedGroup?.name }}"</h3>
           <p class="group-code-display">
             Код группы: <span @click="copyGroupCode(selectedGroup.code)">{{ selectedGroup.code }}</span>
           </p>
 
           <!-- Кнопка удаления группы -->
-          <BaseButton color="red" class="delete-group-btn" @click="confirmGroupDelete">
+          <BaseButton
+            color="red"
+            class="delete-group-btn"
+            @click="confirmGroupDelete"
+          >
             Удалить группу
           </BaseButton>
 
@@ -110,7 +183,10 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="student in studentsInGroup" :key="student.id">
+              <tr
+                v-for="student in studentsInGroup"
+                :key="student.id"
+              >
                 <td>{{ student.name }}</td>
                 <td>{{ student.email }}</td>
                 <td>{{ student.total_points }}</td>
@@ -120,7 +196,10 @@
         </div>
 
         <!-- Центрированное сообщение -->
-        <div v-if="messageText" :class="['message', messageType]">
+        <div
+          v-if="messageText"
+          :class="['message', messageType]"
+        >
           {{ messageText }}
         </div>
       </main>

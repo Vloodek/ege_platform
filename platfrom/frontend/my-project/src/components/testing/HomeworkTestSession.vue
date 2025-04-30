@@ -5,12 +5,12 @@
         mode="session"
         :duration="duration"
         :count="taskIds.length"
-        :currentIndex="currentTaskIndex"
-        :timerDisplay="formattedTime"
+        :current-index="currentTaskIndex"
+        :timer-display="formattedTime"
         :answers="answers"
         :results="results"
-        :testFinished="testFinished"
-        exitLabel="Выйти"
+        :test-finished="testFinished"
+        exit-label="Выйти"
         @select="goToTask"
         @prev="prevTask"
         @next="nextTask"
@@ -20,16 +20,47 @@
 
       <main class="main-content">
         <div class="task-detail">
-          <h2 v-if="currentTask" class="task-title">Задание №{{ currentTask.id }}</h2>
-          <div v-if="loading" class="loading">Загрузка задания...</div>
-          <div v-else-if="!currentTask" class="not-found">Задание не найдено.</div>
+          <h2
+            v-if="currentTask"
+            class="task-title"
+          >
+            Задание №{{ currentTask.id }}
+          </h2>
+          <div
+            v-if="loading"
+            class="loading"
+          >
+            Загрузка задания...
+          </div>
+          <div
+            v-else-if="!currentTask"
+            class="not-found"
+          >
+            Задание не найдено.
+          </div>
 
-          <div v-else class="task-container">
-            <div class="task-description ql-editor" v-html="currentTask.description"></div>
+          <div
+            v-else
+            class="task-container"
+          >
+            <div
+              class="task-description ql-editor"
+              v-html="currentTask.description"
+            />
 
-            <div class="task-files" v-if="currentTask.files?.length">
-              <div v-for="file in currentTask.files" :key="file">
-                <a :href="file" target="_blank" class="file-link">{{ getFileName(file) }}</a>
+            <div
+              v-if="currentTask.files?.length"
+              class="task-files"
+            >
+              <div
+                v-for="file in currentTask.files"
+                :key="file"
+              >
+                <a
+                  :href="file"
+                  target="_blank"
+                  class="file-link"
+                >{{ getFileName(file) }}</a>
               </div>
             </div>
 
@@ -37,23 +68,37 @@
               <label for="userAnswer">Ваш ответ:</label>
               <input
                 id="userAnswer"
-                type="text"
                 v-model="userAnswer"
+                type="text"
                 :disabled="testFinished"
                 placeholder="Введите ваш ответ"
-              />
+              >
             </div>
 
-            <button v-if="!testFinished" class="submit-answer-btn" @click="submitAnswer">
+            <button
+              v-if="!testFinished"
+              class="submit-answer-btn"
+              @click="submitAnswer"
+            >
               Отправить ответ
             </button>
-            <button v-else class="solution-toggle-btn" @click="showSolution = !showSolution">
+            <button
+              v-else
+              class="solution-toggle-btn"
+              @click="showSolution = !showSolution"
+            >
               {{ showSolution ? "Скрыть решение" : "Показать решение" }}
             </button>
 
-            <div v-if="testFinished && showSolution" class="solution-text">
+            <div
+              v-if="testFinished && showSolution"
+              class="solution-text"
+            >
               <h3>Правильный ответ:</h3>
-              <div class="ql-editor" v-html="getCorrectAnswerHtml(currentTask.id)"></div>
+              <div
+                class="ql-editor"
+                v-html="getCorrectAnswerHtml(currentTask.id)"
+              />
             </div>
           </div>
         </div>
@@ -190,6 +235,9 @@ export default {
 
     this.loading = false;
   },
+  beforeUnmount() {
+    if (this.timerSource) this.timerSource.close();
+  },
   methods: {
     initTasks(tasks) {
       const base = window.location.origin;
@@ -280,9 +328,6 @@ export default {
       localStorage.removeItem(`${this.storageKeyBase}_correct_answers`);
       this.$router.push("/homework");
     },
-  },
-  beforeUnmount() {
-    if (this.timerSource) this.timerSource.close();
   },
 };
 </script>

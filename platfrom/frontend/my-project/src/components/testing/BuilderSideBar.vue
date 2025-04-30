@@ -1,29 +1,68 @@
 <template>
   <div class="sidebar builder">
     <!-- Время -->
-    <div class="time-config" v-if="mode === 'build'">
+    <div
+      v-if="mode === 'build'"
+      class="time-config"
+    >
       <label>Время (мин):</label>
-      <input type="number" v-model.number="localDuration" min="1" @input="onLocalDurationInput" />
+      <input
+        v-model.number="localDuration"
+        type="number"
+        min="1"
+        @input="onLocalDurationInput"
+      >
     </div>
-    <div class="time-config" v-else>
+    <div
+      v-else
+      class="time-config"
+    >
       <label>Время:</label>
-      <div class="timer-display">{{ timerDisplay }}</div>
+      <div class="timer-display">
+        {{ timerDisplay }}
+      </div>
     </div>
 
     <!-- Количество вопросов -->
-    <div class="count-config" v-if="mode === 'build'">
+    <div
+      v-if="mode === 'build'"
+      class="count-config"
+    >
       <label>Вопросов:</label>
-      <input type="number" v-model.number="localCount"    min="1" @input="onLocalCountInput" />
+      <input
+        v-model.number="localCount"
+        type="number"
+        min="1"
+        @input="onLocalCountInput"
+      >
     </div>
-    <div class="count-config" v-else>
+    <div
+      v-else
+      class="count-config"
+    >
       <label>Всего:</label>
-      <div class="count-display">{{ localCount }}</div>
+      <div class="count-display">
+        {{ localCount }}
+      </div>
     </div>
 
     <!-- Навигация сверху (только в сессии) -->
-    <div class="nav-buttons" v-if="mode === 'session'">
-      <button @click="$emit('prev')" :disabled="currentIndex === 0">←</button>
-      <button @click="$emit('next')" :disabled="currentIndex >= localCount - 1">→</button>
+    <div
+      v-if="mode === 'session'"
+      class="nav-buttons"
+    >
+      <button
+        :disabled="currentIndex === 0"
+        @click="$emit('prev')"
+      >
+        ←
+      </button>
+      <button
+        :disabled="currentIndex >= localCount - 1"
+        @click="$emit('next')"
+      >
+        →
+      </button>
     </div>
 
     <!-- Сетка вопросов -->
@@ -45,17 +84,39 @@
     </div>
 
     <!-- Навигация снизу (только в режиме build) -->
-    <div class="nav-buttons" v-if="mode === 'build'">
-      <button @click="$emit('prev')" :disabled="currentIndex === 0">←</button>
-      <button @click="$emit('next')" :disabled="currentIndex >= localCount - 1">→</button>
+    <div
+      v-if="mode === 'build'"
+      class="nav-buttons"
+    >
+      <button
+        :disabled="currentIndex === 0"
+        @click="$emit('prev')"
+      >
+        ←
+      </button>
+      <button
+        :disabled="currentIndex >= localCount - 1"
+        @click="$emit('next')"
+      >
+        →
+      </button>
     </div>
 
     <!-- Кнопки выхода и завершения -->
-    <div class="footer-buttons" v-if="mode === 'session'">
-      <button class="btn-exit" @click="$emit('exit')">
+    <div
+      v-if="mode === 'session'"
+      class="footer-buttons"
+    >
+      <button
+        class="btn-exit"
+        @click="$emit('exit')"
+      >
         {{ exitLabel || 'Выйти' }}
       </button>
-      <button class="btn-complete" @click="$emit('complete')">
+      <button
+        class="btn-complete"
+        @click="$emit('complete')"
+      >
         Завершить тест
       </button>
     </div>

@@ -2,7 +2,7 @@
   <div id="day-plan">
     <div class="container">
       <!-- Боковое меню -->
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <!-- Основной контент -->
       <main class="main-content">
@@ -11,22 +11,34 @@
         <!-- Блоки заданий -->
         <div class="task-container">
           <div
-            class="task-block"
             v-for="(item, index) in dayItems"
             :key="index"
+            class="task-block"
             @click="openItem(item)"
           >
             <div class="task-left">
-              <div class="task-type">{{ item.type }}</div>
-              <div class="task-name">{{ item.name }}</div>
+              <div class="task-type">
+                {{ item.type }}
+              </div>
+              <div class="task-name">
+                {{ item.name }}
+              </div>
             </div>
-            <div class="task-time">{{ formatTime(item.date) }}</div>
+            <div class="task-time">
+              {{ formatTime(item.date) }}
+            </div>
           </div>
         </div>
 
         <!-- Кнопка Плюс (только для учителя) -->
-        <div v-if="isTeacher" class="add-task-btn-container">
-          <div class="add-task-btn" @click="goToAddLessonPage">
+        <div
+          v-if="isTeacher"
+          class="add-task-btn-container"
+        >
+          <div
+            class="add-task-btn"
+            @click="goToAddLessonPage"
+          >
             <span class="plus-icon">+</span>
           </div>
         </div>

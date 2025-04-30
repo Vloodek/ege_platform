@@ -4,7 +4,7 @@
       <BuilderSidebar
         v-model:duration="duration"
         v-model:count="questionCount"
-        :currentIndex="currentQuestion"
+        :current-index="currentQuestion"
         @select="handleSelectQuestion"
 
         @prev="prevQuestion"
@@ -14,59 +14,87 @@
       <main class="main-content">
         <h2>Создание теста для занятия «{{ lessonName || homeworkId }}»</h2>
 
-        <div class="question-editor" v-if="currentTask">
+        <div
+          v-if="currentTask"
+          class="question-editor"
+        >
           <h3>Вопрос {{ currentQuestion + 1 }} из {{ questionCount }}</h3>
 
           <div class="form-group">
             <label>Название</label>
             <input
-              type="text"
               v-model="currentTask.title"
+              type="text"
               placeholder="Заголовок вопроса"
-            />
+            >
           </div>
 
           <div class="form-group">
             <label>Описание</label>
-            <div ref="editor" class="quill-editor"></div>
+            <div
+              ref="editor"
+              class="quill-editor"
+            />
           </div>
 
           <div class="form-group">
             <label>Правильный ответ</label>
             <input
-              type="text"
               v-model="currentTask.correct_answer"
+              type="text"
               placeholder="Введите правильный ответ"
-            />
+            >
           </div>
 
           <div class="form-group">
             <label>Вложения (любой файл, кроме изображений)</label>
-            <input type="file" multiple @change="onFilesChange" />
+            <input
+              type="file"
+              multiple
+              @change="onFilesChange"
+            >
             <ul class="file-list">
-              <li v-for="(f, i) in currentTask.files" :key="i">
-                <img src="@/assets/svg/files.svg" class="file-icon" />
+              <li
+                v-for="(f, i) in currentTask.files"
+                :key="i"
+              >
+                <img
+                  src="@/assets/svg/files.svg"
+                  class="file-icon"
+                >
                 {{ f.name }}
-                <button @click="currentTask.files.splice(i, 1)">×</button>
+                <button @click="currentTask.files.splice(i, 1)">
+                  ×
+                </button>
               </li>
             </ul>
           </div>
         </div>
 
         <div class="actions">
-  <button @click="requestLeave" class="cancel-test">Назад</button>
-  <button @click="submitTest" class="save-test">Сохранить тест</button>
-</div>
+          <button
+            class="cancel-test"
+            @click="requestLeave"
+          >
+            Назад
+          </button>
+          <button
+            class="save-test"
+            @click="submitTest"
+          >
+            Сохранить тест
+          </button>
+        </div>
 
-<ConfirmModal
-  :show="showLeaveModal"
-  title="Покинуть страницу?"
-  message="Все несохранённые изменения будут потеряны. Вы уверены, что хотите уйти?"
-  cancel-text="Остаться"
-  confirm-text="Уйти"
-  @cancel="cancelLeave"
-  @confirm="confirmLeave"
-/>
+        <ConfirmModal
+          :show="showLeaveModal"
+          title="Покинуть страницу?"
+          message="Все несохранённые изменения будут потеряны. Вы уверены, что хотите уйти?"
+          cancel-text="Остаться"
+          confirm-text="Уйти"
+          @cancel="cancelLeave"
+          @confirm="confirmLeave"
+        />
       </main>
     </div>
   </div>
@@ -95,9 +123,6 @@ export default {
       quill: null,
       showLeaveModal: false,
     };
-  },
-  async created() {
-    await this.fetchLessonName();
   },
   computed: {
     currentTask() {
@@ -142,6 +167,9 @@ export default {
       const next = this.tasks[newIdx];
       this.quill.root.innerHTML = next?.description || "";
     },
+  },
+  async created() {
+    await this.fetchLessonName();
   },
   mounted() {
     // Инициализация массива задач

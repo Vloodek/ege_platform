@@ -1,9 +1,17 @@
 <template>
-  <div class="modal-overlay" v-if="visible">
+  <div
+    v-if="visible"
+    class="modal-overlay"
+  >
     <div class="modal-content">
       <div class="modal-header">
         <h3>Добавить тестовое задание</h3>
-        <button class="close-btn" @click="onClose">&times;</button>
+        <button
+          class="close-btn"
+          @click="onClose"
+        >
+          &times;
+        </button>
       </div>
 
       <div class="modal-body">
@@ -11,52 +19,91 @@
         <section class="section-input">
           <label for="taskNumber">Номер задания:</label>
           <select v-model="form.taskNumber">
-            <option v-for="n in 27" :key="n" :value="n">Задание {{ n }}</option>
+            <option
+              v-for="n in 27"
+              :key="n"
+              :value="n"
+            >
+              Задание {{ n }}
+            </option>
           </select>
         </section>
 
         <!-- Если задание №25, показываем выбор режима динамической таблицы -->
-        <section class="section-input" v-if="isTableDynamic25">
+        <section
+          v-if="isTableDynamic25"
+          class="section-input"
+        >
           <label>Тип таблицы:</label>
           <select v-model="form.tableMode">
-            <option value="list">Один столбец (список)</option>
-            <option value="table">Два столбца (таблица)</option>
+            <option value="list">
+              Один столбец (список)
+            </option>
+            <option value="table">
+              Два столбца (таблица)
+            </option>
           </select>
         </section>
 
         <!-- Описание задания с использованием Quill (без выбора шрифта) -->
         <section class="section-input">
           <label for="description">Описание задания:</label>
-          <div ref="descriptionEditor" class="quill-editor"></div>
+          <div
+            ref="descriptionEditor"
+            class="quill-editor"
+          />
         </section>
 
         <!-- Прикрепить файлы задания -->
         <section class="section-input">
           <label>Прикрепить файлы:</label>
-          <input type="file" multiple @change="handleTaskFileUpload" ref="taskFileInput" />
+          <input
+            ref="taskFileInput"
+            type="file"
+            multiple
+            @change="handleTaskFileUpload"
+          >
           <ul v-if="form.taskFiles.length">
-            <li v-for="(file, index) in form.taskFiles" :key="index">
-              {{ file.name }} <button @click="removeTaskFile(index)">Удалить</button>
+            <li
+              v-for="(file, index) in form.taskFiles"
+              :key="index"
+            >
+              {{ file.name }} <button @click="removeTaskFile(index)">
+                Удалить
+              </button>
             </li>
           </ul>
         </section>
 
         
 
-        <hr />
+        <hr>
 
         <!-- Текст решения с использованием Quill (без смены шрифта) -->
         <section class="section-input">
           <label for="solutionText">Текст решения:</label>
-          <div ref="solutionEditor" class="quill-editor"></div>
+          <div
+            ref="solutionEditor"
+            class="quill-editor"
+          />
         </section>
         <!-- Прикрепить файлы решения -->
         <section class="section-input">
           <label>Прикрепить файлы решения:</label>
-          <input type="file" multiple @change="handleSolutionFileUpload" ref="solutionFileInput" />
+          <input
+            ref="solutionFileInput"
+            type="file"
+            multiple
+            @change="handleSolutionFileUpload"
+          >
           <ul v-if="form.solution_files.length">
-            <li v-for="(file, index) in form.solution_files" :key="index">
-              {{ file.name }} <button @click="removeSolutionFile(index)">Удалить</button>
+            <li
+              v-for="(file, index) in form.solution_files"
+              :key="index"
+            >
+              {{ file.name }} <button @click="removeSolutionFile(index)">
+                Удалить
+              </button>
             </li>
           </ul>
         </section>
@@ -64,12 +111,26 @@
         <section class="section-input">
           <label>Ответ:</label>
           <!-- Для текстовых заданий: 1–16 и 18–24 -->
-          <input v-if="isTextInput" type="text" v-model="form.answerText" />
+          <input
+            v-if="isTextInput"
+            v-model="form.answerText"
+            type="text"
+          >
           
           <!-- Для заданий с таблицей из двух ячеек (например, 17, 26, 27) -->
           <div v-if="isTableTwo">
-            <input v-model="form.answerTableSimple[0]" type="text" placeholder="Ячейка 1" style="width: 60px;" />
-            <input v-model="form.answerTableSimple[1]" type="text" placeholder="Ячейка 2" style="width: 60px;" />
+            <input
+              v-model="form.answerTableSimple[0]"
+              type="text"
+              placeholder="Ячейка 1"
+              style="width: 60px;"
+            >
+            <input
+              v-model="form.answerTableSimple[1]"
+              type="text"
+              placeholder="Ячейка 2"
+              style="width: 60px;"
+            >
           </div>
           
           <!-- Для задания 25 – динамическая таблица -->
@@ -77,28 +138,53 @@
             <div 
               v-for="(row, rowIndex) in form.answerTable" 
               :key="rowIndex" 
-              class="table-row">
-              <input v-model="form.answerTable[rowIndex][0]" 
-                     type="text" 
-                     :placeholder="form.tableMode === 'list' ? 'Ответ' : 'Найденное число'" 
-                     class="table-input" />
-              <input v-if="form.tableMode === 'table'" 
-                     v-model="form.answerTable[rowIndex][1]" 
-                     type="text" 
-                     placeholder="Результат деления" 
-                     class="table-input" />
-              <button class="remove-row-btn" @click="removeRow(rowIndex)">Удалить</button>
+              class="table-row"
+            >
+              <input
+                v-model="form.answerTable[rowIndex][0]" 
+                type="text" 
+                :placeholder="form.tableMode === 'list' ? 'Ответ' : 'Найденное число'" 
+                class="table-input"
+              >
+              <input
+                v-if="form.tableMode === 'table'" 
+                v-model="form.answerTable[rowIndex][1]" 
+                type="text" 
+                placeholder="Результат деления" 
+                class="table-input"
+              >
+              <button
+                class="remove-row-btn"
+                @click="removeRow(rowIndex)"
+              >
+                Удалить
+              </button>
             </div>
-            <button v-if="form.answerTable.length < 20" class="add-row-btn" @click="addRow">Добавить строку</button>
+            <button
+              v-if="form.answerTable.length < 20"
+              class="add-row-btn"
+              @click="addRow"
+            >
+              Добавить строку
+            </button>
           </div>
         </section>
       </div>
 
       <div class="modal-footer">
-        <button class="save-btn" @click="submitTask" :disabled="isLoading">
+        <button
+          class="save-btn"
+          :disabled="isLoading"
+          @click="submitTask"
+        >
           {{ isLoading ? 'Сохранение...' : 'Сохранить задание' }}
         </button>
-        <button class="cancel-btn" @click="onClose">Закрыть</button>
+        <button
+          class="cancel-btn"
+          @click="onClose"
+        >
+          Закрыть
+        </button>
       </div>
     </div>
   </div>
@@ -152,6 +238,9 @@ export default {
       this.form.answerTable = [];
       this.form.answerTableSimple = ["", ""];
     },
+  },
+  mounted() {
+    this.initEditors();
   },
   methods: {
     onClose() {
@@ -334,9 +423,6 @@ export default {
         );
       });
     },
-  },
-  mounted() {
-    this.initEditors();
   },
 };
 </script>

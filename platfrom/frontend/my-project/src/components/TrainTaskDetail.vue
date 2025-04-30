@@ -1,23 +1,36 @@
 <template>
   <div id="exam-task-detail">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
 
       <main class="main-content">
-        <div class="header-section" v-if="task">
+        <div
+          v-if="task"
+          class="header-section"
+        >
           <div class="header-top">
-            <div class="back-arrow" @click="goBack"></div>
+            <div
+              class="back-arrow"
+              @click="goBack"
+            />
             <h2 class="header-title">
               Задание №{{ task.id }} (Тип {{ task.task_number }})
             </h2>
           </div>
         </div>
 
-        <div v-if="loading">Загрузка задания...</div>
-        <div v-else-if="!task">Задание не найдено.</div>
+        <div v-if="loading">
+          Загрузка задания...
+        </div>
+        <div v-else-if="!task">
+          Задание не найдено.
+        </div>
 
         <div v-else>
-          <div class="task-description ql-editor" v-html="task.description"></div>
+          <div
+            class="task-description ql-editor"
+            v-html="task.description"
+          />
 
           <div class="task-images">
             <img
@@ -26,21 +39,40 @@
               :src="img"
               alt="Task image"
               class="task-image"
-            />
+            >
           </div>
 
-          <div class="task-files" v-if="task.task_files.length">
-            <div v-for="file in task.task_files" :key="file">
-              <a :href="file" target="_blank">📎 {{ getFileName(file) }}</a>
+          <div
+            v-if="task.task_files.length"
+            class="task-files"
+          >
+            <div
+              v-for="file in task.task_files"
+              :key="file"
+            >
+              <a
+                :href="file"
+                target="_blank"
+              >📎 {{ getFileName(file) }}</a>
             </div>
           </div>
 
-          <BaseButton class="solution-toggle" color="green" @click="toggleSolution">
+          <BaseButton
+            class="solution-toggle"
+            color="green"
+            @click="toggleSolution"
+          >
             {{ showSolution ? 'Скрыть' : 'Показать' }} решение
           </BaseButton>
 
-          <div v-if="showSolution" class="solution-section">
-            <div class="solution-text" v-html="task.solution_text"></div>
+          <div
+            v-if="showSolution"
+            class="solution-section"
+          >
+            <div
+              class="solution-text"
+              v-html="task.solution_text"
+            />
 
             <div class="solution-images">
               <img
@@ -49,7 +81,7 @@
                 :src="img"
                 alt="Solution image"
                 class="task-image"
-              />
+              >
             </div>
 
             <div class="solution-answer">

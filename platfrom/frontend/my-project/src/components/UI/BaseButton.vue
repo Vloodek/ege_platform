@@ -5,14 +5,13 @@
     @mouseenter="hover = true" 
     @mouseleave="hover = false"
   >
-    <slot></slot>
+    <slot />
   </button>
 </template>
 
 <script>
 export default {
-  name: "BaseButton",
-  emits: ['click'],  // добавляем объявление эмитируемых событий
+  name: "BaseButton",  // добавляем объявление эмитируемых событий
   props: {
     color: {
       type: String,
@@ -20,6 +19,7 @@ export default {
       validator: (value) => ["blue", "white", "gray", "green"].includes(value),
     },
   },
+  emits: ['click'],
   data() {
     return {
       hover: false, // Состояние для hover

@@ -1,5 +1,8 @@
 <template>
-  <div class="modal-overlay" @click.self="closeModal">
+  <div
+    class="modal-overlay"
+    @click.self="closeModal"
+  >
     <div class="modal-content">
       <h2>{{ submission ? "Редактировать ответ" : "Добавить ответ" }}</h2>
 
@@ -7,9 +10,21 @@
       <div v-if="existingSubmissionFiles.length">
         <p>Прикрепленные файлы:</p>
         <ul>
-          <li v-for="(file, index) in existingSubmissionFiles" :key="index">
-            <a :href="getFileUrl(file)" target="_blank">{{ getFileName(file) }}</a>
-            <button type="button" class="remove-btn" @click="removeSubmissionFile(index)">❌</button>
+          <li
+            v-for="(file, index) in existingSubmissionFiles"
+            :key="index"
+          >
+            <a
+              :href="getFileUrl(file)"
+              target="_blank"
+            >{{ getFileName(file) }}</a>
+            <button
+              type="button"
+              class="remove-btn"
+              @click="removeSubmissionFile(index)"
+            >
+              ❌
+            </button>
           </li>
         </ul>
       </div>
@@ -18,28 +33,59 @@
       <div v-if="uploadedFiles.length">
         <p>Новые файлы:</p>
         <ul>
-          <li v-for="(file, index) in uploadedFiles" :key="index">
+          <li
+            v-for="(file, index) in uploadedFiles"
+            :key="index"
+          >
             📄 {{ file.name }}
-            <button type="button" class="remove-btn" @click="removeUploadedFile(index)">❌</button>
+            <button
+              type="button"
+              class="remove-btn"
+              @click="removeUploadedFile(index)"
+            >
+              ❌
+            </button>
           </li>
         </ul>
       </div>
 
       <h3>Комментарий или ответ:</h3>
-      <textarea v-model="responseText" placeholder="Введите ваш ответ..."></textarea>
+      <textarea
+        v-model="responseText"
+        placeholder="Введите ваш ответ..."
+      />
 
       <h3>Прикрепить файлы:</h3>
-      <div class="file-drop-zone" @dragover.prevent @drop="handleDrop">
+      <div
+        class="file-drop-zone"
+        @dragover.prevent
+        @drop="handleDrop"
+      >
         <p>Перетащите файлы сюда или <span @click="selectFile">выберите файл</span></p>
-        <input type="file" multiple ref="fileInput" @change="handleFileUpload" hidden />
+        <input
+          ref="fileInput"
+          type="file"
+          multiple
+          hidden
+          @change="handleFileUpload"
+        >
       </div>
 
       <!-- Кнопки -->
       <div class="modal-actions">
-        <BaseButton color="green" @click="submitResponse" :disabled="isSubmitting">
+        <BaseButton
+          color="green"
+          :disabled="isSubmitting"
+          @click="submitResponse"
+        >
           {{ isSubmitting ? "Отправка..." : "Отправить" }}
         </BaseButton>
-        <BaseButton color="red" @click="closeModal">Отмена</BaseButton>
+        <BaseButton
+          color="red"
+          @click="closeModal"
+        >
+          Отмена
+        </BaseButton>
       </div>
     </div>
   </div>
@@ -65,6 +111,15 @@ export default {
       isSubmitting: false,
     };
   },
+  watch: {
+    submission(newVal) {
+      if (newVal) {
+        this.responseText = newVal.comment || "";
+        this.existingSubmissionFiles = [...newVal.files];
+        this.uploadedFiles = [];
+      }
+    },
+  },
   mounted() {
     // Получаем homeworkId по lesson_id из URL
     const lessonId = this.$route.params.id;
@@ -77,15 +132,6 @@ export default {
         console.error("Ошибка получения homeworkId:", error);
         alert("Не удалось загрузить данные домашнего задания");
       });
-  },
-  watch: {
-    submission(newVal) {
-      if (newVal) {
-        this.responseText = newVal.comment || "";
-        this.existingSubmissionFiles = [...newVal.files];
-        this.uploadedFiles = [];
-      }
-    },
   },
   methods: {
     closeModal() {

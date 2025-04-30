@@ -1,29 +1,45 @@
 <template>
   <div id="homeworks">
     <div class="container">
-      <SideBar :isTestActive="false" />
+      <SideBar :is-test-active="false" />
       <main class="main-content">
         <h2>Домашние задания</h2>
 
         <div class="filter-container">
           <label for="status-filter">Фильтр по статусу:</label>
-          <select id="status-filter" v-model="selectedStatus">
-            <option value="">Все</option>
-            <option value="graded">Оценено</option>
-            <option value="response_received">Получен ответ</option>
-            <option value="submitted">Отправлено</option>
-            <option value="not_submitted">Не выполнено</option>
+          <select
+            id="status-filter"
+            v-model="selectedStatus"
+          >
+            <option value="">
+              Все
+            </option>
+            <option value="graded">
+              Оценено
+            </option>
+            <option value="response_received">
+              Получен ответ
+            </option>
+            <option value="submitted">
+              Отправлено
+            </option>
+            <option value="not_submitted">
+              Не выполнено
+            </option>
           </select>
         </div>
 
         <div class="task-container">
           <div
-            class="task-block"
             v-for="(homework, index) in filteredHomeworks"
             :key="index"
+            class="task-block"
           >
             <div class="task-header-container">
-              <div class="task-header" :class="statusHeaderClass(homework)">
+              <div
+                class="task-header"
+                :class="statusHeaderClass(homework)"
+              >
                 {{ homework.description }}
               </div>
             </div>
@@ -34,15 +50,24 @@
                     src="@/assets/svg/sidebar/calendar.svg"
                     alt="calendar"
                     class="calendar-icon"
-                  />
+                  >
                   <span class="calendar-text">{{ formatTime(homework.date) }}</span>
                 </div>
-                <div class="task-status" v-if="homework.status">
-                  <img :src="getStatusIcon(homework.status)" class="status-icon" />
+                <div
+                  v-if="homework.status"
+                  class="task-status"
+                >
+                  <img
+                    :src="getStatusIcon(homework.status)"
+                    class="status-icon"
+                  >
                   <span class="task-status-text">{{ statusLabel(homework.status) }}</span>
                 </div>
               </div>
-              <BaseButton :color="buttonColor" @click="handleButtonClick(homework)">
+              <BaseButton
+                :color="buttonColor"
+                @click="handleButtonClick(homework)"
+              >
                 {{ buttonText }}
               </BaseButton>
             </div>

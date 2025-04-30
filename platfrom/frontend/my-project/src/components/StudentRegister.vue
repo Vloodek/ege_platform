@@ -5,25 +5,64 @@
       <form @submit.prevent="handleSubmit">
         <div class="form-group">
           <label for="email">Email:</label>
-          <input v-model="email" type="email" id="email" required />
+          <input
+            id="email"
+            v-model="email"
+            type="email"
+            required
+          >
         </div>
         <div class="form-group">
           <label for="password">Пароль:</label>
-          <input v-model="password" type="password" id="password" required />
+          <input
+            id="password"
+            v-model="password"
+            type="password"
+            required
+          >
         </div>
-        <div v-if="!isLogin" class="form-group">
+        <div
+          v-if="!isLogin"
+          class="form-group"
+        >
           <label for="name">Имя:</label>
-          <input v-model="name" type="text" id="name" required />
+          <input
+            id="name"
+            v-model="name"
+            type="text"
+            required
+          >
         </div>
-        <button type="submit" :disabled="isSubmitting">{{ isLogin ? 'Войти' : 'Зарегистрироваться' }}</button>
+        <button
+          type="submit"
+          :disabled="isSubmitting"
+        >
+          {{ isLogin ? 'Войти' : 'Зарегистрироваться' }}
+        </button>
       </form>
 
-      <p v-if="error" class="error-message">{{ error }}</p>
-      <p v-if="success" class="success-message">{{ isLogin ? 'Добро пожаловать!' : 'Регистрация успешна!' }}</p>
+      <p
+        v-if="error"
+        class="error-message"
+      >
+        {{ error }}
+      </p>
+      <p
+        v-if="success"
+        class="success-message"
+      >
+        {{ isLogin ? 'Добро пожаловать!' : 'Регистрация успешна!' }}
+      </p>
 
       <p>
-        <span v-if="isLogin">Нет аккаунта? <a href="#" @click="toggleForm">Зарегистрироваться</a></span>
-        <span v-else>Есть аккаунт? <a href="#" @click="toggleForm">Войти</a></span>
+        <span v-if="isLogin">Нет аккаунта? <a
+          href="#"
+          @click="toggleForm"
+        >Зарегистрироваться</a></span>
+        <span v-else>Есть аккаунт? <a
+          href="#"
+          @click="toggleForm"
+        >Войти</a></span>
       </p>
     </div>
   </div>
@@ -42,6 +81,20 @@ export default {
       isSubmitting: false,
       isLogin: false,
     };
+  },
+
+  mounted() {
+    const isLoggedIn = localStorage.getItem('access_token');
+    if (isLoggedIn) {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user) {
+        this.userName = user.name;  // Извлекаем имя пользователя
+      }
+
+      this.$nextTick(() => {
+        this.$router.push('/');  // Перенаправление на страницу StudentCalendar
+      });
+    }
   },
   methods: {
     async handleSubmit() {
@@ -99,20 +152,6 @@ export default {
     toggleForm() {
       this.isLogin = !this.isLogin;
     },
-  },
-
-  mounted() {
-    const isLoggedIn = localStorage.getItem('access_token');
-    if (isLoggedIn) {
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (user) {
-        this.userName = user.name;  // Извлекаем имя пользователя
-      }
-
-      this.$nextTick(() => {
-        this.$router.push('/');  // Перенаправление на страницу StudentCalendar
-      });
-    }
   }
 };
 </script>
